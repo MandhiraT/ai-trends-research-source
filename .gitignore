@@ -1,0 +1,48 @@
+# Credentials
+.env
+credentials.env
+*.env
+
+# Generated reports (tracked in separate repo: MandhiraT/ai-trends-research)
+ai_trends_reports/
+joanna_wiebe_reports/
+
+# State trackers
+last_processed_*.json
+content_hashes_*.json
+
+# Logs
+logs/
+*.log
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Legacy scripts (not committed)
+scripts/*_v2.py
+scripts/*_no_dupe.py
+scripts/run_ai_trends_research.py
+scripts/run_claude_code_subtopics.py
+scripts/upload_reports_to_github.py
+scripts/upload_reports_to_github_enhanced.py
+scripts/upload_joanna_wiebe_to_github.py
+scripts/summarize_with_llm.py
+scripts/joanna_wiebe_research.py
+scripts/ai_trends_daily_monitor.py
+scripts/ai_trends_daily_summary.py
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+*.swp
+
+# OpenClaw agent files (not part of project)
+AGENTS.md
+IDENTITY.md
+SOUL.md
+USER.md
+HEARTBEAT.md
+tasks.json
