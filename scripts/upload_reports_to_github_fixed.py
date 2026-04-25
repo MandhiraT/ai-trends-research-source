@@ -112,7 +112,8 @@ def upload_reports():
     print(f"\n📊 Total files to upload: {len(uploaded_files)}")
 
     # Git add, commit, push
-    if not run_git_command(["git", "add", "."], LOCAL_REPO_PATH):
+    # --no-all: stage new/modified files only, never stage deletions
+    if not run_git_command(["git", "add", "--no-all", "."], LOCAL_REPO_PATH):
         return False
 
     # Check if there are changes to commit
