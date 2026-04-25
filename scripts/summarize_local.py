@@ -55,6 +55,27 @@ def _get_youtube_transcript(video_url: str) -> str:
 
 
 def _call_provider(provider: str, prompt: str, system_prompt: str = '') -> str:
+    if provider == 'gemini':
+        api_key = os.environ.get('GEMINI_API_KEY', '')
+        if not api_key:
+            raise ValueError("No GEMINI_API_KEY set")
+        model = os.environ.get('GEMINI_MODEL', 'gemini-2.5-flash')
+        url = f'https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}'
+        contents = []
+        if system_prompt:
+            contents.append({'role': 'user', 'parts': [{'text': system_prompt}]})
+            contents.append({'role': 'model', 'parts': [{'text': 'Understood.'}]})
+        contents.append({'role': 'user', 'parts': [{'text': prompt}]})
+        resp = requests.post(url, json={'contents': contents,
+                                        'generationConfig': {'maxOutputTokens': 4096, 'temperature': 0.3}},
+                             timeout=60)
+        resp.raise_for_status()
+        data = resp.json()
+        try:
+            return data['candidates'][0]['content']['parts'][0]['text'].strip()
+        except (KeyError, IndexError):
+            raise ValueError(f"No content from gemini: {data}")
+
     cfg = {
         'qwen': {
             'url': os.environ.get('QWEN_BASE_URL',
@@ -128,11 +149,18 @@ Provide a structured markdown summary with:
 
 Keep it concise and practical."""
 
-    # Try providers with fallback
+    # Try providers with fallback (Gemini always last resort)
     primary  = os.environ.get('TRENDS_PRIMARY_PROVIDER',  'qwen')
     fallback = os.environ.get('TRENDS_FALLBACK_PROVIDER', 'glm')
+    providers = [p for p in [primary, fallback, 'gemini'] if p not in [primary, fallback][1:] or p == 'gemini']
+    # Deduplicate while preserving order
+    seen, providers = set(), []
+    for p in [primary, fallback, 'gemini']:
+        if p not in seen:
+            seen.add(p)
+            providers.append(p)
 
-    for provider in [primary, fallback]:
+    for provider in providers:
         try:
             return _call_provider(provider, prompt, system_prompt)
         except Exception as e:
