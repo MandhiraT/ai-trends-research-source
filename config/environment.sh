@@ -12,8 +12,8 @@ export PROMPTS_DIR="$PROJECT_ROOT/prompts"
 export REPORTS_DIR="$PROJECT_ROOT/ai_trends_reports"
 export LOGS_DIR="$PROJECT_ROOT/logs"
 
-# Credentials (override via env var or credentials.env)
-export CREDENTIALS_FILE="${CREDENTIALS_FILE:-$PROJECT_ROOT/credentials.env}"
+# Credentials (override via env var; default to global ~/.credentials.env like FAW)
+export CREDENTIALS_FILE="${CREDENTIALS_FILE:-$HOME/.credentials.env}"
 
 # Load credentials if file exists
 if [ -f "$CREDENTIALS_FILE" ]; then
