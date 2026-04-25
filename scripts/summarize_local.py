@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
 summarize_local.py — drop-in replacement for the `summarize` CLI.
-Uses Qwen (primary) / GLM (fallback) / Gemini (last resort) directly.
+Providers: vertex (Vertex AI ADC) → qwen → glm → gemini (AI Studio) → gemma
 
 Usage (as library):
     from summarize_local import summarize_video
     result = summarize_video(video_url, prompt_file, language='th')
 
-Usage (as CLI, same interface as `summarize` CLI):
+Usage (as CLI):
     python3 summarize_local.py <video_url> --youtube auto --language th --prompt-file ...
 """
 
@@ -55,6 +55,26 @@ def _get_youtube_transcript(video_url: str) -> str:
 
 
 def _call_provider(provider: str, prompt: str, system_prompt: str = '') -> str:
+    if provider == 'vertex':
+        from google import genai as _genai
+        _project  = os.environ.get('VERTEX_PROJECT_ID', '')
+        _location = os.environ.get('VERTEX_LOCATION', 'us-central1')
+        _model    = os.environ.get('VERTEX_MODEL', 'gemini-2.5-flash')
+        if not _project:
+            raise ValueError("VERTEX_PROJECT_ID not set")
+        _client = _genai.Client(vertexai=True, project=_project, location=_location)
+        _contents = []
+        if system_prompt:
+            _contents.append(f"[System]: {system_prompt}\n\n{prompt}")
+        else:
+            _contents.append(prompt)
+        _response = _client.models.generate_content(
+            model=_model,
+            contents=_contents,
+            config=_genai.types.GenerateContentConfig(
+                max_output_tokens=8192, temperature=0.3))
+        return _response.text.strip()
+
     if provider in ('gemini', 'gemma'):
         api_key = os.environ.get('GEMINI_API_KEY', '')
         if not api_key:
@@ -174,13 +194,11 @@ Provide a structured markdown summary with:
 
 Keep it concise and practical."""
 
-    # Try providers with fallback (Gemini always last resort)
-    primary  = os.environ.get('TRENDS_PRIMARY_PROVIDER',  'qwen')
-    fallback = os.environ.get('TRENDS_FALLBACK_PROVIDER', 'glm')
-    providers = [p for p in [primary, fallback, 'gemini'] if p not in [primary, fallback][1:] or p == 'gemini']
-    # Deduplicate while preserving order; gemma is last-resort if all else fails
+    # Provider chain: vertex (GCP ADC) → qwen → glm → gemini (AI Studio) → gemma
+    primary  = os.environ.get('TRENDS_PRIMARY_PROVIDER',  'vertex')
+    fallback = os.environ.get('TRENDS_FALLBACK_PROVIDER', 'qwen')
     seen, providers = set(), []
-    for p in [primary, fallback, 'gemini', 'gemma']:
+    for p in [primary, fallback, 'glm', 'gemini', 'gemma']:
         if p not in seen:
             seen.add(p)
             providers.append(p)
