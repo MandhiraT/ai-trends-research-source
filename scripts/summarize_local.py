@@ -131,9 +131,24 @@ def summarize_video(
         with open(prompt_file, encoding='utf-8') as f:
             system_prompt = f.read().strip()
 
-    lang_instruction = 'Write in Thai language (ภาษาไทย).' if language == 'th' else f'Write in {language}.'
+    if language == 'th':
+        prompt = f"""คุณต้องเขียนคำตอบเป็นภาษาไทยทั้งหมดเท่านั้น ห้ามใช้ภาษาอังกฤษในเนื้อหาเด็ดขาด
 
-    prompt = f"""{lang_instruction}
+สรุปเนื้อหาวิดีโอ YouTube นี้สำหรับการตลาด:
+URL: {video_url}
+หัวข้อ: {topic or 'เทรนด์ AI และเทคโนโลยี'}
+
+{'เนื้อหาจากวิดีโอ: ' + transcript[:3000] if transcript else 'ไม่มี transcript — สรุปจาก URL และชื่อวิดีโอ'}
+
+สรุปเป็น markdown ภาษาไทย:
+1. **หัวข้อหลัก** — วิดีโอนี้พูดถึงอะไร
+2. **ข้อมูลเชิงลึก** — 3-5 ประเด็นที่นำไปใช้ได้จริง
+3. **เทรนด์ที่เกี่ยวข้อง** — เทรนด์อะไรที่ถูกพูดถึง
+4. **มุมมองสำหรับ Facebook** — นำไปใช้สร้าง content ได้อย่างไร
+
+เขียนเป็นภาษาไทยทั้งหมด กระชับและใช้งานได้จริง"""
+    else:
+        prompt = f"""Write in {language}.
 
 Summarize this YouTube video content for affiliate/content marketing use.
 Video URL: {video_url}
