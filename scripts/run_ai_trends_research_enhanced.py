@@ -146,21 +146,21 @@ def process_video_with_summarize(video_url, topic, video_title="Unknown", detail
         prompt_file = THAI_SUMMARY_PROMPT
         print(f"  → Using standard prompt")
     
-    # Use summarize CLI to get structured analysis in Thai
-    cmd = [
-        "summarize",
-        video_url,
-        "--youtube", "auto",
-        "--format", "md",
-        "--markdown-mode", "llm",
-        "--language", "th",
-        "--length", "xl",
-        "--model", "google/gemini-3-flash-preview",
-        "--prompt-file", prompt_file
-    ]
-    
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    
+    # Use summarize_local.py — AI provider (Qwen/GLM) instead of summarize CLI
+    try:
+        import importlib.util, sys as _sys
+        _spec = importlib.util.spec_from_file_location(
+            "summarize_local",
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), "summarize_local.py")
+        )
+        _mod = importlib.util.module_from_spec(_spec)
+        _spec.loader.exec_module(_mod)
+        _summary_text = _mod.summarize_video(video_url, prompt_file=prompt_file, language="th", topic=topic)
+        result = type('R', (), {'returncode': 0, 'stdout': _summary_text, 'stderr': ''})()
+    except Exception as _e:
+        print(f"summarize_local error: {_e}")
+        result = type('R', (), {'returncode': 1, 'stdout': '', 'stderr': str(_e)})()
+
     if result.returncode != 0:
         print(f"Summarize error: {result.stderr}")
         return {

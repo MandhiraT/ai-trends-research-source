@@ -122,20 +122,20 @@ def process_video_with_summarize(video_url, topic, video_title="Unknown"):
     """Process single video using summarize skill"""
     print(f"Processing with summarize: {video_title}")
     
-    cmd = [
-        "summarize",
-        video_url,
-        "--youtube", "auto",
-        "--format", "md",
-        "--markdown-mode", "llm",
-        "--language", "th",
-        "--length", "xl",
-        "--model", "google/gemini-3-flash-preview",
-        "--prompt-file", THAI_SUMMARY_PROMPT
-    ]
-    
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    
+    try:
+        import importlib.util
+        _spec = importlib.util.spec_from_file_location(
+            "summarize_local",
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), "summarize_local.py")
+        )
+        _mod = importlib.util.module_from_spec(_spec)
+        _spec.loader.exec_module(_mod)
+        summary_text = _mod.summarize_video(video_url, prompt_file=THAI_SUMMARY_PROMPT,
+                                             language="th", topic=topic)
+        result = type('R', (), {'returncode': 0, 'stdout': summary_text, 'stderr': ''})()
+    except Exception as _e:
+        result = type('R', (), {'returncode': 1, 'stdout': '', 'stderr': str(_e)})()
+
     if result.returncode != 0:
         print(f"Summarize error: {result.stderr}")
         return {
