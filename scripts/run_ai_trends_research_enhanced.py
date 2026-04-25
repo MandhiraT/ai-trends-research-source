@@ -29,6 +29,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 from datetime import datetime, timezone
 
 WORKSPACE = PROJECT_ROOT
@@ -294,6 +295,7 @@ def main():
             print(f"✅ Processed: {video_title}")
         else:
             print(f"❌ Failed to process: {video_title}")
+        time.sleep(15)  # avoid Gemini free-tier 429 rate limit
     
     if not all_video_data:
         print("Failed to process any video")

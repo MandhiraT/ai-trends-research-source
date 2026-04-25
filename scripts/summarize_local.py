@@ -55,11 +55,11 @@ def _get_youtube_transcript(video_url: str) -> str:
 
 
 def _call_provider(provider: str, prompt: str, system_prompt: str = '') -> str:
-    if provider == 'gemini':
+    if provider in ('gemini', 'gemma'):
         api_key = os.environ.get('GEMINI_API_KEY', '')
         if not api_key:
             raise ValueError("No GEMINI_API_KEY set")
-        model = os.environ.get('GEMINI_MODEL', 'gemini-2.5-flash')
+        model = 'gemma-3-4b-it' if provider == 'gemma' else os.environ.get('GEMINI_MODEL', 'gemini-2.5-flash')
         url = f'https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}'
         contents = []
         if system_prompt:
@@ -153,19 +153,27 @@ Keep it concise and practical."""
     primary  = os.environ.get('TRENDS_PRIMARY_PROVIDER',  'qwen')
     fallback = os.environ.get('TRENDS_FALLBACK_PROVIDER', 'glm')
     providers = [p for p in [primary, fallback, 'gemini'] if p not in [primary, fallback][1:] or p == 'gemini']
-    # Deduplicate while preserving order
+    # Deduplicate while preserving order; gemma is last-resort if all else fails
     seen, providers = set(), []
-    for p in [primary, fallback, 'gemini']:
+    for p in [primary, fallback, 'gemini', 'gemma']:
         if p not in seen:
             seen.add(p)
             providers.append(p)
 
+    import time as _time
     for provider in providers:
-        try:
-            return _call_provider(provider, prompt, system_prompt)
-        except Exception as e:
-            print(f"[summarize_local] {provider} failed: {e}", file=sys.stderr)
-            continue
+        for attempt in range(3):
+            try:
+                return _call_provider(provider, prompt, system_prompt)
+            except Exception as e:
+                msg = str(e)
+                if '429' in msg:
+                    wait = 60 * (attempt + 1)
+                    print(f"[summarize_local] {provider} rate limited, waiting {wait}s...", file=sys.stderr)
+                    _time.sleep(wait)
+                    continue
+                print(f"[summarize_local] {provider} failed: {e}", file=sys.stderr)
+                break
 
     return f"# Summary unavailable\n\nURL: {video_url}\nAll AI providers failed."
 
