@@ -132,7 +132,17 @@ def summarize_video(
             system_prompt = f.read().strip()
 
     if language == 'th':
-        prompt = f"""คุณต้องเขียนคำตอบเป็นภาษาไทยทั้งหมดเท่านั้น ห้ามใช้ภาษาอังกฤษในเนื้อหาเด็ดขาด
+        if system_prompt:
+            # system_prompt (from prompt file) controls structure — just provide video data
+            prompt = f"""เขียนคำตอบเป็นภาษาไทยทั้งหมดเท่านั้น ห้ามใช้ภาษาอังกฤษในเนื้อหา
+
+วิดีโอ: {video_url}
+หัวข้อ: {topic or 'เทรนด์ AI และเทคโนโลยี'}
+
+{'เนื้อหาจากวิดีโอ:\n' + transcript[:4000] if transcript else 'ไม่มี transcript — สรุปจาก URL และชื่อวิดีโอ โดยใช้ความรู้เกี่ยวกับ ' + (topic or 'AI') + ' ที่มีอยู่'}"""
+        else:
+            # No prompt file — use default Thai structure
+            prompt = f"""คุณต้องเขียนคำตอบเป็นภาษาไทยทั้งหมดเท่านั้น ห้ามใช้ภาษาอังกฤษในเนื้อหาเด็ดขาด
 
 สรุปเนื้อหาวิดีโอ YouTube นี้สำหรับการตลาด:
 URL: {video_url}
