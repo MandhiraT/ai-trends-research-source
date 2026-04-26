@@ -118,10 +118,12 @@ def create_content_hash(title, description="", duration=0):
     content_string = f"{title}|{description}|{duration}"
     return hashlib.md5(content_string.encode()).hexdigest()
 
-def process_video_with_summarize(video_url, topic, video_title="Unknown"):
+def process_video_with_summarize(video_url, topic, video_title="Unknown", detailed=False):
     """Process single video using summarize skill"""
+    prompt_file = THAI_SUMMARY_PROMPT_DETAILED if detailed else THAI_SUMMARY_PROMPT
     print(f"Processing with summarize: {video_title}")
-    
+    print(f"  → Using {'detailed' if detailed else 'standard'} prompt")
+
     try:
         import importlib.util
         _spec = importlib.util.spec_from_file_location(
@@ -130,7 +132,7 @@ def process_video_with_summarize(video_url, topic, video_title="Unknown"):
         )
         _mod = importlib.util.module_from_spec(_spec)
         _spec.loader.exec_module(_mod)
-        summary_text = _mod.summarize_video(video_url, prompt_file=THAI_SUMMARY_PROMPT,
+        summary_text = _mod.summarize_video(video_url, prompt_file=prompt_file,
                                              language="th", topic=topic)
         result = type('R', (), {'returncode': 0, 'stdout': summary_text, 'stderr': ''})()
     except Exception as _e:
@@ -164,6 +166,7 @@ def main():
     parser = argparse.ArgumentParser(description="Claude Code Subtopics Research - Enhanced")
     parser.add_argument("--max-results", type=int, default=3, help="Max videos per subtopic (default: 3)")
     parser.add_argument("--total-videos", type=int, default=8, help="Total videos across all subtopics (default: 8)")
+    parser.add_argument("--detailed", action="store_true", help="Use detailed Thai prompt for comprehensive summaries")
     args = parser.parse_args()
 
     subtopics = [
@@ -242,7 +245,7 @@ def main():
             
             print(f"Processing: {video_title}")
             
-            video_data = process_video_with_summarize(video_url, subtopic, video_title)
+            video_data = process_video_with_summarize(video_url, subtopic, video_title, detailed=args.detailed)
             video_data['subtopic'] = subtopic
             
             if video_data:

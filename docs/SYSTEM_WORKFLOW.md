@@ -99,13 +99,15 @@ crontab -l | grep "ai_trends\|NATEHERK\|Joanna\|subtopics\|daily_summary"
 
 | เวลา (Bangkok) | Script | Arguments |
 |---|---|---|
-| 05:00 | run_ai_trends_with_creds.sh | `--topic "AI Agents" --max-results 5` |
-| 05:20 | run_ai_trends_with_creds.sh | `--topic "Claude Code" --max-results 5` |
-| 05:40 | run_ai_trends_with_creds.sh | `--topic "AI Viral Niche" --max-results 5` |
-| 06:00 | run_ai_trends_with_creds.sh | `--topic "NATEHERK" --channel @NATEHERK --max-results 3` |
-| 06:25 | run_ai_trends_with_creds.sh | `--topic "Joanna Wiebe" --channel @joanna-wiebe --max-results 3` |
-| 06:55 | run_claude_code_subtopics_with_creds.sh | `--max-results 3 --total-videos 8` |
-| 07:40 | run_daily_summary_cron.sh | — |
+| 12:00 | run_ai_trends_with_creds.sh | `--topic "AI Agents" --max-results 5 --detailed` |
+| 12:20 | run_ai_trends_with_creds.sh | `--topic "Claude Code" --max-results 5 --detailed` |
+| 12:40 | run_ai_trends_with_creds.sh | `--topic "AI Viral Niche" --max-results 5 --detailed` |
+| 13:00 | run_ai_trends_with_creds.sh | `--topic "NATEHERK" --channel @NATEHERK --max-results 3 --detailed` |
+| 13:25 | run_ai_trends_with_creds.sh | `--topic "Joanna Wiebe" --channel @joanna-wiebe --max-results 3 --detailed` |
+| 13:55 | run_claude_code_subtopics_with_creds.sh | `--max-results 3 --total-videos 8 --detailed` |
+| 14:40 | run_daily_summary_cron.sh | — |
+
+> หมายเหตุ: Crontab ใช้ UTC — เวลา Bangkok = UTC+7. **Reports พร้อม ~14:45 Bangkok ทุกวัน**
 
 ---
 

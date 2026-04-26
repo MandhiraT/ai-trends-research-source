@@ -1,17 +1,19 @@
 # AI Trends Research — Session Briefing
 
-> Read this first. Everything you need is here — no codebase exploration needed.
+> Read this first. Everything you need is here — no codebase exploration needed.  
+> For full task board and feature list, see `docs/TASKS.md`.
 
 ---
 
 ## What this is
 
-Automated daily AI trends research from YouTube. Scrapes videos → generates Thai summaries → pushes reports to GitHub. Runs fully on OpenClaw cron jobs (not system crontab).
+Automated daily AI trends research from YouTube. Scrapes videos → generates **detailed Thai summaries (2000-3000 words)** → pushes reports to GitHub. Runs on **system crontab** (not OpenClaw).
 
 **Source code (edit here):** `/home/mandhira/Desktop/projects/ai-trends-research-source/`  
-**Production runtime:** `/home/mandhira/.openclaw/workspace-atlas/scripts/` (synced from source)  
 **Reports repo (output):** https://github.com/MandhiraT/ai-trends-research  
 **Source repo:** https://github.com/MandhiraT/ai-trends-research-source
+
+> ⚠️ `/home/mandhira/.openclaw/workspace-atlas/scripts/` is legacy — all cron jobs now point to source directly. Do NOT edit workspace-atlas.
 
 ---
 
@@ -19,50 +21,56 @@ Automated daily AI trends research from YouTube. Scrapes videos → generates Th
 
 | File | Purpose |
 |------|---------|
-| `scripts/run_ai_trends_research_enhanced.py` | Main researcher — yt-dlp search → summarize CLI → markdown report |
+| `scripts/run_ai_trends_research_enhanced.py` | Main researcher — yt-dlp search/channel → summarize_local.py → markdown report |
 | `scripts/run_claude_code_subtopics_enhanced.py` | Same but for 4 Claude Code subtopics |
+| `scripts/summarize_local.py` | Calls Vertex AI (ADC) → qwen → glm → gemini → gemma fallback chain |
 | `scripts/ai_trends_daily_summary_thai.py` | Generates daily digest with GitHub links (Thai) |
 | `scripts/upload_reports_to_github_fixed.py` | Clones reports repo → copies files → git push |
 | `scripts/run_ai_trends_with_creds.sh` | Bash wrapper — sources credentials.env, calls Python |
 | `scripts/run_claude_code_subtopics_with_creds.sh` | Same wrapper for subtopics script |
+| `scripts/run_all_today.sh` | Runs full 7-step pipeline manually (same as cron) |
+| `scripts/run_daily_summary_cron.sh` | Daily summary + GitHub upload step |
 | `config/paths.py` | All path constants + `load_credentials()` — import at top of every script |
 | `credentials.env` | API keys (not committed — see credentials.env.example) |
-| `prompts/thai_summary_prompt.txt` | Standard Thai summary prompt |
-| `prompts/thai_summary_prompt_detailed.txt` | Detailed Thai summary prompt |
+| `prompts/thai_summary_prompt.txt` | Standard Thai summary (slide-based, ~500 words) — NOT used in prod |
+| `prompts/thai_summary_prompt_detailed.txt` | Detailed Thai summary (section-based, 2000-3000 words) — **always use this** |
+| `docs/TASKS.md` | Task board, feature list, known bugs, backlog |
+| `docs/SYSTEM_WORKFLOW.md` | Full architecture and troubleshooting guide |
 
 ---
 
 ## Monitored Channels / Topics
 
-| Topic | Source | Schedule |
-|-------|--------|----------|
-| AI Agents | YouTube search | 09:30 ICT |
-| Claude Code | YouTube search | 09:30 ICT |
-| Joanna Wiebe | @joanna-wiebe channel | 09:45 ICT |
-| AI Viral Niche | YouTube search | 10:00 ICT |
-| NATEHERK | @NATEHERK channel | 10:30 ICT |
-| Daily Summary (Thai) | Aggregates all above | 10:45 ICT |
-| Claude Code subtopics | 4 subtopics below | 11:15 ICT |
+| Topic | Source | Type |
+|-------|--------|------|
+| AI Agents | YouTube search | search |
+| Claude Code | YouTube search | search |
+| AI Viral Niche | YouTube search | search |
+| NATEHERK | @NATEHERK channel | channel |
+| Joanna Wiebe | @joanna-wiebe channel | channel |
+| Claude Code subtopics | YouTube search | search (4 subtopics) |
 
 **Claude Code subtopics:** obsidian · notebooklm · design · skills
 
 ---
 
-## Cron Schedule (OpenClaw — NOT system crontab)
+## Cron Schedule (System Crontab — UTC times)
 
-All jobs run via OpenClaw scheduled jobs. Check/manage at:
-```bash
-openclaw cron list   # or via OpenClaw dashboard
-```
+> All cron times are **UTC**. Bangkok (ICT) = UTC+7.
 
-| Time (ICT) | Agent | What runs |
-|------------|-------|-----------|
-| 09:30 | atlas | AI Agents + Claude Code topics → GitHub upload |
-| 09:45 | main | Joanna Wiebe channel → GitHub upload |
-| 10:00 | main | AI Viral Niche → GitHub upload |
-| 10:30 | main | NATEHERK channel → GitHub upload |
-| 10:45 | atlas | Daily Thai summary → Telegram |
-| 11:15 | main | Claude Code subtopics (4x) → GitHub upload |
+| UTC | Bangkok (ICT) | Topic | Notes |
+|-----|--------------|-------|-------|
+| 05:00 | 12:00 | AI Agents | `--max-results 5 --detailed` |
+| 05:20 | 12:20 | Claude Code | `--max-results 5 --detailed` |
+| 05:40 | 12:40 | AI Viral Niche | `--max-results 5 --detailed` |
+| 06:00 | 13:00 | NATEHERK | `--max-results 3 --detailed` |
+| 06:25 | 13:25 | Joanna Wiebe | `--max-results 3 --detailed` |
+| 06:55 | 13:55 | Claude Code Subtopics | `--max-results 3 --total-videos 8 --detailed` |
+| 07:40 | 14:40 | Daily Summary + GitHub Upload | — |
+
+**Reports available on GitHub ~14:45 Bangkok every day.**
+
+> To view/edit crontab: `crontab -l` / `crontab -e`
 
 ---
 
@@ -71,15 +79,17 @@ openclaw cron list   # or via OpenClaw dashboard
 ```
 YouTube (yt-dlp search/channel scrape)
   ↓
-Duplicate check (MD5 content hash in ai_trends_reports/content_hashes_*.json)
+Duplicate check (MD5 hash of title+description+duration)
+  stored in: ai_trends_reports/content_hashes_*.json
   ↓
-summarize CLI  →  Gemini API (gemini-3-flash or Vertex)  →  Thai markdown
+summarize_local.py  →  Vertex AI ADC (primary)  →  Thai detailed markdown
+                    →  fallback: qwen → glm → gemini → gemma
   ↓
 Save to ai_trends_reports/reports/{topic}/{YYYY-MM-DD}.md
   ↓
 upload_reports_to_github_fixed.py → git push → MandhiraT/ai-trends-research
   ↓
-Telegram notification (daily digest at 10:45)
+Telegram notification (daily digest ~14:40 Bangkok)
 ```
 
 ---
@@ -92,13 +102,13 @@ ai_trends_reports/
 │   ├── ai_agents/           → YouTube search "AI Agents"
 │   ├── ai_viral_niche/      → YouTube search "AI Viral Niche"
 │   ├── NATEHERK/            → @NATEHERK channel
-│   ├── joanna-wiebe/        → @joanna-wiebe channel
+│   ├── joanna_wiebe/        → @joanna-wiebe channel
 │   └── claude_code/
-│       ├── obsidian/
-│       ├── notebooklm/
-│       ├── design/
-│       └── skills/
-├── content_hashes_*.json    → Dedup tracking per topic
+│       ├── claude_code_obsidian/
+│       ├── claude_code_notebooklm/
+│       ├── claude_code_design/
+│       └── claude_code_skills/
+├── content_hashes_*.json    → Dedup state per topic
 └── last_processed_*.json    → Last run timestamp per topic
 ```
 
@@ -110,58 +120,75 @@ ai_trends_reports/
 
 | Key | Used for |
 |-----|---------|
-| `GEMINI_API_KEY` | Video summarization via summarize CLI |
+| `GEMINI_API_KEY` | Fallback summarization |
 | `GITHUB_TOKEN` | Push reports to MandhiraT/ai-trends-research |
 | `GITHUB_REPO` | `MandhiraT/ai-trends-research` |
 | `GIT_USER_EMAIL` / `GIT_USER_NAME` | Git commit identity |
+
+Vertex AI uses **Application Default Credentials (ADC)** — no key in credentials.env.
 
 ---
 
 ## Common Tasks
 
-**Run a topic manually:**
+**Run full pipeline manually (with detailed summaries):**
 ```bash
 cd /home/mandhira/Desktop/projects/ai-trends-research-source
-source credentials.env
-python3 scripts/run_ai_trends_research_enhanced.py --topic "AI Agents" --max-results 5
+bash scripts/run_all_today.sh
 ```
 
-**Run Claude Code subtopics manually:**
+**Run a single topic:**
 ```bash
-source credentials.env
-python3 scripts/run_claude_code_subtopics_enhanced.py --max-results 3 --total-videos 8
+bash scripts/run_ai_trends_with_creds.sh --topic "AI Agents" --max-results 5 --detailed
 ```
 
-**Generate Thai daily summary:**
+**Run a channel topic:**
 ```bash
-source credentials.env
-python3 scripts/ai_trends_daily_summary_thai.py
+bash scripts/run_ai_trends_with_creds.sh \
+  --topic "NATEHERK" \
+  --channel "https://youtube.com/@NATEHERK" \
+  --max-results 3 --detailed
 ```
 
-**Upload reports to GitHub:**
+**Run Claude Code subtopics:**
 ```bash
-source credentials.env
-python3 scripts/upload_reports_to_github_fixed.py
+bash scripts/run_claude_code_subtopics_with_creds.sh --max-results 3 --total-videos 8 --detailed
+```
+
+**Generate Thai daily summary + upload to GitHub:**
+```bash
+bash scripts/run_daily_summary_cron.sh
 ```
 
 **Check today's reports:**
 ```bash
-ls ai_trends_reports/reports/*/$(date +%Y-%m-%d).md 2>/dev/null
 find ai_trends_reports/reports -name "$(date +%Y-%m-%d).md"
 ```
 
-**Check content hashes (dedup state):**
+**Check dedup state (hash counts per topic):**
 ```bash
-python3 -c "import json; print(json.load(open('ai_trends_reports/content_hashes_ai_agents.json')))"
+python3 -c "
+import json, glob
+for f in sorted(glob.glob('ai_trends_reports/content_hashes_*.json') +
+                glob.glob('ai_trends_reports/reports/claude_code/content_hashes_*.json')):
+    d = json.load(open(f))
+    print(f'{f.split(\"/\")[-1]}: {len(d)} hashes')
+"
 ```
 
 ---
 
 ## Key Design Decisions (don't re-debate)
 
+- **`--detailed` flag is always required** — standard prompt produces ~500-word slide summaries; detailed produces 2000-3000 word section-based reports. All cron and manual runs must include `--detailed`.
 - **Dedup by MD5 hash** — not by video ID, to catch near-duplicate content across searches
-- **`summarize` CLI** — external tool wrapping Gemini/yt-dlp; not a Python import
-- **workspace-atlas** = production runtime; desktop project = source (edit here, sync there)
+- **`summarize_local.py`** — local Python module, NOT the external `summarize` CLI (which was removed)
+- **System crontab** is the scheduler — OpenClaw cron jobs are all disabled, do not use them
+- **Source dir is canonical** — workspace-atlas is legacy and out of sync; do not edit it
 - **`config/paths.py`** must be on `sys.path` before any other import in every script
 - **Thai output only** — all summaries generated in Thai regardless of video language
 - **GitHub reports repo ≠ source repo** — reports go to `ai-trends-research`, code to `ai-trends-research-source`
+
+---
+
+*Last updated: 2026-04-26 — Fixed --detailed flag in crontab/run_all_today.sh/subtopics script; re-ran all reports; created docs/TASKS.md*
