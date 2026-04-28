@@ -22,15 +22,18 @@ from datetime import datetime
 GITHUB_BASE = "https://github.com/MandhiraT/ai-trends-research/blob/master/reports"
 
 TOPICS = [
-    ("AI Agents",          "ai_agents",       "ai_agents"),
-    ("Claude Code",        "claude_code",      "claude_code"),
-    ("AI Viral Niche",     "ai_viral_niche",   "ai_viral_niche"),
-    ("NATEHERK",           "NATEHERK",         "NATEHERK"),
-    ("Joanna Wiebe",       "joanna_wiebe",     "joanna_wiebe"),
-    ("CC Obsidian",        "claude_code_obsidian",  "claude_code/claude_code_obsidian"),
-    ("CC NotebookLM",      "claude_code_notebooklm", "claude_code/claude_code_notebooklm"),
-    ("CC Design",          "claude_code_design",     "claude_code/claude_code_design"),
-    ("CC Skills",          "claude_code_skills",     "claude_code/claude_code_skills"),
+    ("AI Agents",          "ai_agents",              "ai_agents"),
+    ("Claude Code",        "claude_code",             "claude_code"),
+    ("AI Viral Niche",     "ai_viral_niche",          "ai_viral_niche"),
+    ("NATEHERK",           "NATEHERK",                "NATEHERK"),
+    ("Joanna Wiebe",       "joanna_wiebe",            "joanna_wiebe"),
+    ("Jacksons AI",        "jacksons_ai",             "jacksons_ai"),
+    ("Make Money Matt",    "make_money_matt",         "make_money_matt"),
+    ("Miss Luna Vega",     "miss_luna_vega",          "miss_luna_vega"),
+    ("CC Obsidian",        "claude_code_obsidian",    "claude_code/claude_code_obsidian"),
+    ("CC NotebookLM",      "claude_code_notebooklm",  "claude_code/claude_code_notebooklm"),
+    ("CC Design",          "claude_code_design",      "claude_code/claude_code_design"),
+    ("CC Skills",          "claude_code_skills",      "claude_code/claude_code_skills"),
 ]
 
 
@@ -44,7 +47,8 @@ def count_videos_in_report(report_path):
 
 
 def build_status(date_str):
-    reports_base = REPORTS_DIR if os.path.isdir(REPORTS_DIR) else os.path.join(PROJECT_ROOT, "ai_trends_reports", "reports")
+    # REPORTS_DIR = .../ai_trends_reports — reports are one level deeper in /reports/
+    reports_base = os.path.join(REPORTS_DIR, "reports")
 
     lines = []
     total_videos = 0
@@ -104,7 +108,7 @@ def generate_daily_summary():
     report_lines = [
         f"# AI Trends Research Status — {date_str}",
         f"Generated: {time_str}",
-        f"Topics with new content: {found}/9 | Total videos: {total_videos}",
+        f"Topics with new content: {found}/{len(TOPICS)} | Total videos: {total_videos}",
         "",
     ] + lines + [
         "",
@@ -117,7 +121,7 @@ def build_telegram_message(date_str, time_str, lines, total_videos, found):
     msg = (
         f"📊 <b>AI Trends Research — {date_str}</b>\n"
         f"เวลา: {time_str}\n"
-        f"Topics: {found}/9 | Videos: {total_videos} รายการ\n\n"
+        f"Topics: {found}/{len(TOPICS)} | Videos: {total_videos} รายการ\n\n"
     )
     for line in lines:
         # Shorten for Telegram — show only label + video count (first line)
