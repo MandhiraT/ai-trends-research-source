@@ -79,12 +79,16 @@ def build_status(date_str):
 
 
 def get_telegram_creds():
-    """Load bot token and chat_id from openclaw config."""
+    """Load bot token from Sati's Telegram channel config."""
     try:
-        cfg_path = os.path.expanduser("~/.openclaw/openclaw.json")
-        cfg = json.load(open(cfg_path))
-        bot_token = cfg.get("channels", {}).get("telegram", {}).get("accounts", {}).get("default", {}).get("botToken", "")
-        # chat_id from env or hardcoded from known session
+        env_path = os.path.expanduser("~/.claude/channels/telegram/.env")
+        bot_token = ""
+        with open(env_path) as f:
+            for line in f:
+                line = line.strip()
+                if line.startswith("TELEGRAM_BOT_TOKEN="):
+                    bot_token = line.split("=", 1)[1].strip()
+                    break
         chat_id = os.environ.get("TELEGRAM_CHAT_ID", "1043709932")
         return bot_token, chat_id
     except Exception:

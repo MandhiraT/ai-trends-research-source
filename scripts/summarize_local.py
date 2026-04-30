@@ -32,23 +32,31 @@ if os.path.exists(_CRED_FILE):
 
 def _get_youtube_transcript(video_url: str) -> str:
     """Extract transcript from YouTube video using yt-dlp."""
+    import re as _re
     try:
-        result = subprocess.run(
+        subprocess.run(
             ['yt-dlp', '--skip-download', '--write-auto-sub',
              '--sub-lang', 'en', '--sub-format', 'vtt',
              '--output', '/tmp/yt_transcript', video_url],
             capture_output=True, text=True, timeout=60
         )
-        # Try reading the generated vtt file
         for ext in ['.en.vtt', '.vtt']:
             path = f'/tmp/yt_transcript{ext}'
             if os.path.exists(path):
-                with open(path) as f:
-                    lines = [l.strip() for l in f if l.strip()
-                             and not l.startswith('WEBVTT')
-                             and '-->' not in l
-                             and not l.startswith('NOTE')]
-                return ' '.join(lines)[:6000]
+                with open(path, encoding='utf-8') as f:
+                    seen, lines_clean = set(), []
+                    for line in f:
+                        line = line.strip()
+                        if not line or '-->' in line:
+                            continue
+                        if any(line.startswith(p) for p in ('WEBVTT', 'NOTE', 'Kind:', 'Language:')):
+                            continue
+                        # Strip word-level timing tags: <00:00:01.520>, <c>, </c>
+                        clean = _re.sub(r'<[^>]+>', '', line).strip()
+                        if clean and clean not in seen:
+                            seen.add(clean)
+                            lines_clean.append(clean)
+                return ' '.join(lines_clean)[:30000]
     except Exception:
         pass
     return ''
@@ -72,7 +80,7 @@ def _call_provider(provider: str, prompt: str, system_prompt: str = '') -> str:
             model=_model,
             contents=_contents,
             config=_genai.types.GenerateContentConfig(
-                max_output_tokens=8192, temperature=0.3))
+                max_output_tokens=16384, temperature=0.3))
         return _response.text.strip()
 
     if provider in ('gemini', 'gemma'):
@@ -87,7 +95,7 @@ def _call_provider(provider: str, prompt: str, system_prompt: str = '') -> str:
             contents.append({'role': 'model', 'parts': [{'text': 'Understood.'}]})
         contents.append({'role': 'user', 'parts': [{'text': prompt}]})
         resp = requests.post(url, json={'contents': contents,
-                                        'generationConfig': {'maxOutputTokens': 4096, 'temperature': 0.3}},
+                                        'generationConfig': {'maxOutputTokens': 8192, 'temperature': 0.3}},
                              timeout=60)
         resp.raise_for_status()
         data = resp.json()
@@ -122,7 +130,7 @@ def _call_provider(provider: str, prompt: str, system_prompt: str = '') -> str:
     resp = requests.post(
         c['url'],
         headers={'Authorization': f"Bearer {c['key']}", 'Content-Type': 'application/json'},
-        json={'model': c['model'], 'messages': messages, 'max_tokens': 4096, 'temperature': 0.3},
+        json={'model': c['model'], 'messages': messages, 'max_tokens': 8192, 'temperature': 0.3},
         timeout=60
     )
     resp.raise_for_status()
@@ -159,7 +167,7 @@ def summarize_video(
 วิดีโอ: {video_url}
 หัวข้อ: {topic or 'เทรนด์ AI และเทคโนโลยี'}
 
-{'เนื้อหาจากวิดีโอ:\n' + transcript[:4000] if transcript else 'ไม่มี transcript — สรุปจาก URL และชื่อวิดีโอ โดยใช้ความรู้เกี่ยวกับ ' + (topic or 'AI') + ' ที่มีอยู่'}"""
+{'เนื้อหาจากวิดีโอ:\n' + transcript[:15000] if transcript else 'ไม่มี transcript — สรุปจาก URL และชื่อวิดีโอ โดยใช้ความรู้เกี่ยวกับ ' + (topic or 'AI') + ' ที่มีอยู่'}"""
         else:
             # No prompt file — use default Thai structure
             prompt = f"""คุณต้องเขียนคำตอบเป็นภาษาไทยทั้งหมดเท่านั้น ห้ามใช้ภาษาอังกฤษในเนื้อหาเด็ดขาด
