@@ -167,7 +167,7 @@ def summarize_video(
 วิดีโอ: {video_url}
 หัวข้อ: {topic or 'เทรนด์ AI และเทคโนโลยี'}
 
-{'เนื้อหาจากวิดีโอ:\n' + transcript[:15000] if transcript else 'ไม่มี transcript — สรุปจาก URL และชื่อวิดีโอ โดยใช้ความรู้เกี่ยวกับ ' + (topic or 'AI') + ' ที่มีอยู่'}"""
+{'เนื้อหาจากวิดีโอ:\n' + transcript[:25000] if transcript else 'ไม่มี transcript — สรุปจาก URL และชื่อวิดีโอ โดยใช้ความรู้เกี่ยวกับ ' + (topic or 'AI') + ' ที่มีอยู่'}"""
         else:
             # No prompt file — use default Thai structure
             prompt = f"""คุณต้องเขียนคำตอบเป็นภาษาไทยทั้งหมดเท่านั้น ห้ามใช้ภาษาอังกฤษในเนื้อหาเด็ดขาด
