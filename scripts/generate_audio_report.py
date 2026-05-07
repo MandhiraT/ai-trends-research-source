@@ -29,6 +29,7 @@ import wave
 import base64
 import argparse
 import tempfile
+import time
 from datetime import date as _date
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
@@ -112,6 +113,21 @@ def _condense_to_script(report_text: str, topic_name: str, date_str: str) -> str
     return _call_condense_model(full_prompt)
 
 
+def _clean_section_text(text: str) -> str:
+    """Strip markdown formatting so the condense model sees plain Thai prose."""
+    # Remove all heading markers (## ### ####) — they confuse section boundary detection
+    text = re.sub(r'^#{1,6}\s*', '', text, flags=re.MULTILINE)
+    # Remove bold/italic markers
+    text = re.sub(r'\*{1,3}', '', text)
+    text = re.sub(r'_{1,2}', '', text)
+    # Remove source/video-id metadata lines
+    text = re.sub(r'^\*\*Source:\*\*.*$', '', text, flags=re.MULTILINE)
+    text = re.sub(r'^\*\*Video ID:\*\*.*$', '', text, flags=re.MULTILINE)
+    # Collapse multiple blank lines
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    return text.strip()
+
+
 def _condense_video_section(section_text: str, video_title: str, date_str: str,
                             is_first: bool, is_last: bool) -> str:
     """Condense one video section → ~350-word Thai spoken segment."""
@@ -138,13 +154,13 @@ def _condense_video_section(section_text: str, video_title: str, date_str: str,
     if closing:
         prompt += f"8. ปิดท้ายด้วย: {closing}\n"
     prompt += "\nส่งคืนเฉพาะบทพูด ไม่ต้องอธิบาย ไม่ต้องใส่หัวข้อ ไม่ต้องบอกจำนวนคำ\n\n---\nเนื้อหาวิดีโอ:\n"
-    prompt += section_text[:15000]
+    prompt += _clean_section_text(section_text)[:15000]
 
     return _call_condense_model(prompt)
 
 
 def _call_condense_model(prompt: str) -> str:
-    """Call Gemini text model to condense content."""
+    """Call Gemini text model to condense content. Retries on 429 with backoff."""
     project  = os.environ.get('VERTEX_PROJECT_ID', '')
     location = os.environ.get('VERTEX_LOCATION', 'us-central1')
     if not project:
@@ -152,12 +168,22 @@ def _call_condense_model(prompt: str) -> str:
 
     from google import genai as _genai
     client = _genai.Client(vertexai=True, project=project, location=location)
-    response = client.models.generate_content(
-        model=CONDENSE_MODEL,
-        contents=prompt,
-        config=_genai.types.GenerateContentConfig(max_output_tokens=4096, temperature=0.7),
-    )
-    return response.text.strip()
+
+    for attempt in range(4):
+        try:
+            response = client.models.generate_content(
+                model=CONDENSE_MODEL,
+                contents=prompt,
+                config=_genai.types.GenerateContentConfig(max_output_tokens=4096, temperature=0.7),
+            )
+            return response.text.strip()
+        except Exception as e:
+            if '429' in str(e) and attempt < 3:
+                wait = 30 * (2 ** attempt)  # 30s, 60s, 120s
+                print(f'  [audio]     ⏳ Rate limited — waiting {wait}s before retry {attempt+1}/3...')
+                time.sleep(wait)
+            else:
+                raise
 
 
 def _text_to_wav(text: str, output_path: str, voice: str = DEFAULT_VOICE) -> None:
@@ -176,18 +202,29 @@ def _text_to_wav(text: str, output_path: str, voice: str = DEFAULT_VOICE) -> Non
     )
 
     client = _genai.Client(vertexai=True, project=project, location=location)
-    response = client.models.generate_content(
-        model=TTS_MODEL,
-        contents=text,
-        config=GenerateContentConfig(
-            response_modalities=['AUDIO'],
-            speech_config=SpeechConfig(
-                voice_config=VoiceConfig(
-                    prebuilt_voice_config=PrebuiltVoiceConfig(voice_name=voice)
-                )
-            ),
-        ),
-    )
+
+    for attempt in range(4):
+        try:
+            response = client.models.generate_content(
+                model=TTS_MODEL,
+                contents=text,
+                config=GenerateContentConfig(
+                    response_modalities=['AUDIO'],
+                    speech_config=SpeechConfig(
+                        voice_config=VoiceConfig(
+                            prebuilt_voice_config=PrebuiltVoiceConfig(voice_name=voice)
+                        )
+                    ),
+                ),
+            )
+            break
+        except Exception as e:
+            if ('429' in str(e) or 'Connection reset' in str(e)) and attempt < 3:
+                wait = 30 * (2 ** attempt)
+                print(f'  [audio]     ⏳ TTS rate limit/reset — waiting {wait}s...')
+                time.sleep(wait)
+            else:
+                raise
 
     raw = response.candidates[0].content.parts[0].inline_data.data
     # Vertex AI SDK returns raw bytes; AI Studio returns base64 string
@@ -286,12 +323,16 @@ def _generate_per_video(topic_key: str, date_str: str, report_text: str,
             label    = title or f'section_{i+1}'
             short    = label[:50]
 
+            if i > 0:
+                time.sleep(8)  # brief pause between sections to avoid quota bursts
+
             print(f'  [audio]   [{i+1}/{len(sections)}] 📝 Condensing: "{short}"...')
             try:
                 script = _condense_video_section(text, label, date_str, is_first, is_last)
                 # Retry once if output is too short — model sometimes under-generates
                 if len(script) < 500:
                     print(f'  [audio]   [{i+1}/{len(sections)}] ⚠️  Script too short ({len(script)} chars) — retrying...')
+                    time.sleep(10)
                     script2 = _condense_video_section(text, label, date_str, is_first, is_last)
                     if len(script2) > len(script):
                         script = script2
