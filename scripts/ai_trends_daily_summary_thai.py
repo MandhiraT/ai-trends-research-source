@@ -3,10 +3,11 @@
 import sys as _sys, os as _os
 _sys.path.insert(0, _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "..", "config"))
 try:
-    from paths import PROJECT_ROOT, REPORTS_DIR
+    from paths import PROJECT_ROOT, REPORTS_DIR, AUDIO_DIR
 except ImportError:
     PROJECT_ROOT = _os.path.abspath(_os.path.join(_os.path.dirname(_os.path.abspath(__file__)), ".."))
     REPORTS_DIR = _os.path.join(PROJECT_ROOT, "ai_trends_reports", "reports")
+    AUDIO_DIR   = _os.path.join(PROJECT_ROOT, "ai_trends_reports", "audio")
 
 """
 AI Trends Daily Summary — Thai status report with Telegram notification.
@@ -78,6 +79,33 @@ def build_status(date_str):
     return lines, total_videos, found, not_found
 
 
+AUDIO_CONFIG = _os.path.join(PROJECT_ROOT, 'config', 'audio_topics.json')
+GITHUB_AUDIO_BASE = "https://github.com/MandhiraT/ai-trends-research/tree/master/Voice"
+
+
+def build_audio_status(date_str):
+    """Check which enabled audio topics have a WAV file for date_str."""
+    try:
+        with open(AUDIO_CONFIG, encoding='utf-8') as f:
+            cfg = json.load(f)
+    except Exception:
+        return []
+
+    enabled    = cfg.get('enabled_topics', [])
+    folder_map = cfg.get('github_folder_map', {})
+    results = []
+    for topic in enabled:
+        wav = _os.path.join(AUDIO_DIR, topic, f'{date_str}.wav')
+        gh_folder = folder_map.get(topic, topic)
+        if _os.path.exists(wav):
+            size_mb = _os.path.getsize(wav) / (1024 * 1024)
+            url = f"{GITHUB_AUDIO_BASE}/{gh_folder}/{date_str}.wav"
+            results.append(('ok', topic, gh_folder, size_mb, url))
+        else:
+            results.append(('missing', topic, gh_folder, 0, ''))
+    return results
+
+
 def get_telegram_creds():
     """Load bot token from Sati's Telegram channel config."""
     try:
@@ -121,7 +149,7 @@ def generate_daily_summary():
     return "\n".join(report_lines), date_str, time_str, lines, total_videos, found
 
 
-def build_telegram_message(date_str, time_str, lines, total_videos, found):
+def build_telegram_message(date_str, time_str, lines, total_videos, found, audio_status=None):
     msg = (
         f"📊 <b>AI Trends Research — {date_str}</b>\n"
         f"เวลา: {time_str}\n"
@@ -140,6 +168,17 @@ def build_telegram_message(date_str, time_str, lines, total_videos, found):
             msg += f"{first}\n"
 
     msg += f"\n🔗 <a href='https://github.com/MandhiraT/ai-trends-research/tree/master/reports'>ดูรายงานทั้งหมด</a>"
+
+    # Audio status section
+    if audio_status:
+        msg += "\n\n🎧 <b>Audio Reports</b>\n"
+        for status, topic, gh_folder, size_mb, url in audio_status:
+            if status == 'ok':
+                msg += f"✅ {gh_folder} — {size_mb:.1f} MB\n"
+                msg += f"   <a href='{url}'>{date_str}.wav</a>\n"
+            else:
+                msg += f"❌ {gh_folder} — ไม่พบไฟล์เสียง\n"
+
     return msg
 
 
@@ -147,11 +186,18 @@ if __name__ == "__main__":
     summary, date_str, time_str, lines, total_videos, found = generate_daily_summary()
     print(summary)
 
+    audio_status = build_audio_status(date_str)
+    if audio_status:
+        print("\nAudio status:")
+        for status, topic, gh_folder, size_mb, url in audio_status:
+            icon = "✅" if status == "ok" else "❌"
+            print(f"  {icon} {topic} ({gh_folder}) — {size_mb:.1f} MB" if status == "ok" else f"  {icon} {topic} — missing")
+
     # Send Telegram notification
     bot_token, chat_id = get_telegram_creds()
     if bot_token and chat_id:
         try:
-            msg = build_telegram_message(date_str, time_str, lines, total_videos, found)
+            msg = build_telegram_message(date_str, time_str, lines, total_videos, found, audio_status)
             send_telegram(msg, bot_token, chat_id)
             print(f"✅ Telegram notification sent to {chat_id}")
         except Exception as e:
