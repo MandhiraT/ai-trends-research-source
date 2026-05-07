@@ -114,7 +114,7 @@ def _condense_to_script(report_text: str, topic_name: str, date_str: str) -> str
 
 def _condense_video_section(section_text: str, video_title: str, date_str: str,
                             is_first: bool, is_last: bool) -> str:
-    """Condense one video section → ~150-word Thai spoken segment."""
+    """Condense one video section → ~350-word Thai spoken segment."""
     if is_first:
         opening = f"สวัสดีค่ะ วันนี้วันที่ {date_str} มาฟังสรุปวิดีโอเด่นๆ กันค่ะ เริ่มที่วิดีโอแรก เรื่อง {video_title} ค่ะ"
     else:
@@ -123,19 +123,22 @@ def _condense_video_section(section_text: str, video_title: str, date_str: str,
     closing = "สำหรับรายละเอียดเพิ่มเติม ดูรายงานฉบับเต็มได้ที่ GitHub ค่ะ ขอบคุณที่ฟังนะคะ" if is_last else ""
 
     prompt = (
-        "คุณคือนักเขียนบทพอดแคสต์ภาษาไทย\n\n"
-        f"เนื้อหาวิดีโอด้านล่างนี้ สรุปเป็นบทพูดภาษาไทยสั้นๆ ประมาณ 100-150 คำ\n"
-        "- เขียนเป็นภาษาพูดธรรมชาติ ไม่เป็นทางการ\n"
-        "- ครอบคลุมประเด็นสำคัญที่สุด 2-3 ข้อ\n"
-        "- ไม่มี markdown ไม่มี bullet — plain text อ่านออกเสียงได้เลย\n"
-        "- ไม่มีอักขระพิเศษ ** [] ## --- * _\n"
-        "- ใช้ 'ค่ะ' ลงท้ายประโยคหลัก\n"
-        f"- เริ่มต้นด้วย: '{opening}'\n"
+        "คุณคือนักเขียนบทพอดแคสต์ภาษาไทย ผู้เชี่ยวชาญในการสรุปเนื้อหาวิดีโอ AI\n\n"
+        "งานของคุณ: เขียนบทพูดภาษาไทยที่สมบูรณ์สำหรับเนื้อหาวิดีโอด้านล่าง\n\n"
+        "ข้อกำหนดสำคัญ:\n"
+        f"1. เริ่มต้นด้วย: {opening}\n"
+        "2. เขียนเนื้อหาหลัก 4-6 ย่อหน้า แต่ละย่อหน้าอธิบายประเด็นสำคัญหนึ่งข้อ\n"
+        "   แต่ละย่อหน้ามีความยาว 3-5 ประโยค อธิบายอย่างละเอียดและให้ตัวอย่างจริง\n"
+        "3. เนื้อหารวมทั้งหมด (ไม่รวมประโยคเปิด-ปิด) ต้องยาวอย่างน้อย 300 คำ\n"
+        "4. ใช้ภาษาพูดธรรมชาติ ไม่เป็นทางการ ฟังแล้วเข้าใจง่าย\n"
+        "5. ไม่มี markdown ไม่มี bullet points ไม่มีหัวข้อ — เป็น plain text ล้วนๆ\n"
+        "6. ไม่มีอักขระพิเศษ เช่น ** [] ## --- * _\n"
+        "7. ใช้ 'ค่ะ' ลงท้ายประโยคหลักเป็นส่วนใหญ่\n"
     )
     if closing:
-        prompt += f"- ปิดท้ายด้วย: '{closing}'\n"
-    prompt += "\nส่งคืนเฉพาะบทพูด ไม่ต้องอธิบาย\n\n---\nเนื้อหาวิดีโอ:\n"
-    prompt += section_text[:8000]
+        prompt += f"8. ปิดท้ายด้วย: {closing}\n"
+    prompt += "\nส่งคืนเฉพาะบทพูด ไม่ต้องอธิบาย ไม่ต้องใส่หัวข้อ ไม่ต้องบอกจำนวนคำ\n\n---\nเนื้อหาวิดีโอ:\n"
+    prompt += section_text[:15000]
 
     return _call_condense_model(prompt)
 
@@ -152,7 +155,7 @@ def _call_condense_model(prompt: str) -> str:
     response = client.models.generate_content(
         model=CONDENSE_MODEL,
         contents=prompt,
-        config=_genai.types.GenerateContentConfig(max_output_tokens=2048, temperature=0.4),
+        config=_genai.types.GenerateContentConfig(max_output_tokens=4096, temperature=0.7),
     )
     return response.text.strip()
 
@@ -286,6 +289,12 @@ def _generate_per_video(topic_key: str, date_str: str, report_text: str,
             print(f'  [audio]   [{i+1}/{len(sections)}] 📝 Condensing: "{short}"...')
             try:
                 script = _condense_video_section(text, label, date_str, is_first, is_last)
+                # Retry once if output is too short — model sometimes under-generates
+                if len(script) < 500:
+                    print(f'  [audio]   [{i+1}/{len(sections)}] ⚠️  Script too short ({len(script)} chars) — retrying...')
+                    script2 = _condense_video_section(text, label, date_str, is_first, is_last)
+                    if len(script2) > len(script):
+                        script = script2
                 print(f'  [audio]   [{i+1}/{len(sections)}] ✅ Script: {len(script)} chars')
             except Exception as e:
                 print(f'  [audio]   [{i+1}/{len(sections)}] ❌ Condense failed: {e}')
