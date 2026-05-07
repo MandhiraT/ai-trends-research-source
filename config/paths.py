@@ -15,6 +15,7 @@ PROJECT_ROOT = os.environ.get(
 SCRIPTS_DIR       = os.path.join(PROJECT_ROOT, 'scripts')
 PROMPTS_DIR       = os.path.join(PROJECT_ROOT, 'prompts')
 REPORTS_DIR       = os.path.join(PROJECT_ROOT, 'ai_trends_reports')
+AUDIO_DIR         = os.path.join(PROJECT_ROOT, 'ai_trends_reports', 'audio')
 LOGS_DIR          = os.path.join(PROJECT_ROOT, 'logs')
 CREDENTIALS_FILE  = os.environ.get('CREDENTIALS_FILE',
                         os.path.join(PROJECT_ROOT, 'credentials.env'))
@@ -28,6 +29,7 @@ THAI_SUMMARY_PROMPT_DETAILED = os.path.join(PROMPTS_DIR, 'thai_summary_prompt_de
 
 # Ensure runtime dirs exist
 os.makedirs(REPORTS_DIR, exist_ok=True)
+os.makedirs(AUDIO_DIR,   exist_ok=True)
 os.makedirs(LOGS_DIR,    exist_ok=True)
 
 

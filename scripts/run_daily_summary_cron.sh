@@ -24,3 +24,7 @@ echo "[$(date '+%Y-%m-%d %H:%M:%S')] Daily summary done"
 
 python3 "$SCRIPTS_DIR/upload_reports_to_github_fixed.py"
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] GitHub upload done"
+
+# Generate audio reports for enabled topics (reads config/audio_topics.json)
+python3 "$SCRIPTS_DIR/generate_audio_report.py" --all-enabled --date "$(date +%Y-%m-%d)" || true
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] Audio report step done"
