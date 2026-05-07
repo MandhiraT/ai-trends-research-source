@@ -26,5 +26,9 @@ python3 "$SCRIPTS_DIR/upload_reports_to_github_fixed.py"
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] GitHub upload done"
 
 # Generate audio reports for enabled topics (reads config/audio_topics.json)
-python3 "$SCRIPTS_DIR/generate_audio_report.py" --all-enabled --date "$(date +%Y-%m-%d)" || true
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] Audio report step done"
+python3 "$SCRIPTS_DIR/generate_audio_report.py" --all-enabled --per-video --date "$(date +%Y-%m-%d)" || true
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] Audio report generation done"
+
+# Push generated audio WAV files to GitHub reports repo
+python3 "$SCRIPTS_DIR/upload_audio_to_github.py" --date "$(date +%Y-%m-%d)" || true
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] Audio GitHub push done"

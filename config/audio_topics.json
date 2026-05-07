@@ -1,5 +1,8 @@
 {
-  "enabled_topics": [],
+  "enabled_topics": ["NATEHERK"],
   "voice": "Aoede",
-  "language_hint": "th-TH"
+  "language_hint": "th-TH",
+  "github_folder_map": {
+    "NATEHERK": "NateHerk"
+  }
 }
