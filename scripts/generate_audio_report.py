@@ -6,21 +6,29 @@ Two-step pipeline:
   1. Condense full MD report → ~400-word Thai audio script (Gemini 2.5 Flash text)
   2. Convert script → WAV audio (Gemini 2.5 Flash TTS)
 
+Per-video mode (--per-video):
+  - Splits MD on '## Video N:' headers
+  - Condenses + TTS each video section separately (~150 words each)
+  - Concatenates all WAV segments into one output file
+  - Produces more complete coverage vs. whole-file 400-word summary
+
 Output: ai_trends_reports/audio/{topic}/YYYY-MM-DD.wav
 
 Usage:
     python3 scripts/generate_audio_report.py --topic ai_agents
+    python3 scripts/generate_audio_report.py --topic NATEHERK --date 2026-05-07 --per-video
     python3 scripts/generate_audio_report.py --all-enabled --date 2026-05-07
     python3 scripts/generate_audio_report.py --topic ai_agents --dry-run
 """
 
 import sys
 import os
+import re
 import json
 import wave
 import base64
-import struct
 import argparse
+import tempfile
 from datetime import date as _date
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
@@ -36,14 +44,14 @@ except ImportError:
 
 load_credentials()
 
-AUDIO_CONFIG_FILE    = os.path.join(PROJECT_ROOT, 'config', 'audio_topics.json')
-AUDIO_PROMPT_FILE    = os.path.join(PROMPTS_DIR, 'audio_script_prompt.txt')
-TTS_MODEL            = 'gemini-2.5-flash-preview-tts'
-CONDENSE_MODEL       = 'gemini-2.5-flash'
-DEFAULT_VOICE        = 'Aoede'
-SAMPLE_RATE          = 24000   # Hz — Gemini TTS native PCM rate
-SAMPLE_WIDTH         = 2       # bytes (16-bit)
-CHANNELS             = 1       # mono
+AUDIO_CONFIG_FILE = os.path.join(PROJECT_ROOT, 'config', 'audio_topics.json')
+AUDIO_PROMPT_FILE = os.path.join(PROMPTS_DIR, 'audio_script_prompt.txt')
+TTS_MODEL         = 'gemini-2.5-flash-preview-tts'
+CONDENSE_MODEL    = 'gemini-2.5-flash'
+DEFAULT_VOICE     = 'Aoede'
+SAMPLE_RATE       = 24000   # Hz — Gemini TTS native PCM rate
+SAMPLE_WIDTH      = 2       # bytes (16-bit)
+CHANNELS          = 1       # mono
 
 
 def _load_audio_config() -> dict:
@@ -55,7 +63,6 @@ def _load_audio_config() -> dict:
 
 def _find_report(topic_key: str, date_str: str) -> str | None:
     """Return path to {topic_key}/YYYY-MM-DD.md, or None if not found."""
-    # Direct topic folder
     direct = os.path.join(REPORTS_DIR, 'reports', topic_key, f'{date_str}.md')
     if os.path.exists(direct):
         return direct
@@ -66,8 +73,27 @@ def _find_report(topic_key: str, date_str: str) -> str | None:
     return None
 
 
+def _split_into_video_sections(report_text: str) -> list[tuple[str, str]]:
+    """
+    Split MD report into (video_title, section_text) tuples on '## Video N:' headers.
+    Falls back to [(None, full_text)] if no video headers found.
+    """
+    pattern = re.compile(r'^## Video \d+:\s*(.+)$', re.MULTILINE)
+    matches = list(pattern.finditer(report_text))
+    if not matches:
+        return [(None, report_text)]
+
+    sections = []
+    for i, m in enumerate(matches):
+        title = m.group(1).strip()
+        start = m.start()
+        end   = matches[i + 1].start() if i + 1 < len(matches) else len(report_text)
+        sections.append((title, report_text[start:end]))
+    return sections
+
+
 def _condense_to_script(report_text: str, topic_name: str, date_str: str) -> str:
-    """Use Gemini text generation to condense report to spoken Thai audio script."""
+    """Condense full report → ~400-word Thai audio script (whole-file mode)."""
     prompt_template = ''
     if os.path.exists(AUDIO_PROMPT_FILE):
         with open(AUDIO_PROMPT_FILE, encoding='utf-8') as f:
@@ -81,8 +107,41 @@ def _condense_to_script(report_text: str, topic_name: str, date_str: str) -> str
         )
 
     prompt = prompt_template.replace('{TOPIC_NAME}', topic_name).replace('{DATE}', date_str)
-    full_prompt = prompt + report_text[:15000]  # guard against very large reports
+    full_prompt = prompt + report_text[:15000]
 
+    return _call_condense_model(full_prompt)
+
+
+def _condense_video_section(section_text: str, video_title: str, date_str: str,
+                            is_first: bool, is_last: bool) -> str:
+    """Condense one video section → ~150-word Thai spoken segment."""
+    if is_first:
+        opening = f"สวัสดีค่ะ วันนี้วันที่ {date_str} มาฟังสรุปวิดีโอเด่นๆ กันค่ะ เริ่มที่วิดีโอแรก เรื่อง {video_title} ค่ะ"
+    else:
+        opening = f"วิดีโอถัดมา เรื่อง {video_title} ค่ะ"
+
+    closing = "สำหรับรายละเอียดเพิ่มเติม ดูรายงานฉบับเต็มได้ที่ GitHub ค่ะ ขอบคุณที่ฟังนะคะ" if is_last else ""
+
+    prompt = (
+        "คุณคือนักเขียนบทพอดแคสต์ภาษาไทย\n\n"
+        f"เนื้อหาวิดีโอด้านล่างนี้ สรุปเป็นบทพูดภาษาไทยสั้นๆ ประมาณ 100-150 คำ\n"
+        "- เขียนเป็นภาษาพูดธรรมชาติ ไม่เป็นทางการ\n"
+        "- ครอบคลุมประเด็นสำคัญที่สุด 2-3 ข้อ\n"
+        "- ไม่มี markdown ไม่มี bullet — plain text อ่านออกเสียงได้เลย\n"
+        "- ไม่มีอักขระพิเศษ ** [] ## --- * _\n"
+        "- ใช้ 'ค่ะ' ลงท้ายประโยคหลัก\n"
+        f"- เริ่มต้นด้วย: '{opening}'\n"
+    )
+    if closing:
+        prompt += f"- ปิดท้ายด้วย: '{closing}'\n"
+    prompt += "\nส่งคืนเฉพาะบทพูด ไม่ต้องอธิบาย\n\n---\nเนื้อหาวิดีโอ:\n"
+    prompt += section_text[:8000]
+
+    return _call_condense_model(prompt)
+
+
+def _call_condense_model(prompt: str) -> str:
+    """Call Gemini text model to condense content."""
     project  = os.environ.get('VERTEX_PROJECT_ID', '')
     location = os.environ.get('VERTEX_LOCATION', 'us-central1')
     if not project:
@@ -92,7 +151,7 @@ def _condense_to_script(report_text: str, topic_name: str, date_str: str) -> str
     client = _genai.Client(vertexai=True, project=project, location=location)
     response = client.models.generate_content(
         model=CONDENSE_MODEL,
-        contents=full_prompt,
+        contents=prompt,
         config=_genai.types.GenerateContentConfig(max_output_tokens=2048, temperature=0.4),
     )
     return response.text.strip()
@@ -127,8 +186,9 @@ def _text_to_wav(text: str, output_path: str, voice: str = DEFAULT_VOICE) -> Non
         ),
     )
 
-    audio_b64 = response.candidates[0].content.parts[0].inline_data.data
-    audio_bytes = base64.b64decode(audio_b64)
+    raw = response.candidates[0].content.parts[0].inline_data.data
+    # Vertex AI SDK returns raw bytes; AI Studio returns base64 string
+    audio_bytes = raw if isinstance(raw, bytes) else base64.b64decode(raw)
 
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     with wave.open(output_path, 'wb') as wf:
@@ -138,8 +198,24 @@ def _text_to_wav(text: str, output_path: str, voice: str = DEFAULT_VOICE) -> Non
         wf.writeframes(audio_bytes)
 
 
+def _concat_wavs(wav_paths: list[str], output_path: str) -> None:
+    """Concatenate multiple WAV files (same format) into one output file."""
+    all_frames = b''
+    for p in wav_paths:
+        with wave.open(p, 'rb') as wf:
+            all_frames += wf.readframes(wf.getnframes())
+
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    with wave.open(output_path, 'wb') as wf:
+        wf.setnchannels(CHANNELS)
+        wf.setsampwidth(SAMPLE_WIDTH)
+        wf.setframerate(SAMPLE_RATE)
+        wf.writeframes(all_frames)
+
+
 def generate_for_topic(topic_key: str, date_str: str, voice: str = DEFAULT_VOICE,
-                       dry_run: bool = False, force: bool = False) -> bool:
+                       dry_run: bool = False, force: bool = False,
+                       per_video: bool = False) -> bool:
     """
     Run the full condense → TTS pipeline for one topic.
     Returns True on success, False on skip/error.
@@ -162,18 +238,23 @@ def generate_for_topic(topic_key: str, date_str: str, voice: str = DEFAULT_VOICE
         print(f'  [audio] ⚠️  Report too short, skipping {topic_key}/{date_str}')
         return False
 
+    if per_video:
+        return _generate_per_video(topic_key, date_str, report_text, output_path,
+                                   voice=voice, dry_run=dry_run)
+
+    # ── Whole-file mode ────────────────────────────────────────────────────────
     topic_display = topic_key.replace('_', ' ').title()
     print(f'  [audio] 📝 Condensing report: {topic_key}/{date_str} ({len(report_text)} chars)...')
 
     try:
         script = _condense_to_script(report_text, topic_display, date_str)
-        print(f'  [audio] ✅ Audio script ready ({len(script)} chars, ~{len(script.split())//2} words)')
+        print(f'  [audio] ✅ Script ready ({len(script)} chars, ~{len(script.split())//2} words)')
     except Exception as e:
         print(f'  [audio] ❌ Condense failed: {e}')
         return False
 
     if dry_run:
-        print(f'  [audio] 🔍 DRY RUN — script preview:')
+        print('  [audio] 🔍 DRY RUN — script preview:')
         print('  ' + script[:300].replace('\n', '\n  ') + '...')
         return True
 
@@ -188,6 +269,62 @@ def generate_for_topic(topic_key: str, date_str: str, voice: str = DEFAULT_VOICE
         return False
 
 
+def _generate_per_video(topic_key: str, date_str: str, report_text: str,
+                        output_path: str, voice: str, dry_run: bool) -> bool:
+    """Per-video mode: split → condense each section → TTS each → concatenate."""
+    sections = _split_into_video_sections(report_text)
+    print(f'  [audio] 📹 Per-video mode: {len(sections)} section(s) found')
+
+    seg_paths = []
+    with tempfile.TemporaryDirectory() as tmpdir:
+        for i, (title, text) in enumerate(sections):
+            is_first = (i == 0)
+            is_last  = (i == len(sections) - 1)
+            label    = title or f'section_{i+1}'
+            short    = label[:50]
+
+            print(f'  [audio]   [{i+1}/{len(sections)}] 📝 Condensing: "{short}"...')
+            try:
+                script = _condense_video_section(text, label, date_str, is_first, is_last)
+                print(f'  [audio]   [{i+1}/{len(sections)}] ✅ Script: {len(script)} chars')
+            except Exception as e:
+                print(f'  [audio]   [{i+1}/{len(sections)}] ❌ Condense failed: {e}')
+                return False
+
+            if dry_run:
+                print(f'  [audio]   [{i+1}/{len(sections)}] 🔍 Preview:')
+                print('  ' + script[:200].replace('\n', '\n  ') + '...')
+                continue
+
+            seg_path = os.path.join(tmpdir, f'seg_{i:02d}.wav')
+            print(f'  [audio]   [{i+1}/{len(sections)}] 🎙️  TTS (voice={voice})...')
+            try:
+                _text_to_wav(script, seg_path, voice=voice)
+                size_kb = os.path.getsize(seg_path) // 1024
+                print(f'  [audio]   [{i+1}/{len(sections)}] ✅ Segment: {size_kb} KB')
+                seg_paths.append(seg_path)
+            except Exception as e:
+                print(f'  [audio]   [{i+1}/{len(sections)}] ❌ TTS failed: {e}')
+                return False
+
+        if dry_run:
+            return True
+
+        if not seg_paths:
+            print('  [audio] ❌ No segments generated')
+            return False
+
+        print(f'  [audio] 🔗 Concatenating {len(seg_paths)} segment(s)...')
+        try:
+            _concat_wavs(seg_paths, output_path)
+            size_kb = os.path.getsize(output_path) // 1024
+            print(f'  [audio] ✅ Saved: {output_path} ({size_kb} KB)')
+            return True
+        except Exception as e:
+            print(f'  [audio] ❌ Concat failed: {e}')
+            return False
+
+
 def main():
     parser = argparse.ArgumentParser(description='Generate audio reports from AI Trends MD files')
     parser.add_argument('--topic',       type=str,  default=None,
@@ -198,8 +335,10 @@ def main():
                         help='Report date (YYYY-MM-DD). Default: today')
     parser.add_argument('--voice',       type=str,  default=None,
                         help='Gemini TTS voice name. Default: from config or Aoede')
+    parser.add_argument('--per-video',   action='store_true',
+                        help='Split report by video sections, condense + TTS each separately')
     parser.add_argument('--dry-run',     action='store_true',
-                        help='Condense report only — no TTS, no file written')
+                        help='Condense only — no TTS, no file written')
     parser.add_argument('--force',       action='store_true',
                         help='Regenerate even if WAV already exists')
     args = parser.parse_args()
@@ -219,11 +358,13 @@ def main():
         parser.print_help()
         sys.exit(1)
 
-    print(f'[audio] Generating audio reports for {len(topics)} topic(s), date={args.date}, voice={voice}')
+    mode = 'per-video' if args.per_video else 'whole-file'
+    print(f'[audio] Generating audio for {len(topics)} topic(s), date={args.date}, voice={voice}, mode={mode}')
     success, failed = 0, 0
     for topic in topics:
         ok = generate_for_topic(topic, args.date, voice=voice,
-                                dry_run=args.dry_run, force=args.force)
+                                dry_run=args.dry_run, force=args.force,
+                                per_video=args.per_video)
         if ok:
             success += 1
         else:
