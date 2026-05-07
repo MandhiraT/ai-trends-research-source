@@ -54,21 +54,24 @@ Automated daily AI trends research from YouTube. Scrapes videos → generates **
 
 ---
 
-## Cron Schedule (System Crontab — UTC times)
+## Cron Schedule (System Crontab — Bangkok time / ICT)
 
-> All cron times are **UTC**. Bangkok (ICT) = UTC+7.
+> ⚠️ System timezone is **Asia/Bangkok (+07)**. All cron times are **Bangkok time (ICT)**, NOT UTC.
 
-| UTC | Bangkok (ICT) | Topic | Notes |
-|-----|--------------|-------|-------|
-| 05:00 | 12:00 | AI Agents | `--max-results 5 --detailed` |
-| 05:20 | 12:20 | Claude Code | `--max-results 5 --detailed` |
-| 05:40 | 12:40 | AI Viral Niche | `--max-results 5 --detailed` |
-| 06:00 | 13:00 | NATEHERK | `--max-results 3 --detailed` |
-| 06:25 | 13:25 | Joanna Wiebe | `--max-results 3 --detailed` |
-| 06:55 | 13:55 | Claude Code Subtopics | `--max-results 3 --total-videos 8 --detailed` |
-| 07:40 | 14:40 | Daily Summary + GitHub Upload | — |
+| Bangkok (ICT) | UTC | Topic | Notes |
+|--------------|-----|-------|-------|
+| 05:00 | 22:00 prev | AI Agents | `--max-results 5 --detailed` |
+| 05:20 | 22:20 prev | Claude Code | `--max-results 5 --detailed` |
+| 05:40 | 22:40 prev | AI Viral Niche | `--max-results 5 --detailed` |
+| 06:00 | 23:00 prev | NATEHERK | `--max-results 3 --detailed` |
+| 06:25 | 23:25 prev | Joanna Wiebe | `--max-results 3 --detailed` |
+| 06:55 | 23:55 prev | Claude Code Subtopics | `--max-results 3 --total-videos 8 --detailed` |
+| 07:05 | 00:05 | Jacksons AI | `--max-results 3 --detailed` |
+| 07:15 | 00:15 | Make Money Matt | `--max-results 3 --detailed` |
+| 07:25 | 00:25 | Miss Luna Vega | `--max-results 3 --detailed` |
+| 07:55 | 00:55 | Daily Summary + Audio + GitHub | — |
 
-**Reports available on GitHub ~14:45 Bangkok every day.**
+**Reports + audio available on GitHub ~08:10–08:30 Bangkok every day.**
 
 > To view/edit crontab: `crontab -l` / `crontab -e`
 
@@ -89,7 +92,7 @@ Save to ai_trends_reports/reports/{topic}/{YYYY-MM-DD}.md
   ↓
 upload_reports_to_github_fixed.py → git push → MandhiraT/ai-trends-research
   ↓
-Telegram notification (daily digest ~14:40 Bangkok)
+Telegram notification (daily digest ~07:55 Bangkok)
 ```
 
 ---
