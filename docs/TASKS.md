@@ -2,7 +2,7 @@
 
 > Working document for team/agent collaboration. Update this file whenever features change, bugs are found, or new work is planned. Keep statuses current.
 
-**Last updated:** 2026-04-26 20:32 ICT  
+**Last updated:** 2026-05-09 ICT  
 **Maintained by:** Sati (primary agent) / Mandhira
 
 ---
@@ -11,11 +11,13 @@
 
 | Item | Status |
 |------|--------|
-| Daily pipeline | ✅ Running (system crontab, UTC ~05:00–07:40) |
-| Detailed summaries | ✅ Fixed 2026-04-26 (was using standard prompt) |
+| Daily pipeline | ✅ Running (system crontab, Bangkok/ICT timezone) |
+| Detailed summaries | ✅ Working (--detailed flag in all cron jobs) |
+| Audio TTS reports | ✅ Working (Gemini 2.5 Flash TTS, per-video mode) |
 | GitHub upload | ✅ Working |
 | Dedup system | ✅ Working |
-| Telegram daily digest | ✅ Working (via run_daily_summary_cron.sh) |
+| Telegram daily digest | ✅ Working (includes audio status) |
+| Hallucination guard | ✅ Fixed 2026-05-09 (non-English → transcript unavailable) |
 
 ---
 
@@ -34,6 +36,8 @@
 | GitHub auto-upload | Clone reports repo → copy files → git push | `upload_reports_to_github_fixed.py` |
 | Manual pipeline runner | `run_all_today.sh` runs all 7 steps sequentially | `scripts/run_all_today.sh` |
 | Rate limit handling | Auto-retry with backoff on 429 errors | `summarize_local.py` |
+| Audio TTS generation | Gemini 2.5 Flash TTS, per-video mode, FFmpeg concat, daily Telegram status | `generate_audio_report.py` |
+| Hallucination guard | Non-English video → early return "transcript unavailable" (no AI hallucination) | `summarize_local.py` |
 
 ---
 
@@ -59,6 +63,11 @@ _None_
 | T-010 | **Re-run all 2026-04-26 reports with --detailed** | 2026-04-26 | Cleared hashes, deleted short reports, re-ran full pipeline — all 7 steps ✅ |
 | T-011 | **Create docs/TASKS.md project tracking document** | 2026-04-26 | New working doc for team/agent collaboration |
 | T-012 | **Update CLAUDE.md — correct cron times, cron system, --detailed requirement** | 2026-04-26 | CLAUDE.md was referencing OpenClaw (disabled), wrong ICT times, missing --detailed |
+| T-013 | **Add Audio TTS feature (Gemini 2.5 Flash)** | 2026-05-07 | `generate_audio_report.py` — per-video mode, condense prompt, FFmpeg concat, Telegram status |
+| T-014 | **Add 3 new channels: Jacksons AI, Make Money Matt, Miss Luna Vega** | 2026-05-07 | Added to crontab at 07:05, 07:15, 07:25 Bangkok time |
+| T-015 | **Fix cron schedule docs: Bangkok timezone (not UTC)** | 2026-05-07 | TASKS.md had wrong UTC times; corrected to Bangkok/ICT |
+| T-016 | **Fix hallucination in summarize_local.py for non-English videos** | 2026-05-09 | Added early-return guard: no transcript → return "ไม่สามารถสรุปวิดีโอนี้ได้" instead of asking AI to summarize from knowledge |
+| T-017 | **Re-summarize AI Agents + AI Viral Niche reports (2026-05-06 and 2026-05-07)** | 2026-05-09 | 8/9 videos properly summarized; 1/9 correctly marked unavailable (Thai video, no EN transcript) |
 
 ### Backlog
 

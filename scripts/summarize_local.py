@@ -33,15 +33,17 @@ if os.path.exists(_CRED_FILE):
 def _get_youtube_transcript(video_url: str) -> str:
     """Extract transcript from YouTube video using yt-dlp."""
     import re as _re
+    import uuid as _uuid
+    _tmp_prefix = f'/tmp/yt_transcript_{_uuid.uuid4().hex}'
     try:
         subprocess.run(
             ['yt-dlp', '--skip-download', '--write-auto-sub',
              '--sub-lang', 'en', '--sub-format', 'vtt',
-             '--output', '/tmp/yt_transcript', video_url],
+             '--output', _tmp_prefix, video_url],
             capture_output=True, text=True, timeout=60
         )
         for ext in ['.en.vtt', '.vtt']:
-            path = f'/tmp/yt_transcript{ext}'
+            path = f'{_tmp_prefix}{ext}'
             if os.path.exists(path):
                 with open(path, encoding='utf-8') as f:
                     seen, lines_clean = set(), []
@@ -59,6 +61,12 @@ def _get_youtube_transcript(video_url: str) -> str:
                 return ' '.join(lines_clean)[:30000]
     except Exception:
         pass
+    finally:
+        for _ext in ['.en.vtt', '.vtt', '.en.srv1', '.srv1']:
+            _p = f'{_tmp_prefix}{_ext}'
+            if os.path.exists(_p):
+                try: os.remove(_p)
+                except: pass
     return ''
 
 
@@ -153,6 +161,17 @@ def summarize_video(
     # Get transcript
     transcript = _get_youtube_transcript(video_url)
 
+    # Guard: no transcript → do NOT hallucinate
+    if not transcript:
+        print(f"[summarize_local] No English transcript for {video_url} — skipping summarization", file=sys.stderr)
+        return (
+            "# ไม่สามารถสรุปวิดีโอนี้ได้\n\n"
+            f"**URL:** {video_url}\n\n"
+            "**เหตุผล:** วิดีโอนี้ไม่มี transcript ภาษาอังกฤษ "
+            "อาจเป็นวิดีโอภาษาอื่น หรือไม่มี subtitle อัตโนมัติที่ดาวน์โหลดได้\n\n"
+            "_ระบบไม่สรุปเนื้อหาโดยอัตโนมัติเพื่อหลีกเลี่ยงข้อมูลที่ไม่ถูกต้อง_"
+        )
+
     # Load system prompt from file if provided
     system_prompt = ''
     if prompt_file and os.path.exists(prompt_file):
@@ -167,7 +186,8 @@ def summarize_video(
 วิดีโอ: {video_url}
 หัวข้อ: {topic or 'เทรนด์ AI และเทคโนโลยี'}
 
-{'เนื้อหาจากวิดีโอ:\n' + transcript[:25000] if transcript else 'ไม่มี transcript — สรุปจาก URL และชื่อวิดีโอ โดยใช้ความรู้เกี่ยวกับ ' + (topic or 'AI') + ' ที่มีอยู่'}"""
+เนื้อหาจากวิดีโอ:
+{transcript[:25000]}"""
         else:
             # No prompt file — use default Thai structure
             prompt = f"""คุณต้องเขียนคำตอบเป็นภาษาไทยทั้งหมดเท่านั้น ห้ามใช้ภาษาอังกฤษในเนื้อหาเด็ดขาด
@@ -176,7 +196,7 @@ def summarize_video(
 URL: {video_url}
 หัวข้อ: {topic or 'เทรนด์ AI และเทคโนโลยี'}
 
-{'เนื้อหาจากวิดีโอ: ' + transcript[:3000] if transcript else 'ไม่มี transcript — สรุปจาก URL และชื่อวิดีโอ'}
+เนื้อหาจากวิดีโอ: {transcript[:3000]}
 
 สรุปเป็น markdown ภาษาไทย:
 1. **หัวข้อหลัก** — วิดีโอนี้พูดถึงอะไร
@@ -192,7 +212,7 @@ Summarize this YouTube video content for affiliate/content marketing use.
 Video URL: {video_url}
 Topic: {topic or 'AI and technology trends'}
 
-{'Transcript excerpt: ' + transcript[:3000] if transcript else 'Note: No transcript available - summarize based on video metadata and URL context.'}
+Transcript excerpt: {transcript[:3000]}
 
 Provide a structured markdown summary with:
 1. **Main Topic** — what the video is about
