@@ -167,15 +167,24 @@ def main():
     parser.add_argument("--max-results", type=int, default=3, help="Max videos per subtopic (default: 3)")
     parser.add_argument("--total-videos", type=int, default=8, help="Total videos across all subtopics (default: 8)")
     parser.add_argument("--detailed", action="store_true", help="Use detailed Thai prompt for comprehensive summaries")
+    parser.add_argument("--only", type=str, default="", help="Comma-separated subtopic name filter (partial match, e.g. 'remotion,video')")
     args = parser.parse_args()
 
-    subtopics = [
+    all_subtopics = [
         "claude code obsidian",
-        "claude code notebooklm", 
+        "claude code notebooklm",
         "claude code design",
-        "claude code skills"
+        "claude code skills",
+        "claude code remotion video",
+        "claude code video"
     ]
-    
+
+    if args.only:
+        filters = [f.strip().lower() for f in args.only.split(",") if f.strip()]
+        subtopics = [s for s in all_subtopics if any(f in s.lower() for f in filters)]
+    else:
+        subtopics = all_subtopics
+
     print(f"=== Claude Code Subtopics Research - Enhanced ===")
     print(f"Subtopics: {len(subtopics)}")
     print(f"Max results per subtopic: {args.max_results}")

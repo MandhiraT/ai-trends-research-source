@@ -31,10 +31,12 @@ TOPICS = [
     ("Jacksons AI",        "jacksons_ai",             "jacksons_ai"),
     ("Make Money Matt",    "make_money_matt",         "make_money_matt"),
     ("Miss Luna Vega",     "miss_luna_vega",          "miss_luna_vega"),
-    ("CC Obsidian",        "claude_code_obsidian",    "claude_code/claude_code_obsidian"),
-    ("CC NotebookLM",      "claude_code_notebooklm",  "claude_code/claude_code_notebooklm"),
-    ("CC Design",          "claude_code_design",      "claude_code/claude_code_design"),
-    ("CC Skills",          "claude_code_skills",      "claude_code/claude_code_skills"),
+    ("CC Obsidian",        "claude_code_obsidian",       "claude_code/claude_code_obsidian"),
+    ("CC NotebookLM",      "claude_code_notebooklm",     "claude_code/claude_code_notebooklm"),
+    ("CC Design",          "claude_code_design",         "claude_code/claude_code_design"),
+    ("CC Skills",          "claude_code_skills",         "claude_code/claude_code_skills"),
+    ("CC Remotion Video",  "claude_code_remotion_video", "claude_code/claude_code_remotion_video"),
+    ("CC Video",           "claude_code_video",          "claude_code/claude_code_video"),
 ]
 
 
@@ -57,10 +59,7 @@ def build_status(date_str):
     not_found = []
 
     for label, folder, github_path in TOPICS:
-        report_file = os.path.join(reports_base, folder.replace("claude_code_", "claude_code/claude_code_"), f"{date_str}.md")
-        # Handle nested subtopics path
-        if "claude_code_obsidian" in folder or "claude_code_notebooklm" in folder or \
-           "claude_code_design" in folder or "claude_code_skills" in folder:
+        if folder.startswith("claude_code_"):
             report_file = os.path.join(reports_base, "claude_code", folder, f"{date_str}.md")
         else:
             report_file = os.path.join(reports_base, folder, f"{date_str}.md")
