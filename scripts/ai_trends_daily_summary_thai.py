@@ -37,6 +37,9 @@ TOPICS = [
     ("CC Skills",          "claude_code_skills",         "claude_code/claude_code_skills"),
     ("CC Remotion Video",  "claude_code_remotion_video", "claude_code/claude_code_remotion_video"),
     ("CC Video",           "claude_code_video",          "claude_code/claude_code_video"),
+    ("CC Seedance",        "claude_code_seedance",       "claude_code/claude_code_seedance"),
+    ("CC Higgsfield",      "claude_code_higgsfield",     "claude_code/claude_code_higgsfield"),
+    ("CC Shopify",         "claude_code_shopify",        "claude_code/claude_code_shopify"),
 ]
 
 

@@ -26,19 +26,22 @@ bash "$_DIR/run_ai_trends_with_creds.sh" --topic "NATEHERK" --channel "https://y
 log "5/10 Joanna Wiebe channel..."
 bash "$_DIR/run_ai_trends_with_creds.sh" --topic "Joanna Wiebe" --channel "https://youtube.com/@joanna-wiebe" --max-results 3 --detailed >> "$LOGS/joanna_wiebe.log" 2>&1 && log "  ✅ Done" || log "  ❌ Failed"
 
-log "6/10 Claude Code Subtopics..."
-bash "$_DIR/run_claude_code_subtopics_with_creds.sh" --max-results 3 --total-videos 8 --detailed >> "$LOGS/claude_code_subtopics.log" 2>&1 && log "  ✅ Done" || log "  ❌ Failed"
+log "6/11 Claude Code Subtopics..."
+bash "$_DIR/run_claude_code_subtopics_with_creds.sh" --max-results 3 --total-videos 18 --detailed >> "$LOGS/claude_code_subtopics.log" 2>&1 && log "  ✅ Done" || log "  ❌ Failed"
 
-log "7/10 Jacksons AI channel..."
+log "7/11 Claude Code New Subtopics..."
+bash "$_DIR/run_claude_code_subtopics_with_creds.sh" --only "seedance,higgsfield,shopify" --max-results 5 --total-videos 15 --detailed >> "$LOGS/claude_code_new_subtopics.log" 2>&1 && log "  ✅ Done" || log "  ❌ Failed"
+
+log "8/11 Jacksons AI channel..."
 bash "$_DIR/run_ai_trends_with_creds.sh" --topic "Jacksons AI" --channel "https://youtube.com/@Jacksons_ai" --max-results 3 --detailed >> "$LOGS/jacksons_ai.log" 2>&1 && log "  ✅ Done" || log "  ❌ Failed"
 
-log "8/10 Make Money Matt channel..."
+log "9/11 Make Money Matt channel..."
 bash "$_DIR/run_ai_trends_with_creds.sh" --topic "Make Money Matt" --channel "https://youtube.com/@makemoneymatt" --max-results 3 --detailed >> "$LOGS/make_money_matt.log" 2>&1 && log "  ✅ Done" || log "  ❌ Failed"
 
-log "9/10 Miss Luna Vega playlist..."
+log "10/11 Miss Luna Vega playlist..."
 bash "$_DIR/run_ai_trends_with_creds.sh" --topic "Miss Luna Vega" --channel "https://youtube.com/playlist?list=PLrpRRQWZ5EaEhot8F_6nJv3PA7Hk2eDe6" --max-results 3 --detailed >> "$LOGS/miss_luna_vega.log" 2>&1 && log "  ✅ Done" || log "  ❌ Failed"
 
-log "10/10 Daily Summary + GitHub Upload..."
+log "11/11 Daily Summary + GitHub Upload..."
 bash "$_DIR/run_daily_summary_cron.sh" >> "$LOGS/daily_summary.log" 2>&1 && log "  ✅ Done" || log "  ❌ Failed"
 
 log "=== Pipeline complete ==="

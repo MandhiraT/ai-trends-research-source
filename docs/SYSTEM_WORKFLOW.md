@@ -32,10 +32,13 @@
 06:25  Joanna Wiebe channel (max 3 videos)
   └─ เหมือนกัน
 
-06:55  Claude Code Subtopics (4 topics × 3 videos, cap 8 total)
-  └─ obsidian · notebooklm · design · skills
+06:55  Claude Code Subtopics (base topics × 3 videos, cap 18 total)
+  └─ obsidian · notebooklm · design · skills · remotion video · video
 
-07:40  Daily Thai Summary + GitHub Upload
+07:35  Claude Code New Subtopics (3 topics × 5 videos, cap 15 total)
+  └─ seedance · higgsfield · shopify
+
+07:55  Daily Thai Summary + GitHub Upload
   └─ ai_trends_daily_summary_thai.py → สรุปรวม
   └─ upload_reports_to_github_fixed.py → git push ไป reports repo
 ```
@@ -99,15 +102,16 @@ crontab -l | grep "ai_trends\|NATEHERK\|Joanna\|subtopics\|daily_summary"
 
 | เวลา (Bangkok) | Script | Arguments |
 |---|---|---|
-| 12:00 | run_ai_trends_with_creds.sh | `--topic "AI Agents" --max-results 5 --detailed` |
-| 12:20 | run_ai_trends_with_creds.sh | `--topic "Claude Code" --max-results 5 --detailed` |
-| 12:40 | run_ai_trends_with_creds.sh | `--topic "AI Viral Niche" --max-results 5 --detailed` |
-| 13:00 | run_ai_trends_with_creds.sh | `--topic "NATEHERK" --channel @NATEHERK --max-results 3 --detailed` |
-| 13:25 | run_ai_trends_with_creds.sh | `--topic "Joanna Wiebe" --channel @joanna-wiebe --max-results 3 --detailed` |
-| 13:55 | run_claude_code_subtopics_with_creds.sh | `--max-results 3 --total-videos 8 --detailed` |
-| 14:40 | run_daily_summary_cron.sh | — |
+| 05:00 | run_ai_trends_with_creds.sh | `--topic "AI Agents" --max-results 5 --detailed` |
+| 05:20 | run_ai_trends_with_creds.sh | `--topic "Claude Code" --max-results 5 --detailed` |
+| 05:40 | run_ai_trends_with_creds.sh | `--topic "AI Viral Niche" --max-results 5 --detailed` |
+| 06:00 | run_ai_trends_with_creds.sh | `--topic "NATEHERK" --channel @NATEHERK --max-results 3 --detailed` |
+| 06:25 | run_ai_trends_with_creds.sh | `--topic "Joanna Wiebe" --channel @joanna-wiebe --max-results 3 --detailed` |
+| 06:55 | run_claude_code_subtopics_with_creds.sh | `--max-results 3 --total-videos 18 --detailed` |
+| 07:35 | run_claude_code_subtopics_with_creds.sh | `--only "seedance,higgsfield,shopify" --max-results 5 --total-videos 15 --detailed` |
+| 07:55 | run_daily_summary_cron.sh | — |
 
-> หมายเหตุ: Crontab ใช้ UTC — เวลา Bangkok = UTC+7. **Reports พร้อม ~14:45 Bangkok ทุกวัน**
+> หมายเหตุ: Crontab นี้อยู่บนเครื่องที่ใช้เวลา Bangkok/ICT. **Reports พร้อม ~08:00 Bangkok ทุกวัน**
 
 ---
 
@@ -120,7 +124,7 @@ crontab -l | grep "ai_trends\|NATEHERK\|Joanna\|subtopics\|daily_summary"
 | AI Viral Niche | YouTube search | search | |
 | NATEHERK | @NATEHERK | channel | dedup → ~1–3 videos/day |
 | Joanna Wiebe | @joanna-wiebe | channel | dedup → ~1–3 videos/day |
-| Claude Code Subtopics | YouTube search | search | obsidian, notebooklm, design, skills |
+| Claude Code Subtopics | YouTube search | search | obsidian, notebooklm, design, skills, remotion video, video, seedance, higgsfield, shopify |
 
 ---
 
