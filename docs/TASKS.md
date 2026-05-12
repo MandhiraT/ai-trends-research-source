@@ -126,7 +126,7 @@ _None_
 ## How to Run Manually
 
 ```bash
-cd /home/mandhira/Desktop/projects/ai-trends-research-source
+cd /home/mandhira/Desktop/Projects/ai-trends-research-source
 
 # Full pipeline (all 7 steps, detailed summaries)
 bash scripts/run_all_today.sh
@@ -154,7 +154,7 @@ bash scripts/run_daily_summary_cron.sh
 If reports were generated with the wrong prompt (e.g., standard instead of detailed):
 
 ```bash
-cd /home/mandhira/Desktop/projects/ai-trends-research-source
+cd /home/mandhira/Desktop/Projects/ai-trends-research-source
 DATE="2026-04-26"  # change as needed
 
 # 1. Check which hash files changed (how many new hashes per topic from logs)

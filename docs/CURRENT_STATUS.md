@@ -14,7 +14,7 @@ Automated daily AI trends research pipeline. Scrapes YouTube videos → generate
 
 | Item | Value |
 |------|-------|
-| Source code | `/home/mandhira/Desktop/projects/ai-trends-research-source/` |
+| Source code | `/home/mandhira/Desktop/Projects/ai-trends-research-source/` |
 | Reports output repo | https://github.com/MandhiraT/ai-trends-research |
 | Source code repo | https://github.com/MandhiraT/ai-trends-research-source |
 | Primary language | Thai (all summaries in Thai regardless of video language) |
@@ -155,7 +155,7 @@ Automated daily AI trends research pipeline. Scrapes YouTube videos → generate
 **Key scripts:**
 ```bash
 # Run full pipeline manually
-cd /home/mandhira/Desktop/projects/ai-trends-research-source
+cd /home/mandhira/Desktop/Projects/ai-trends-research-source
 bash scripts/run_all_today.sh
 
 # Single topic

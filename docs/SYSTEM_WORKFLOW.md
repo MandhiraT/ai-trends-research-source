@@ -8,7 +8,7 @@
 
 ระบบ scrape YouTube ทุกวันอัตโนมัติ → สรุปเนื้อหาเป็น Thai markdown → push ขึ้น GitHub
 
-**Source code:** `/home/mandhira/Desktop/projects/ai-trends-research-source/`  
+**Source code:** `/home/mandhira/Desktop/Projects/ai-trends-research-source/`  
 **GitHub (source):** https://github.com/MandhiraT/ai-trends-research-source  
 **GitHub (reports):** https://github.com/MandhiraT/ai-trends-research
 
@@ -140,7 +140,7 @@ crontab -l | grep "ai_trends\|NATEHERK\|Joanna\|subtopics\|daily_summary"
 ## รัน Manual
 
 ```bash
-cd /home/mandhira/Desktop/projects/ai-trends-research-source
+cd /home/mandhira/Desktop/Projects/ai-trends-research-source
 
 # รัน topic เดียว
 bash scripts/run_ai_trends_with_creds.sh --topic "AI Agents" --max-results 5
@@ -167,7 +167,7 @@ bash scripts/run_all_today.sh
 
 ### Log ต่อ Job
 ```bash
-PROJ="/home/mandhira/Desktop/projects/ai-trends-research-source"
+PROJ="/home/mandhira/Desktop/Projects/ai-trends-research-source"
 
 # ดู log ล่าสุดของแต่ละ job
 tail -50 $PROJ/logs/ai_agents.log
@@ -182,13 +182,13 @@ tail -50 $PROJ/logs/daily_summary.log
 ### ดู Error ทั้งหมดวันนี้ (ทุก log)
 ```bash
 grep -h "ERROR\|❌\|error\|Error" \
-  /home/mandhira/Desktop/projects/ai-trends-research-source/logs/*.log \
+  /home/mandhira/Desktop/Projects/ai-trends-research-source/logs/*.log \
   | grep "$(date '+%Y-%m-%d')"
 ```
 
 ### ดูว่า report วันนี้มีแล้วหรือยัง
 ```bash
-find /home/mandhira/Desktop/projects/ai-trends-research-source/ai_trends_reports/reports \
+find /home/mandhira/Desktop/Projects/ai-trends-research-source/ai_trends_reports/reports \
   -name "$(date '+%Y-%m-%d').md" 2>/dev/null
 ```
 
@@ -204,7 +204,7 @@ for f in sorted(glob.glob('ai_trends_reports/content_hashes_*.json')):
 
 ### Live tail ระหว่าง manual run
 ```bash
-tail -f /home/mandhira/Desktop/projects/ai-trends-research-source/logs/ai_agents.log
+tail -f /home/mandhira/Desktop/Projects/ai-trends-research-source/logs/ai_agents.log
 ```
 
 ---

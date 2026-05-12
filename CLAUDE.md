@@ -9,7 +9,7 @@
 
 Automated daily AI trends research from YouTube. Scrapes videos → generates **detailed Thai summaries (2000-3000 words)** → pushes reports to GitHub. Runs on **system crontab** (not OpenClaw).
 
-**Source code (edit here):** `/home/mandhira/Desktop/projects/ai-trends-research-source/`  
+**Source code (edit here):** `/home/mandhira/Desktop/Projects/ai-trends-research-source/`  
 **Reports repo (output):** https://github.com/MandhiraT/ai-trends-research  
 **Source repo:** https://github.com/MandhiraT/ai-trends-research-source
 
@@ -136,7 +136,7 @@ Vertex AI uses **Application Default Credentials (ADC)** — no key in credentia
 
 **Run full pipeline manually (with detailed summaries):**
 ```bash
-cd /home/mandhira/Desktop/projects/ai-trends-research-source
+cd /home/mandhira/Desktop/Projects/ai-trends-research-source
 bash scripts/run_all_today.sh
 ```
 
