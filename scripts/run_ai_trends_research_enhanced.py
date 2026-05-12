@@ -27,6 +27,7 @@ import glob
 import hashlib
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -42,14 +43,26 @@ def sanitize_topic(topic):
         return "NATEHERK"
     return topic.lower().replace(" ", "_").replace("/", "_").replace("\\", "_")[:50]
 
-def get_dirs(topic):
+def sanitize_report_folder(folder):
+    """Return a safe relative report folder path."""
+    parts = []
+    for raw_part in folder.replace("\\", "/").split("/"):
+        part = raw_part.strip().lower().replace(" ", "_")
+        part = re.sub(r"[^a-z0-9_\-]", "_", part)
+        part = re.sub(r"_+", "_", part).strip("_")
+        if part and part not in {".", ".."}:
+            parts.append(part[:80])
+    return "/".join(parts)
+
+def get_dirs(topic, report_folder=None):
     """Get topic-specific directories"""
-    topic_safe = sanitize_topic(topic)
+    topic_safe = sanitize_report_folder(report_folder) if report_folder else sanitize_topic(topic)
+    tracker_safe = topic_safe.replace("/", "_")
     return {
         "reports": f"{BASE_REPORTS_DIR}/reports/{topic_safe}",
         "archive": f"{BASE_REPORTS_DIR}/reports_archive/{topic_safe}",
-        "tracker": f"{BASE_REPORTS_DIR}/last_processed_{topic_safe}.json",
-        "hash_tracker": f"{BASE_REPORTS_DIR}/content_hashes_{topic_safe}.json"
+        "tracker": f"{BASE_REPORTS_DIR}/last_processed_{tracker_safe}.json",
+        "hash_tracker": f"{BASE_REPORTS_DIR}/content_hashes_{tracker_safe}.json"
     }
 
 def search_videos_by_topic(topic, max_results=5):
@@ -117,6 +130,44 @@ def get_videos_from_channel_with_date(channel_url, max_results=5):
         print(f"JSON decode error: {e}")
         print(f"Raw output: {result.stdout[:200]}...")
         return []
+
+def get_video_from_url(video_url):
+    """Create a single-video metadata item from a specific YouTube URL."""
+    print(f"Using specific video URL: {video_url}")
+    video_id = ""
+    match = re.search(r"[?&]v=([^&]+)", video_url)
+    if match:
+        video_id = match.group(1)
+    elif "youtu.be/" in video_url:
+        video_id = video_url.rstrip("/").split("/")[-1].split("?")[0]
+
+    cmd = ["yt-dlp", "--dump-json", "--skip-download", video_url]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode == 0 and result.stdout.strip():
+        try:
+            data = json.loads(result.stdout.strip().split("\n")[0])
+            return [{
+                "id": data.get("id") or video_id,
+                "title": data.get("title") or video_url,
+                "description": data.get("description") or "",
+                "duration": data.get("duration") or 0,
+                "webpage_url": data.get("webpage_url") or video_url,
+            }]
+        except json.JSONDecodeError as e:
+            print(f"Video metadata JSON decode error: {e}")
+
+    if not video_id:
+        print(f"Could not extract video id from URL: {video_url}")
+        return []
+
+    print(f"Falling back to URL-derived video id: {video_id}")
+    return [{
+        "id": video_id,
+        "title": video_url,
+        "description": "",
+        "duration": 0,
+        "webpage_url": video_url,
+    }]
 
 def load_content_hashes(hash_file):
     """Load content hashes from file"""
@@ -213,10 +264,13 @@ def main():
     parser.add_argument("--count", type=int, default=None, help="Number of new videos to process (default: all new videos)")
     parser.add_argument("--use-date-filter", action="store_true", help="Use date filter for channels (today only)")
     parser.add_argument("--detailed", action="store_true", help="Use detailed prompt for more comprehensive summary")
+    parser.add_argument("--video-url", help="Specific YouTube video URL to summarize")
+    parser.add_argument("--report-folder", help="Optional report folder under ai_trends_reports/reports")
+    parser.add_argument("--config-job-id", help="Optional dashboard job id to include in report metadata")
     args = parser.parse_args()
 
     topic = args.topic
-    dirs = get_dirs(topic)
+    dirs = get_dirs(topic, args.report_folder)
 
     # Create directories
     os.makedirs(dirs["reports"], exist_ok=True)
@@ -224,12 +278,14 @@ def main():
 
     print(f"=== AI Trends Researcher - Enhanced ===")
     print(f"Topic: {topic}")
-    print(f"Mode: {'Channel' if args.channel else 'Topic Search'}")
+    print(f"Mode: {'Specific Video' if args.video_url else 'Channel' if args.channel else 'Topic Search'}")
     if args.use_date_filter:
         print(f"Date Filter: Today only")
 
     # Get videos
-    if args.channel:
+    if args.video_url:
+        videos = get_video_from_url(args.video_url)
+    elif args.channel:
         if args.use_date_filter:
             videos = get_videos_from_channel_with_date(args.channel, args.max_results)
         else:
@@ -283,7 +339,7 @@ def main():
     for video in videos_to_process:
         video_id = video.get("id")
         video_title = video.get("title", "Unknown")
-        video_url = f"https://youtube.com/watch?v={video_id}"
+        video_url = video.get("webpage_url") or f"https://youtube.com/watch?v={video_id}"
         
         print(f"Processing: {video_title}")
         
@@ -309,9 +365,10 @@ def main():
 
 **Date:** {report_date} {report_time}
 **Topic:** {topic}
-**Mode:** {'Channel (Today Only)' if args.channel and args.use_date_filter else 'Channel' if args.channel else 'Topic Search'}
+**Mode:** {'Specific Video' if args.video_url else 'Channel (Today Only)' if args.channel and args.use_date_filter else 'Channel' if args.channel else 'Topic Search'}
 **Videos Processed:** {len(all_video_data)}
 **Duplicate Prevention:** Content Hash + Date Filtering
+**Dashboard Job ID:** {args.config_job_id or 'N/A'}
 
 ---
 

@@ -1,6 +1,6 @@
 # AI Trends Research — Current Status
 
-> **Last updated:** 2026-05-09 ICT  
+> **Last updated:** 2026-05-13 ICT  
 > **For:** AI agents and team members joining this project  
 > **Quick start:** Read `CLAUDE.md` first — it has everything you need in one file.
 
@@ -22,7 +22,7 @@ Automated daily AI trends research pipeline. Scrapes YouTube videos → generate
 
 ---
 
-## Pipeline Health (2026-05-09)
+## Pipeline Health (2026-05-12)
 
 | Component | Status | Notes |
 |-----------|--------|-------|
@@ -33,10 +33,13 @@ Automated daily AI trends research pipeline. Scrapes YouTube videos → generate
 | Audio TTS generation | ✅ Working | Gemini 2.5 Flash TTS, per-video mode, Telegram notification |
 | GitHub upload | ✅ Working | Auto-push after daily summary |
 | Telegram digest | ✅ Working | Sent ~07:55 Bangkok daily |
+| Cron path | ✅ Fixed 2026-05-12 | Installed crontab uses `/home/mandhira/Desktop/Projects/...` |
+| AI Trends dashboard | ✅ Working | Local `127.0.0.1:8092`, public `https://ai-trends.thequietself.com` |
+| Cloudflare tunnel route | ✅ Working | Reuses existing `faw-dashboard` tunnel; FAW route unchanged |
 
 ---
 
-## Monitored Topics (10 total)
+## Monitored Topics (17 total in daily digest)
 
 | Topic | Source | Schedule (Bangkok) | Args |
 |-------|--------|--------------------|------|
@@ -45,10 +48,11 @@ Automated daily AI trends research pipeline. Scrapes YouTube videos → generate
 | AI Viral Niche | YouTube search | 05:40 | `--max-results 5 --detailed` |
 | NATEHERK | @NATEHERK channel | 06:00 | `--max-results 3 --detailed` |
 | Joanna Wiebe | @joanna-wiebe channel | 06:25 | `--max-results 3 --detailed` |
-| Claude Code Subtopics (×4) | YouTube search | 06:55 | `--max-results 3 --total-videos 8 --detailed` |
+| Claude Code Base Subtopics (×6) | YouTube search | 06:55 | `--max-results 3 --total-videos 18 --detailed` |
 | Jacksons AI | @Jacksons_ai channel | 07:05 | `--max-results 3 --detailed` |
 | Make Money Matt | @makemoneymatt channel | 07:15 | `--max-results 3 --detailed` |
 | Miss Luna Vega | YouTube playlist | 07:25 | `--max-results 3 --detailed` |
+| Claude Code New Subtopics (×3) | YouTube search | 07:35 | `--only "seedance,higgsfield,shopify" --max-results 5 --total-videos 15 --detailed` |
 | Daily Summary + Audio + GitHub | — | 07:55 | — |
 
 **Reports + audio available on GitHub ~08:10–08:30 Bangkok every day.**
@@ -56,6 +60,24 @@ Automated daily AI trends research pipeline. Scrapes YouTube videos → generate
 ---
 
 ## Recently Completed
+
+### 2026-05-13 — AI Trends Dashboard + Cloudflare Route
+
+- Added dashboard MVP for managing AI Trends research jobs without editing cron manually
+- Added dashboard job config at `config/research_jobs.json`
+- Added manual run support, report browser, log browser, and read-only production cron view
+- Added `--video-url`, `--report-folder`, and `--config-job-id` support to the main researcher script
+- Reused existing Cloudflare Tunnel `faw-dashboard`; added `ai-trends.thequietself.com -> localhost:8092`
+- Verified public dashboard route returns HTTP 200 and renders the AI Trends Dashboard
+- Production daily cron and 07:55 summary/upload/audio/Telegram flow were not changed
+
+### 2026-05-12 — Cron Path Fix + New Claude Code Subtopics
+
+- Fixed installed AI Trends cron paths from lowercase `/home/mandhira/Desktop/projects/...` to the real uppercase `/home/mandhira/Desktop/Projects/...`
+- Backfilled 2026-05-12 reports and daily summary; Telegram digest completed at 09:22 ICT
+- Added new Claude Code subtopics: Seedance, Higgsfield, Shopify
+- Added 07:35 Bangkok cron job for the new subtopics with `--max-results 5 --total-videos 15 --detailed`
+- Re-ran summary/upload after new topics; daily digest included CC Seedance, CC Higgsfield, and CC Shopify
 
 ### 2026-05-09 — Hallucination Fix
 
@@ -109,6 +131,10 @@ Automated daily AI trends research pipeline. Scrapes YouTube videos → generate
 | T-014 | Add 3 new channels (Jacksons AI, Make Money Matt, Miss Luna Vega) | 2026-05-07 |
 | T-015 | Fix hallucination: non-English video → transcript unavailable | 2026-05-09 |
 | T-016 | Re-summarize AI Agents + AI Viral Niche 2026-05-06/07 reports | 2026-05-09 |
+| T-017 | Fix lowercase cron project path | 2026-05-12 |
+| T-018 | Add Claude Code Seedance/Higgsfield/Shopify subtopics | 2026-05-12 |
+| T-019 | AI Trends Search dashboard MVP | 2026-05-13 |
+| T-020 | Cloudflare route for AI Trends dashboard | 2026-05-13 |
 
 ### 🔄 Backlog
 
@@ -118,6 +144,7 @@ Automated daily AI trends research pipeline. Scrapes YouTube videos → generate
 | B-002 | Report word-count quality check | Low | Alert if under 500 words (wrong prompt) |
 | B-003 | Prompt Engineering topic | Low | High-value potential topic |
 | B-004 | Fix subtopic hash file path inconsistency | Low | Saved to `reports/claude_code/` instead of `ai_trends_reports/` |
+| B-005 | Confirm Cloudflare Access for AI Trends dashboard | High | Public route works; Access policy must be confirmed in Cloudflare Zero Trust |
 
 ---
 
@@ -127,6 +154,7 @@ Automated daily AI trends research pipeline. Scrapes YouTube videos → generate
 |----|-------|----------|--------|
 | B-001 | workspace-atlas scripts out of sync | Low | Open (crontab uses source directly — no impact) |
 | B-002 | Subtopic hash files in inconsistent path | Low | Open |
+| B-003 | AI Trends cron used lowercase `/Desktop/projects/...` path | High | ✅ Fixed 2026-05-12 |
 
 ---
 
@@ -142,6 +170,8 @@ Automated daily AI trends research pipeline. Scrapes YouTube videos → generate
 | Thai output only | All summaries in Thai regardless of video language |
 | No hallucination on missing transcript | Guard added 2026-05-09 — if no English transcript, return "unavailable" message; never ask AI to summarize from knowledge |
 | Reports repo ≠ source repo | `ai-trends-research` (reports) and `ai-trends-research-source` (code) |
+| Dashboard does not replace cron | Dashboard is for configuration/manual runs; production cron remains the daily source of truth |
+| AI Trends reuses FAW tunnel | `ai-trends.thequietself.com` is routed through existing `faw-dashboard` tunnel |
 
 ---
 
@@ -163,4 +193,12 @@ bash scripts/run_ai_trends_with_creds.sh --topic "AI Agents" --max-results 5 --d
 
 # Check today's reports
 find ai_trends_reports/reports -name "$(date +%Y-%m-%d).md"
+
+# Start local dashboard
+python3 dashboard/app.py --host 127.0.0.1 --port 8092
 ```
+
+Dashboard URLs:
+
+- Local: `http://127.0.0.1:8092`
+- Public: `https://ai-trends.thequietself.com`

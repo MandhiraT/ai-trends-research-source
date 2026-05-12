@@ -43,7 +43,7 @@
   └─ upload_reports_to_github_fixed.py → git push ไป reports repo
 ```
 
-**Reports พร้อมอ่าน ~07:45 Bangkok ทุกวัน**
+**Reports พร้อมอ่าน ~08:00 Bangkok ทุกวัน**
 
 ---
 
@@ -64,7 +64,7 @@ Dedup check
               ▼
          ai_trends_reports/reports/{topic}/{YYYY-MM-DD}.md
               │
-              ▼  (07:40)
+              ▼  (07:55)
          upload_reports_to_github_fixed.py
               │
               ▼
@@ -78,8 +78,8 @@ Dedup check
 | ไฟล์ | หน้าที่ |
 |------|---------|
 | `scripts/run_ai_trends_with_creds.sh` | Wrapper หลัก — source credentials + รัน Python script |
-| `scripts/run_claude_code_subtopics_with_creds.sh` | Wrapper สำหรับ 4 Claude Code subtopics |
-| `scripts/run_daily_summary_cron.sh` | Daily summary + GitHub upload (รันตอน 07:40) |
+| `scripts/run_claude_code_subtopics_with_creds.sh` | Wrapper สำหรับ Claude Code subtopics |
+| `scripts/run_daily_summary_cron.sh` | Daily summary + GitHub upload + audio + Telegram (รันตอน 07:55) |
 | `scripts/run_ai_trends_research_enhanced.py` | Python หลัก — search/channel fetch + dedup + summarize |
 | `scripts/run_claude_code_subtopics_enhanced.py` | Python สำหรับ subtopics |
 | `scripts/summarize_local.py` | เรียก Gemini API สร้าง Thai summary |
@@ -87,6 +87,8 @@ Dedup check
 | `scripts/ai_trends_daily_summary_thai.py` | สร้าง daily digest รวม links ทุก topic |
 | `config/paths.py` | Path constants ทั้งหมด + load_credentials() |
 | `config/environment.sh` | Auto-detect PROJECT_ROOT, set paths |
+| `config/research_jobs.json` | Dashboard-managed job config |
+| `dashboard/app.py` | Local dashboard สำหรับเพิ่ม job, run manual, ดู reports/logs/cron |
 | `credentials.env` | API keys (ไม่ commit) |
 | `ai_trends_reports/content_hashes_*.json` | Dedup state ต่อ topic |
 | `ai_trends_reports/reports/{topic}/` | Report files แยก topic |
@@ -156,14 +158,36 @@ bash scripts/run_ai_trends_with_creds.sh \
   --max-results 3
 
 # รัน Claude Code subtopics
-bash scripts/run_claude_code_subtopics_with_creds.sh --max-results 3 --total-videos 8
+bash scripts/run_claude_code_subtopics_with_creds.sh --max-results 3 --total-videos 18 --detailed
+
+# รัน Claude Code new subtopics
+bash scripts/run_claude_code_subtopics_with_creds.sh --only "seedance,higgsfield,shopify" --max-results 5 --total-videos 15 --detailed
 
 # รัน daily summary + GitHub upload
 bash scripts/run_daily_summary_cron.sh
 
 # รัน pipeline ทั้งหมดวันนี้ (sequential)
 bash scripts/run_all_today.sh
+
+# เปิด local dashboard
+python3 dashboard/app.py --host 127.0.0.1 --port 8092
 ```
+
+## Dashboard
+
+Dashboard เป็น control panel สำหรับเพิ่ม/edit topic, channel, playlist, video URL, จำนวนวิดีโอ, และ folder report โดยไม่ต้องแก้ cron เอง
+
+| URL | รายละเอียด |
+|-----|------------|
+| `http://127.0.0.1:8092` | Local dashboard |
+| `https://ai-trends.thequietself.com` | Cloudflare Tunnel route |
+
+หมายเหตุ:
+
+- Dashboard ไม่ replace production cron
+- Production cron ยังเป็น source of truth สำหรับ daily run
+- Public route reuse tunnel เดิม `faw-dashboard`
+- ต้อง confirm Cloudflare Access ใน Cloudflare Zero Trust เพราะ dashboard สามารถ run local scripts ได้
 
 ---
 

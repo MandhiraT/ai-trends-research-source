@@ -2,7 +2,7 @@
 
 > Working document for team/agent collaboration. Update this file whenever features change, bugs are found, or new work is planned. Keep statuses current.
 
-**Last updated:** 2026-05-09 ICT  
+**Last updated:** 2026-05-13 ICT  
 **Maintained by:** Sati (primary agent) / Mandhira
 
 ---
@@ -18,6 +18,10 @@
 | Dedup system | ✅ Working |
 | Telegram daily digest | ✅ Working (includes audio status) |
 | Hallucination guard | ✅ Fixed 2026-05-09 (non-English → transcript unavailable) |
+| Cron project path | ✅ Fixed 2026-05-12 (`Desktop/Projects`, not lowercase `projects`) |
+| Claude Code new subtopics | ✅ Working (Seedance, Higgsfield, Shopify) |
+| Local dashboard | ✅ Working (`http://127.0.0.1:8092`) |
+| Cloudflare dashboard route | ✅ Working (`https://ai-trends.thequietself.com`) |
 
 ---
 
@@ -31,13 +35,16 @@
 | Thai summarization | Vertex AI (ADC) → qwen → glm → gemini → gemma fallback chain | `summarize_local.py` |
 | Standard prompt | Slide-based summary (~500 words) | `prompts/thai_summary_prompt.txt` |
 | Detailed prompt | Section-based summary (2000-3000 words, 🎯📝🛠️📊💡 headers) | `prompts/thai_summary_prompt_detailed.txt` |
-| Claude Code subtopics | 4 subtopics: obsidian, notebooklm, design, skills | `run_claude_code_subtopics_enhanced.py` |
+| Claude Code subtopics | Base + new subtopics: obsidian, notebooklm, design, skills, remotion video, video, seedance, higgsfield, shopify | `run_claude_code_subtopics_enhanced.py` |
 | Daily Thai digest | Aggregates all topic reports + GitHub links | `ai_trends_daily_summary_thai.py` |
 | GitHub auto-upload | Clone reports repo → copy files → git push | `upload_reports_to_github_fixed.py` |
-| Manual pipeline runner | `run_all_today.sh` runs all 7 steps sequentially | `scripts/run_all_today.sh` |
+| Manual pipeline runner | `run_all_today.sh` runs all 11 steps sequentially | `scripts/run_all_today.sh` |
 | Rate limit handling | Auto-retry with backoff on 429 errors | `summarize_local.py` |
 | Audio TTS generation | Gemini 2.5 Flash TTS, per-video mode, FFmpeg concat, daily Telegram status | `generate_audio_report.py` |
 | Hallucination guard | Non-English video → early return "transcript unavailable" (no AI hallucination) | `summarize_local.py` |
+| Local web dashboard | Add/edit research jobs, manual runs, report/log browser, read-only cron view | `dashboard/app.py` |
+| Dashboard job config | JSON-managed research job list for dashboard/manual execution | `config/research_jobs.json` |
+| Specific video/manual report routing | Supports dashboard `--video-url`, `--report-folder`, `--config-job-id` | `run_ai_trends_research_enhanced.py` |
 
 ---
 
@@ -68,6 +75,10 @@ _None_
 | T-015 | **Fix cron schedule docs: Bangkok timezone (not UTC)** | 2026-05-07 | TASKS.md had wrong UTC times; corrected to Bangkok/ICT |
 | T-016 | **Fix hallucination in summarize_local.py for non-English videos** | 2026-05-09 | Added early-return guard: no transcript → return "ไม่สามารถสรุปวิดีโอนี้ได้" instead of asking AI to summarize from knowledge |
 | T-017 | **Re-summarize AI Agents + AI Viral Niche reports (2026-05-06 and 2026-05-07)** | 2026-05-09 | 8/9 videos properly summarized; 1/9 correctly marked unavailable (Thai video, no EN transcript) |
+| T-018 | **Fix AI Trends cron lowercase project path** | 2026-05-12 | Updated installed crontab and docs from `/Desktop/projects/...` to `/Desktop/Projects/...`; backfilled 2026-05-12 summary successfully |
+| T-019 | **Add Claude Code new subtopics: Seedance, Higgsfield, Shopify** | 2026-05-12 | Added `--only "seedance,higgsfield,shopify"` cron at 07:35 Bangkok, 5 clips each, reports under `reports/claude_code/{topic}/` |
+| T-020 | **Add AI Trends Search dashboard MVP** | 2026-05-13 | Added local dashboard, JSON job config, manual run support, report/log browser, and read-only cron view |
+| T-021 | **Expose AI Trends dashboard through existing Cloudflare Tunnel** | 2026-05-13 | Reused `faw-dashboard`; added `ai-trends.thequietself.com -> localhost:8092`; verified HTTP 200 |
 
 ### Backlog
 
@@ -78,6 +89,7 @@ _None_
 | T-015 | Add AI Viral Niche channel source (currently search-only) | Low | Consider adding a dedicated channel for viral AI content |
 | T-016 | Add report word count / quality check to daily digest | Low | Alert if a report is under 500 words (indicates standard prompt was used) |
 | T-017 | Add new topic: Prompt Engineering | Low | Potential high-value topic |
+| T-018 | Confirm Cloudflare Access policy for AI Trends dashboard | High | Local verification cannot confirm Access policy. Dashboard can run local scripts, so `ai-trends.thequietself.com` should require Cloudflare Access login. |
 
 ---
 
@@ -88,6 +100,7 @@ _None_
 | B-001 | **--detailed flag missing from crontab/run_all_today.sh** | High | ✅ Fixed 2026-04-26 | Reports on 2026-04-26 were short slide-based format instead of detailed sections |
 | B-002 | workspace-atlas scripts out of sync with source | Low | Open | Missing `import time` and `time.sleep(15)` — low risk since crontab uses source directly |
 | B-003 | Subtopic hash files saved inside reports/claude_code/ not ai_trends_reports/ | Low | Open | Inconsistent path: `ai_trends_reports/reports/claude_code/content_hashes_*.json` vs `ai_trends_reports/content_hashes_*.json` for other topics |
+| B-004 | AI Trends cron used lowercase `/Desktop/projects/...` path | High | ✅ Fixed 2026-05-12 | Root cause of missed 2026-05-12 daily summary; crontab now uses `/Desktop/Projects/...` |
 
 ---
 
@@ -97,29 +110,33 @@ _None_
 |----------|--------|
 | Dedup by MD5 content hash, not video ID | Catches near-duplicate content across multiple searches |
 | `summarize_local.py` not `summarize` CLI | External `summarize` CLI removed; local script gives full provider chain control |
-| System crontab (UTC), not OpenClaw cron | OpenClaw cron jobs are all disabled; system crontab is more reliable |
+| System crontab (Bangkok/ICT), not OpenClaw cron | OpenClaw cron jobs are all disabled; system crontab is more reliable |
 | Source dir is canonical, workspace-atlas is legacy | Edit source, crontab points to source directly; workspace-atlas not used for new runs |
 | Thai output only | All summaries in Thai regardless of video language |
 | Reports repo ≠ source repo | `ai-trends-research` (reports) and `ai-trends-research-source` (code) are separate repos |
 | `--detailed` flag for all cron/manual runs | Standard prompt produces ~500 word slide summaries; detailed produces 2000-3000 word section-based reports which are significantly more useful |
+| Dashboard is non-invasive | Dashboard manual/config layer does not replace production cron; cron remains the production source of truth |
+| Reuse existing Cloudflare Tunnel | `ai-trends.thequietself.com` uses the existing `faw-dashboard` tunnel; no new tunnel was created |
 
 ---
 
-## Cron Schedule (Current — UTC)
+## Cron Schedule (Current — Bangkok/ICT)
 
-> **Note:** Times below are UTC. Bangkok (ICT) = UTC+7, so 05:00 UTC = 12:00 Bangkok.
+> System crontab runs on Bangkok time on this machine. Reports are normally available around 08:00 Bangkok.
 
-| UTC Time | Bangkok Time | Topic | Args |
-|----------|-------------|-------|------|
-| 05:00 | 12:00 | AI Agents (search) | `--max-results 5 --detailed` |
-| 05:20 | 12:20 | Claude Code (search) | `--max-results 5 --detailed` |
-| 05:40 | 12:40 | AI Viral Niche (search) | `--max-results 5 --detailed` |
-| 06:00 | 13:00 | NATEHERK (channel) | `--max-results 3 --detailed` |
-| 06:25 | 13:25 | Joanna Wiebe (channel) | `--max-results 3 --detailed` |
-| 06:55 | 13:55 | Claude Code Subtopics | `--max-results 3 --total-videos 8 --detailed` |
-| 07:40 | 14:40 | Daily Summary + GitHub Upload | — |
-
-**Reports available on GitHub ~14:45 Bangkok every day.**
+| Bangkok Time | Topic | Args |
+|--------------|-------|------|
+| 05:00 | AI Agents (search) | `--max-results 5 --detailed` |
+| 05:20 | Claude Code (search) | `--max-results 5 --detailed` |
+| 05:40 | AI Viral Niche (search) | `--max-results 5 --detailed` |
+| 06:00 | NATEHERK (channel) | `--max-results 3 --detailed` |
+| 06:25 | Joanna Wiebe (channel) | `--max-results 3 --detailed` |
+| 06:55 | Claude Code base subtopics | `--max-results 3 --total-videos 18 --detailed` |
+| 07:05 | Jacksons AI (channel) | `--max-results 3 --detailed` |
+| 07:15 | Make Money Matt (channel) | `--max-results 3 --detailed` |
+| 07:25 | Miss Luna Vega (playlist) | `--max-results 3 --detailed` |
+| 07:35 | Claude Code new subtopics | `--only "seedance,higgsfield,shopify" --max-results 5 --total-videos 15 --detailed` |
+| 07:55 | Daily Summary + GitHub Upload + Audio + Telegram | — |
 
 ---
 
@@ -128,7 +145,7 @@ _None_
 ```bash
 cd /home/mandhira/Desktop/Projects/ai-trends-research-source
 
-# Full pipeline (all 7 steps, detailed summaries)
+# Full pipeline (all 11 steps, detailed summaries)
 bash scripts/run_all_today.sh
 
 # Single topic
@@ -141,11 +158,23 @@ bash scripts/run_ai_trends_with_creds.sh \
   --max-results 3 --detailed
 
 # Claude Code subtopics only
-bash scripts/run_claude_code_subtopics_with_creds.sh --max-results 3 --total-videos 8 --detailed
+bash scripts/run_claude_code_subtopics_with_creds.sh --max-results 3 --total-videos 18 --detailed
+
+# Claude Code new subtopics only
+bash scripts/run_claude_code_subtopics_with_creds.sh --only "seedance,higgsfield,shopify" --max-results 5 --total-videos 15 --detailed
 
 # Daily summary + GitHub upload only
 bash scripts/run_daily_summary_cron.sh
+
+# Start local dashboard
+python3 dashboard/app.py --host 127.0.0.1 --port 8092
 ```
+
+Dashboard URLs:
+
+- Local: `http://127.0.0.1:8092`
+- Public route: `https://ai-trends.thequietself.com`
+- Cloudflare Access must be checked in Cloudflare Zero Trust before treating the public route as private.
 
 ---
 
@@ -202,6 +231,11 @@ bash scripts/run_all_today.sh
 | CC NotebookLM | `ai_trends_reports/reports/claude_code/claude_code_notebooklm/YYYY-MM-DD.md` | `reports/claude_code/claude_code_notebooklm/` |
 | CC Design | `ai_trends_reports/reports/claude_code/claude_code_design/YYYY-MM-DD.md` | `reports/claude_code/claude_code_design/` |
 | CC Skills | `ai_trends_reports/reports/claude_code/claude_code_skills/YYYY-MM-DD.md` | `reports/claude_code/claude_code_skills/` |
+| CC Remotion Video | `ai_trends_reports/reports/claude_code/claude_code_remotion_video/YYYY-MM-DD.md` | `reports/claude_code/claude_code_remotion_video/` |
+| CC Video | `ai_trends_reports/reports/claude_code/claude_code_video/YYYY-MM-DD.md` | `reports/claude_code/claude_code_video/` |
+| CC Seedance | `ai_trends_reports/reports/claude_code/claude_code_seedance/YYYY-MM-DD.md` | `reports/claude_code/claude_code_seedance/` |
+| CC Higgsfield | `ai_trends_reports/reports/claude_code/claude_code_higgsfield/YYYY-MM-DD.md` | `reports/claude_code/claude_code_higgsfield/` |
+| CC Shopify | `ai_trends_reports/reports/claude_code/claude_code_shopify/YYYY-MM-DD.md` | `reports/claude_code/claude_code_shopify/` |
 
 ---
 

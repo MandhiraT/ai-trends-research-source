@@ -22,15 +22,17 @@ Automated daily AI trends research from YouTube. Scrapes videos → generates **
 | File | Purpose |
 |------|---------|
 | `scripts/run_ai_trends_research_enhanced.py` | Main researcher — yt-dlp search/channel → summarize_local.py → markdown report |
-| `scripts/run_claude_code_subtopics_enhanced.py` | Same but for 4 Claude Code subtopics |
+| `scripts/run_claude_code_subtopics_enhanced.py` | Claude Code subtopic researcher |
 | `scripts/summarize_local.py` | Calls Vertex AI (ADC) → qwen → glm → gemini → gemma fallback chain |
 | `scripts/ai_trends_daily_summary_thai.py` | Generates daily digest with GitHub links (Thai) |
 | `scripts/upload_reports_to_github_fixed.py` | Clones reports repo → copies files → git push |
 | `scripts/run_ai_trends_with_creds.sh` | Bash wrapper — sources credentials.env, calls Python |
 | `scripts/run_claude_code_subtopics_with_creds.sh` | Same wrapper for subtopics script |
-| `scripts/run_all_today.sh` | Runs full 7-step pipeline manually (same as cron) |
-| `scripts/run_daily_summary_cron.sh` | Daily summary + GitHub upload step |
+| `scripts/run_all_today.sh` | Runs full 11-step pipeline manually (same as cron) |
+| `scripts/run_daily_summary_cron.sh` | Daily summary + GitHub upload + audio + Telegram step |
 | `config/paths.py` | All path constants + `load_credentials()` — import at top of every script |
+| `config/research_jobs.json` | Dashboard-managed research job config |
+| `dashboard/app.py` | Local AI Trends dashboard for jobs, manual runs, reports, logs, and cron view |
 | `credentials.env` | API keys (not committed — see credentials.env.example) |
 | `prompts/thai_summary_prompt.txt` | Standard Thai summary (slide-based, ~500 words) — NOT used in prod |
 | `prompts/thai_summary_prompt_detailed.txt` | Detailed Thai summary (section-based, 2000-3000 words) — **always use this** |
@@ -48,9 +50,10 @@ Automated daily AI trends research from YouTube. Scrapes videos → generates **
 | AI Viral Niche | YouTube search | search |
 | NATEHERK | @NATEHERK channel | channel |
 | Joanna Wiebe | @joanna-wiebe channel | channel |
-| Claude Code subtopics | YouTube search | search (4 subtopics) |
+| Claude Code base subtopics | YouTube search | search (obsidian, notebooklm, design, skills, remotion video, video) |
+| Claude Code new subtopics | YouTube search | search (seedance, higgsfield, shopify) |
 
-**Claude Code subtopics:** obsidian · notebooklm · design · skills
+**Claude Code subtopics:** obsidian · notebooklm · design · skills · remotion video · video · seedance · higgsfield · shopify
 
 ---
 
@@ -65,10 +68,11 @@ Automated daily AI trends research from YouTube. Scrapes videos → generates **
 | 05:40 | 22:40 prev | AI Viral Niche | `--max-results 5 --detailed` |
 | 06:00 | 23:00 prev | NATEHERK | `--max-results 3 --detailed` |
 | 06:25 | 23:25 prev | Joanna Wiebe | `--max-results 3 --detailed` |
-| 06:55 | 23:55 prev | Claude Code Subtopics | `--max-results 3 --total-videos 8 --detailed` |
+| 06:55 | 23:55 prev | Claude Code Base Subtopics | `--max-results 3 --total-videos 18 --detailed` |
 | 07:05 | 00:05 | Jacksons AI | `--max-results 3 --detailed` |
 | 07:15 | 00:15 | Make Money Matt | `--max-results 3 --detailed` |
 | 07:25 | 00:25 | Miss Luna Vega | `--max-results 3 --detailed` |
+| 07:35 | 00:35 | Claude Code New Subtopics | `--only "seedance,higgsfield,shopify" --max-results 5 --total-videos 15 --detailed` |
 | 07:55 | 00:55 | Daily Summary + Audio + GitHub | — |
 
 **Reports + audio available on GitHub ~08:10–08:30 Bangkok every day.**
@@ -94,6 +98,17 @@ upload_reports_to_github_fixed.py → git push → MandhiraT/ai-trends-research
   ↓
 Telegram notification (daily digest ~07:55 Bangkok)
 ```
+
+## Dashboard
+
+The AI Trends dashboard is a non-invasive control panel. It does not replace production cron.
+
+| URL | Purpose |
+|-----|---------|
+| `http://127.0.0.1:8092` | Local dashboard |
+| `https://ai-trends.thequietself.com` | Cloudflare Tunnel route |
+
+The public route reuses the existing `faw-dashboard` Cloudflare Tunnel. Confirm Cloudflare Access is enabled before treating the public URL as private.
 
 ---
 
@@ -155,12 +170,18 @@ bash scripts/run_ai_trends_with_creds.sh \
 
 **Run Claude Code subtopics:**
 ```bash
-bash scripts/run_claude_code_subtopics_with_creds.sh --max-results 3 --total-videos 8 --detailed
+bash scripts/run_claude_code_subtopics_with_creds.sh --max-results 3 --total-videos 18 --detailed
+bash scripts/run_claude_code_subtopics_with_creds.sh --only "seedance,higgsfield,shopify" --max-results 5 --total-videos 15 --detailed
 ```
 
 **Generate Thai daily summary + upload to GitHub:**
 ```bash
 bash scripts/run_daily_summary_cron.sh
+```
+
+**Start local dashboard:**
+```bash
+python3 dashboard/app.py --host 127.0.0.1 --port 8092
 ```
 
 **Check today's reports:**
