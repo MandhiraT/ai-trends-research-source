@@ -62,40 +62,48 @@ SOCIAL_DIR = Path(__file__).resolve().parents[1] / "ai_trends_reports" / "social
 # Topics that get full audio + social by default
 PRIORITY_TOPICS = {"NATEHERK", "joanna_wiebe"}
 
-# Thai audio script prompt
-AUDIO_SCRIPT_PROMPT = """You are a Thai content creator. Convert the following Thai report section into a natural spoken Thai audio script.
+# Thai audio script prompt — tone: ดูมาแล้วมาเล่าให้ฟัง, ยกคำพูดผู้พูด, ไม่มี AI filler
+AUDIO_SCRIPT_PROMPT = """เขียนเป็นภาษาไทยทั้งหมด
 
-Rules:
-- Write in conversational Thai, like a podcast host talking to the audience
-- NO AI filler words (ไม่ใช้ "แน่นอน", "นี่คือสรุป", "รับรองว่า", "เริ่มกันเลย")
-- Start directly with the content
-- Keep it engaging and natural
-- Target length: {target_words} words
-- End with a brief takeaway (1-2 sentences)
+คุณเพิ่งดูคลิปนี้มา แล้วอยากเล่าให้คนฟังเข้าใจเนื้อหาแบบเห็นภาพ โดยไม่ต้องไปดูเอง
 
-Report section:
+กติกา:
+- เล่าแบบเพื่อนเล่าให้เพื่อนฟัง ไม่ใช่ผู้อ่านข่าว
+- ยกคำพูดจริงของผู้พูดในคลิปมาด้วย เช่น "...เขาพูดไว้ชัดๆ ว่า..." หรือ "...คำที่เขาใช้คือ..."
+- เล่าเหมือนมีความรู้สึกกับเนื้อหา เช่น "จริงด้วย", "ตรงนี้น่าสนใจมาก", "คิดได้แบบนี้ก็ดีเหมือนกัน"
+- ห้ามใช้คำเติมแบบ AI: "แน่นอน!", "รับรองว่า", "นี่คือสรุป", "เริ่มกันเลย", "พร้อมแล้วใช่ไหม"
+- ห้ามเริ่มด้วยการทักทายหรือแนะนำตัว เข้าเรื่องทันที
+- เขียนเป็น script พูดได้จริง ไม่ใช่บทความอ่าน
+- ความยาว: ประมาณ {target_words} คำ
+- ปิดท้ายด้วยความคิดเห็นสั้นๆ 1-2 ประโยค แบบเห็นด้วยหรือไม่เห็นด้วยก็ได้
+
+เนื้อหาจาก report:
 {section_text}
 
 Audio script:"""
 
-SOCIAL_PROMPT = """You are a Thai social media content creator. Create social media posts from this Thai report.
+SOCIAL_PROMPT = """เขียนเป็นภาษาไทยทั้งหมด
 
-Rules:
-- Write in natural, engaging Thai
-- NO AI filler words
-- Each post should stand alone
+สร้าง social media posts จากเนื้อหานี้ โทนเหมือนคนที่ดูคลิปมาแล้วเล่าให้เพื่อนฟัง
 
-Report section:
+กติกา:
+- เขียนแบบคนจริง ไม่ใช่ AI
+- ห้ามใช้คำแบบ AI: "แน่นอน!", "รับรองว่า", "น่าสังเกตว่า", "สิ่งที่น่าสนใจคือ"
+- ห้ามเริ่มด้วยคำทักทาย AI
+- ยกคำพูดสำคัญจากคลิปมาด้วยได้
+- แต่ละ post ต้อง stand alone ได้
+
+เนื้อหาจาก report:
 {section_text}
 
-Create:
-1. Facebook page post (hook + body + CTA, 3-6 paragraphs)
-2. Threads post (1-3 short posts, each under 200 chars)
-3. X/Twitter thread (3-5 tweets, each under 280 chars)
-4. Short caption (1-2 sentences + hashtags)
+สร้าง:
+1. Facebook page post (hook + body + CTA, 3-6 ย่อหน้า)
+2. Threads post (1-3 โพสต์สั้น, แต่ละอันไม่เกิน 200 ตัวอักษร)
+3. X/Twitter thread (3-5 tweets, แต่ละอันไม่เกิน 280 ตัวอักษร)
+4. Short caption (1-2 ประโยค + hashtags)
 
-Output as JSON:
-{{"facebook": "post text", "threads": ["post1", "post2"], "x_thread": ["tweet1", "tweet2", "tweet3"], "short_caption": "caption #hashtag1 #hashtag2", "hashtags": ["#tag1", "#tag2"]}}"""
+ตอบเป็น JSON:
+{{"facebook": "ข้อความ post", "threads": ["post1", "post2"], "x_thread": ["tweet1", "tweet2", "tweet3"], "short_caption": "caption #hashtag1 #hashtag2", "hashtags": ["#tag1", "#tag2"]}}"""
 
 
 def _get_ai_client():
