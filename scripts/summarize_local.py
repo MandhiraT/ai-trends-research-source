@@ -34,39 +34,65 @@ def _get_youtube_transcript(video_url: str) -> str:
     """Extract transcript from YouTube video using yt-dlp."""
     import re as _re
     import uuid as _uuid
-    _tmp_prefix = f'/tmp/yt_transcript_{_uuid.uuid4().hex}'
-    try:
-        subprocess.run(
-            ['yt-dlp', '--skip-download', '--write-auto-sub',
-             '--sub-lang', 'en', '--sub-format', 'vtt',
-             '--output', _tmp_prefix, video_url],
-            capture_output=True, text=True, timeout=60
-        )
-        for ext in ['.en.vtt', '.vtt']:
-            path = f'{_tmp_prefix}{ext}'
-            if os.path.exists(path):
-                with open(path, encoding='utf-8') as f:
-                    seen, lines_clean = set(), []
-                    for line in f:
-                        line = line.strip()
-                        if not line or '-->' in line:
-                            continue
-                        if any(line.startswith(p) for p in ('WEBVTT', 'NOTE', 'Kind:', 'Language:')):
-                            continue
-                        # Strip word-level timing tags: <00:00:01.520>, <c>, </c>
-                        clean = _re.sub(r'<[^>]+>', '', line).strip()
-                        if clean and clean not in seen:
-                            seen.add(clean)
-                            lines_clean.append(clean)
-                return ' '.join(lines_clean)[:30000]
-    except Exception:
-        pass
-    finally:
-        for _ext in ['.en.vtt', '.vtt', '.en.srv1', '.srv1']:
-            _p = f'{_tmp_prefix}{_ext}'
-            if os.path.exists(_p):
-                try: os.remove(_p)
-                except: pass
+    import time as _time
+
+    def _parse_vtt(path: str) -> str:
+        with open(path, encoding='utf-8') as f:
+            seen, lines_clean = set(), []
+            for line in f:
+                line = line.strip()
+                if not line or '-->' in line:
+                    continue
+                if any(line.startswith(p) for p in ('WEBVTT', 'NOTE', 'Kind:', 'Language:')):
+                    continue
+                clean = _re.sub(r'<[^>]+>', '', line).strip()
+                if clean and clean not in seen:
+                    seen.add(clean)
+                    lines_clean.append(clean)
+        return ' '.join(lines_clean)[:30000]
+
+    _YTDLP_BASE = [
+        'yt-dlp',
+        '--js-runtimes', 'node:/usr/bin/node',
+        '--skip-download',
+        '--sub-lang', 'en',
+        '--sub-format', 'vtt',
+    ]
+    _EXTS = ['.en.vtt', '.vtt']
+
+    # Two passes: auto-generated captions first, then manually-uploaded captions
+    _PASSES = [
+        ['--write-auto-sub'],
+        ['--write-subs'],
+    ]
+
+    for _pass_flags in _PASSES:
+        _tmp_prefix = f'/tmp/yt_transcript_{_uuid.uuid4().hex}'
+        try:
+            for _attempt in range(3):
+                result = subprocess.run(
+                    _YTDLP_BASE + _pass_flags + ['--output', _tmp_prefix, video_url],
+                    capture_output=True, text=True, timeout=60
+                )
+                for ext in _EXTS:
+                    path = f'{_tmp_prefix}{ext}'
+                    if os.path.exists(path):
+                        text = _parse_vtt(path)
+                        if text:
+                            return text
+                # File not created — rate limit or transient error; wait before retry
+                if _attempt < 2:
+                    _stderr_snippet = result.stderr[-300:] if result.stderr else ''
+                    print(f"[summarize_local] yt-dlp attempt {_attempt+1} failed for {video_url} — retrying in {10 * (_attempt+1)}s | {_stderr_snippet}", file=sys.stderr)
+                    _time.sleep(10 * (_attempt + 1))
+        except Exception as _e:
+            print(f"[summarize_local] yt-dlp exception: {_e}", file=sys.stderr)
+        finally:
+            for _ext in _EXTS + ['.en.srv1', '.srv1']:
+                _p = f'{_tmp_prefix}{_ext}'
+                if os.path.exists(_p):
+                    try: os.remove(_p)
+                    except: pass
     return ''
 
 
