@@ -2,8 +2,8 @@
 
 > Working document for team/agent collaboration. Update this file whenever features change, bugs are found, or new work is planned. Keep statuses current.
 
-**Last updated:** 2026-05-13 ICT  
-**Maintained by:** Sati (primary agent) / Mandhira
+**Last updated:** 2026-05-14 ICT  
+**Maintained by:** Sati (primary agent) / Mandhira / Mali
 
 ---
 
@@ -21,6 +21,7 @@
 | Cron project path | ✅ Fixed 2026-05-12 (`Desktop/Projects`, not lowercase `projects`) |
 | Claude Code new subtopics | ✅ Working (Seedance, Higgsfield, Shopify) |
 | Local dashboard | ✅ Working (`http://127.0.0.1:8092`) |
+| Searchable report index | ✅ Working (385 summarized video sections indexed locally, no-AI-cost backfill) |
 | Cloudflare dashboard route | ✅ Working (`https://ai-trends.thequietself.com`) |
 
 ---
@@ -43,6 +44,8 @@
 | Audio TTS generation | Gemini 2.5 Flash TTS, per-video mode, FFmpeg concat, daily Telegram status | `generate_audio_report.py` |
 | Hallucination guard | Non-English video → early return "transcript unavailable" (no AI hallucination) | `summarize_local.py` |
 | Local web dashboard | Add/edit research jobs, manual runs, report/log browser, read-only cron view | `dashboard/app.py` |
+|| Searchable report index | JSONL/SQLite/Markdown mobile indexes + CLI search for report archive | `scripts/build_report_index.py`, `scripts/search_reports.py` |
+|| Dashboard search | Search reports by query/topic/tag from Dashboard UI | `dashboard/app.py` `/search`, `/api/search` |
 | Dashboard job config | JSON-managed research job list for dashboard/manual execution | `config/research_jobs.json` |
 | Specific video/manual report routing | Supports dashboard `--video-url`, `--report-folder`, `--config-job-id` | `run_ai_trends_research_enhanced.py` |
 
@@ -79,6 +82,8 @@ _None_
 | T-019 | **Add Claude Code new subtopics: Seedance, Higgsfield, Shopify** | 2026-05-12 | Added `--only "seedance,higgsfield,shopify"` cron at 07:35 Bangkok, 5 clips each, reports under `reports/claude_code/{topic}/` |
 | T-020 | **Add AI Trends Search dashboard MVP** | 2026-05-13 | Added local dashboard, JSON job config, manual run support, report/log browser, and read-only cron view |
 | T-021 | **Expose AI Trends dashboard through existing Cloudflare Tunnel** | 2026-05-13 | Reused `faw-dashboard`; added `ai-trends.thequietself.com -> localhost:8092`; verified HTTP 200 |
+|| T-022 | **Add searchable report index + no-AI backfill** | 2026-05-14 | Added `build_report_index.py`, `search_reports.py`, tests, JSONL/SQLite/Markdown mobile indexes; backfilled 385 summarized video sections |
+|| T-023 | **Add Dashboard Search tab** | 2026-05-14 | Added `/search` UI + `/api/search` JSON endpoint + `/api/search/rebuild`; filters by query/topic/tag; uses existing JSONL index |
 
 ### Backlog
 
@@ -90,6 +95,8 @@ _None_
 | T-016 | Add report word count / quality check to daily digest | Low | Alert if a report is under 500 words (indicates standard prompt was used) |
 | T-017 | Add new topic: Prompt Engineering | Low | Potential high-value topic |
 | T-018 | Confirm Cloudflare Access policy for AI Trends dashboard | High | Local verification cannot confirm Access policy. Dashboard can run local scripts, so `ai-trends.thequietself.com` should require Cloudflare Access login. |
+|| ~~T-019~~ | **Add Dashboard Search tab backed by report index** | ~~High~~ | ✅ Completed 2026-05-14 as T-023: `/search` UI + `/api/search` JSON endpoint + `/api/search/rebuild` |
+| T-020 | Add content asset layer for audio/social/Sonar scripts | High | Generate cached sidecars only for selected topics/videos to control cost. |
 
 ---
 
@@ -168,6 +175,13 @@ bash scripts/run_daily_summary_cron.sh
 
 # Start local dashboard
 python3 dashboard/app.py --host 127.0.0.1 --port 8092
+
+# Build searchable report index (no AI/TTS cost)
+python3 scripts/build_report_index.py
+
+# Search report archive from CLI
+python3 scripts/search_reports.py "NATEHERK claude code" --limit 10
+python3 scripts/search_reports.py --tag ai-coding --limit 10
 ```
 
 Dashboard URLs:
@@ -236,6 +250,9 @@ bash scripts/run_all_today.sh
 | CC Seedance | `ai_trends_reports/reports/claude_code/claude_code_seedance/YYYY-MM-DD.md` | `reports/claude_code/claude_code_seedance/` |
 | CC Higgsfield | `ai_trends_reports/reports/claude_code/claude_code_higgsfield/YYYY-MM-DD.md` | `reports/claude_code/claude_code_higgsfield/` |
 | CC Shopify | `ai_trends_reports/reports/claude_code/claude_code_shopify/YYYY-MM-DD.md` | `reports/claude_code/claude_code_shopify/` |
+| Search index JSONL | `ai_trends_reports/index/reports_index.jsonl` | To be uploaded with reports repo in future phase |
+| Search index SQLite | `ai_trends_reports/index/reports_index.sqlite` | Local/Dashboard search backend |
+| Mobile Markdown index | `ai_trends_reports/index/README.md`, `by-topic/`, `by-keyword/`, `by-tag/`, `by-date/` | Browseable Markdown pages |
 
 ---
 
