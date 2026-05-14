@@ -7,11 +7,22 @@ import json
 import os
 import re
 import subprocess
+import sys
 import threading
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, quote, unquote, urlparse
+
+# Import search engine from build_report_index
+_SCRIPT_DIR = Path(__file__).resolve().parent.parent / "scripts"
+if str(_SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPT_DIR))
+try:
+    from build_report_index import INDEX_DIR, load_jsonl, search_records, build_index_records, write_indexes  # noqa: E402
+    _SEARCH_AVAILABLE = True
+except ImportError:
+    _SEARCH_AVAILABLE = False
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 CONFIG_FILE = PROJECT_ROOT / "config" / "research_jobs.json"
@@ -232,7 +243,7 @@ def page(title, body):
 <body>
   <header>
     <strong>AI Trends Dashboard</strong>
-    <nav><a href="/">Jobs</a><a href="/reports">Reports</a><a href="/logs">Logs</a><a href="/cron">Cron</a></nav>
+    <nav><a href="/">Jobs</a><a href="/reports">Reports</a><a href="/search">Search</a><a href="/logs">Logs</a><a href="/cron">Cron</a></nav>
   </header>
   <main>{body}</main>
 </body>
@@ -257,6 +268,12 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self.render_files(LOGS_DIR, ".log", "Dashboard Logs")
         elif parsed.path == "/cron":
             self.render_cron()
+        elif parsed.path == "/search":
+            self.render_search()
+        elif parsed.path == "/api/search":
+            self.api_search()
+        elif parsed.path == "/api/search/rebuild":
+            self.api_search_rebuild()
         else:
             self.send_error(404)
 
@@ -427,6 +444,177 @@ class DashboardHandler(BaseHTTPRequestHandler):
         if job:
             start_job(job)
         self.redirect("/")
+
+    # ── Search ────────────────────────────────────────────────
+
+    def _search_index_path(self):
+        return INDEX_DIR / "reports_index.jsonl"
+
+    def _load_search_index(self):
+        path = self._search_index_path()
+        if not path.exists():
+            return []
+        return load_jsonl(str(path))
+
+    def _available_topics(self, records):
+        seen = set()
+        topics = []
+        for r in records:
+            t = r.get("topic", "")
+            if t and t not in seen:
+                seen.add(t)
+                topics.append(t)
+        return topics
+
+    def _available_tags(self, records):
+        seen = set()
+        tags = []
+        for r in records:
+            for t in r.get("tags", []):
+                if t and t not in seen:
+                    seen.add(t)
+                    tags.append(t)
+        return sorted(tags)
+
+    def render_search(self):
+        records = self._load_search_index()
+        total = len(records)
+        topics = self._available_topics(records)
+        tags = self._available_tags(records)
+
+        topic_options = "".join(f'<option value="{h(t)}">{h(t)}</option>' for t in topics)
+        tag_options = "".join(f'<option value="{h(t)}">{h(t)}</option>' for t in tags)
+
+        rebuild_note = ""
+        if not _SEARCH_AVAILABLE:
+            rebuild_note = '<p class="failed">⚠ Search module not available. Run: <code>pip install -r requirements.txt</code></p>'
+        elif total == 0:
+            rebuild_note = '<p class="failed">⚠ Index is empty. <a href="/api/search/rebuild" class="button" style="font-size:13px">Rebuild Index</a></p>'
+
+        body = f"""<h1>🔍 Search Reports</h1>
+{rebuild_note}
+<section>
+<p class="muted">{total} video sections indexed · Last rebuild: {datetime.fromtimestamp(self._search_index_path().stat().st_mtime).strftime('%Y-%m-%d %H:%M') if total else 'never'}</p>
+<form id="searchForm" onsubmit="return doSearch(event)">
+  <div class="form-grid">
+    <div style="grid-column:1/-1">
+      <label>Search query</label>
+      <input id="sq" name="q" placeholder="e.g. claude code, NATEHERK, copywriting, seedance…" autofocus>
+    </div>
+    <div>
+      <label>Topic</label>
+      <select id="st" name="topic"><option value="">All topics</option>{topic_options}</select>
+    </div>
+    <div>
+      <label>Tag</label>
+      <select id="stag" name="tag"><option value="">All tags</option>{tag_options}</select>
+    </div>
+  </div>
+  <p>
+    <button type="submit">Search</button>
+    <button type="button" class="secondary" onclick="clearSearch()">Clear</button>
+    <a href="/api/search/rebuild" class="button secondary" style="font-size:13px">🔄 Rebuild Index</a>
+  </p>
+</form>
+</section>
+<div id="results"></div>
+<script>
+function doSearch(e){{
+  e.preventDefault();
+  var q=document.getElementById('sq').value;
+  var t=document.getElementById('st').value;
+  var tag=document.getElementById('stag').value;
+  var params='?q='+encodeURIComponent(q);
+  if(t)params+='&topic='+encodeURIComponent(t);
+  if(tag)params+='&tag='+encodeURIComponent(tag);
+  fetch('/api/search'+params)
+    .then(function(r){{return r.json()}})
+    .then(function(data){{
+      var el=document.getElementById('results');
+      if(!data.results||data.results.length===0){{
+        el.innerHTML='<p class="muted">No results found.</p>';
+        return;
+      }}
+      var html='<p class="muted">Found '+data.results.length+' result(s)</p><table><thead><tr><th>Date</th><th>Topic</th><th>Video</th><th>Summary</th><th>Tags</th></tr></thead><tbody>';
+      data.results.forEach(function(r){{
+        var tags=r.tags.map(function(t){{return'<span class="pill">'+t+'</span>'}}).join(' ');
+        var yt=r.source_url?'<a href="'+r.source_url+'" target="_blank" style="font-size:12px">▶ YouTube</a>':'';
+        html+='<tr><td>'+r.date+'</td><td><span class="pill">'+r.topic+'</span></td>';
+        html+='<td><strong>'+r.video_title+'</strong><br><span class="muted" style="font-size:13px">'+r.thai_title+'</span><br>'+yt+'</td>';
+        html+='<td style="font-size:13px;max-width:360px">'+r.summary_short+'</td>';
+        html+='<td style="font-size:12px">'+tags+'</td></tr>';
+      }});
+      html+='</tbody></table>';
+      el.innerHTML=html;
+    }})
+    .catch(function(err){{document.getElementById('results').innerHTML='<p class="failed">Search error: '+err+'</p>'}});
+  return false;
+}}
+function clearSearch(){{
+  document.getElementById('sq').value='';
+  document.getElementById('st').value='';
+  document.getElementById('stag').value='';
+  document.getElementById('results').innerHTML='';
+}}
+</script>"""
+        self.send_html(page("Search Reports", body))
+
+    def api_search(self):
+        parsed = urlparse(self.path)
+        qs = parse_qs(parsed.query)
+        query = qs.get("q", [""])[0]
+        topic = qs.get("topic", [""])[0] or None
+        tag = qs.get("tag", [""])[0] or None
+        limit = min(50, max(1, int(qs.get("limit", ["20"])[0])))
+
+        records = self._load_search_index()
+        if not records:
+            self._send_json({"results": [], "total_indexed": 0})
+            return
+
+        results = search_records(records, query, topic=topic, tag=tag)
+        results = results[:limit]
+
+        # Trim for JSON response
+        out = []
+        for r in results:
+            out.append({
+                "date": r.get("date", ""),
+                "topic": r.get("topic", ""),
+                "video_title": r.get("video_title", ""),
+                "thai_title": r.get("thai_title", ""),
+                "summary_short": r.get("summary_short", ""),
+                "source_url": r.get("source_url", ""),
+                "tags": r.get("tags", []),
+                "report_path": r.get("report_path", ""),
+                "score": r.get("score", 0),
+            })
+
+        self._send_json({"results": out, "total_indexed": len(records)})
+
+    def api_search_rebuild(self):
+        if not _SEARCH_AVAILABLE:
+            self._send_json({"error": "Search module not available"}, code=500)
+            return
+
+        def _rebuild():
+            records = build_index_records(str(REPORTS_DIR))
+            write_indexes(records, str(INDEX_DIR))
+
+        try:
+            _rebuild()
+            count = len(self._load_search_index())
+            self._send_json({"status": "ok", "indexed": count})
+        except Exception as exc:
+            self._send_json({"error": str(exc)}, code=500)
+
+    def _send_json(self, data, code=200):
+        payload = json.dumps(data, ensure_ascii=False).encode("utf-8")
+        self.send_response(code)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(payload)))
+        self.end_headers()
+        self.wfile.write(payload)
 
 
 def main():
