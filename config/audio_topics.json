@@ -1,9 +1,10 @@
 {
-  "enabled_topics": ["NATEHERK"],
+  "enabled_topics": ["NATEHERK", "joanna_wiebe"],
   "voice": "Aoede",
   "language_hint": "th-TH",
   "github_folder_map": {
-    "NATEHERK": "nateherk"
+    "NATEHERK": "nateherk",
+    "joanna_wiebe": "joanna_wiebe"
   },
   "default_voice_profile": "ats_female_narrator",
   "voice_profiles": {
@@ -26,14 +27,13 @@
       "voice_profile": "ats_female_narrator"
     },
     "joanna_wiebe": {
-      "enabled": false,
+      "enabled": true,
       "script_type": "full",
       "voice_type": "full",
       "per_video": true,
-      "publish": false,
-      "github_folder": "Joanna_Wiebe",
-      "voice_profile": "ats_female_narrator",
-      "note": "Prepared but disabled until NATEHERK compatibility and manual voice flow are fully verified."
+      "publish": true,
+      "github_folder": "joanna_wiebe",
+      "voice_profile": "ats_female_narrator"
     }
   }
 }
