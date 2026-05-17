@@ -59,13 +59,25 @@ ASSETS_DIR = Path(__file__).resolve().parents[1] / "ai_trends_reports" / "assets
 AUDIO_SCRIPTS_DIR = Path(__file__).resolve().parents[1] / "ai_trends_reports" / "audio_scripts"
 SOCIAL_DIR = Path(__file__).resolve().parents[1] / "ai_trends_reports" / "social"
 
+
+def _slug(name: str) -> str:
+    """Normalize display topic names to stable folder slugs.
+
+    Examples: "AI Agents" → "ai_agents", "Joanna Wiebe" → "joanna_wiebe",
+    "NATEHERK" → "nateherk". Keep this module self-contained because the
+    Dashboard imports these save helpers directly.
+    """
+    return re.sub(r"[\s\-]+", "_", str(name or "").strip()).lower()
+
+
 # Topics that get full audio + social by default
 PRIORITY_TOPICS = {"NATEHERK", "joanna_wiebe"}
 
-# Thai audio script prompt — tone: ดูมาแล้วมาเล่าให้ฟัง, ยกคำพูดผู้พูด, ไม่มี AI filler
+# Thai audio script prompt — tone: คนที่เพิ่งดูมาแล้วอยากบอกเล่าสิ่งที่ได้เรียนรู้,
+# ยกคำพูดผู้พูด, เปิดด้วย hook, ไม่มี AI filler/คำสนิทสนมเกินไป
 AUDIO_SCRIPT_PROMPT = """เขียนเป็นภาษาไทยทั้งหมด
 
-คุณเพิ่งดูคลิปนี้มา แล้วอยากเล่าให้คนฟังเข้าใจเนื้อหาแบบเห็นภาพ โดยไม่ต้องไปดูเอง
+คุณเพิ่งดูคลิปนี้มา แล้วอยากบอกเล่าสิ่งที่ได้เรียนรู้ให้คนฟังเข้าใจแบบเห็นภาพ โดยไม่ต้องไปดูเอง
 
 กติกา:
 - เล่าแบบคนที่เพิ่งดูมาแล้วอยากบอกเล่าสิ่งที่ได้เรียนรู้ — ไม่เป็นทางการเกิน แต่ไม่ใช่แบบเพื่อนสนิทเม้าท์กัน
@@ -217,6 +229,23 @@ def build_asset_from_report(report_path: Path, reports_root: Path) -> dict[str, 
         "videos": videos,
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
     }
+
+
+def enable_content_use(asset: dict, *, audio: bool = False, social: bool = False) -> dict:
+    """Enable generation flags for explicit/manual requests.
+
+    PRIORITY_TOPICS controls default automation policy only. When a user clicks
+    +Audio/+Social/+All in the Dashboard or runs the CLI with --with-audio/
+    --with-social, the selected report should generate for any topic.
+    """
+    for video in asset.get("videos", []):
+        content_use = video.setdefault("content_use", {})
+        if audio:
+            content_use["audio_full"] = True
+            content_use["audio_short"] = True
+        if social:
+            content_use["social_post"] = True
+    return asset
 
 
 def generate_audio_scripts(asset: dict, module=None) -> dict:
@@ -371,6 +400,8 @@ def process_report(report_path: Path, reports_root: Path,
         return {"status": "skipped", "report": str(report_path), "reason": "no summarized videos"}
 
     ai_module = _get_ai_client() if (with_audio or with_social) else None
+
+    enable_content_use(asset, audio=with_audio, social=with_social)
 
     audio_result = {}
     if with_audio:

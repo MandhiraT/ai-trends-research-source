@@ -24,8 +24,8 @@
 | Searchable report index | ✅ Working (385 summarized video sections indexed locally, no-AI-cost backfill) |
 | Cloudflare dashboard route | ✅ Working (`https://ai-trends.thequietself.com`) |
 | Dashboard systemd service | ✅ Working (user-level `ats-dashboard.service`, auto-restart, linger enabled) |
-| Content asset generation | ✅ Working (`generate_content_assets.py`, dashboard Assets tab) |
-| Dashboard Asset batch generate | ✅ Working (date range, skip existing, progress bar, per-row buttons) |
+| Content asset generation | ✅ Working (`generate_content_assets.py`, dashboard Assets tab; manual audio/social works for all topics) |
+| Dashboard Asset batch generate | ✅ Working (date range, skip existing, progress bar, per-row buttons; manual AI generation overrides default priority-topic policy) |
 | Dashboard Existing Assets filters | ✅ Working (client-side topic/date table filter, verified Joanna today case) |
 | Voice generation design | 📝 Designed, not implemented (`docs/VOICE-DESIGN.md`) |
 
@@ -113,6 +113,7 @@
 | T-031 | **Implement ATS Dashboard manual voice flow — Phase 2** | 2026-05-17 | Added `/api/assets/script` GET/POST, `/api/assets/voice-status`, `/api/assets/generate-voice`, script editor on Assets page, and per-row 📝/📚/🎙️/🎧 controls. Voice is generated from saved script only; missing script returns explicit error. Verified 8/8 API tests and browser UI; no real TTS cost triggered. |
 | T-032 | **ATS output repo folder cleanup — Phase A local migration** | 2026-05-17 | Migrated 13 WAV files `Voice/NateHerk → voice/nateherk`. Both repos committed and pushed. ✅ |
 | T-033 | **Enable Joanna Wiebe daily voice automation** | 2026-05-17 | Added `joanna_wiebe` to `enabled_topics` + `github_folder_map`, set `automated_voice_topics.joanna_wiebe.enabled=true, publish=true`. NATEHERK verified (9.9MB today). Generated and published `voice/joanna_wiebe/2026-05-17.wav` (9.2MB). From tomorrow cron generates + publishes Joanna audio automatically. |
+| T-034 | **Fix Dashboard Assets all-topic manual audio/social generation** | 2026-05-17 | Fixed `name '_slug' is not defined` in `scripts/generate_content_assets.py`, added explicit manual generation override so Dashboard `+Audio`, `+Social`, and `+All` work for any topic while `PRIORITY_TOPICS` remains default automation policy only. Updated full-script prompt framing to “คนที่เพิ่งดูมาแล้วอยากบอกเล่าสิ่งที่ได้เรียนรู้”, hook-first opening, no “คลิปนี้” opening, and banned over-casual words (`แก`, `เว้ย`, `แกๆ`, `โห`, `โคตร`, `เจ๋ง`, `อ่ะ`). Verification: py_compile passed, unit/fake-AI all-topic test passed, local `/assets` + asset endpoints 5/5, browser page loads via Cloudflare route with no console errors, real `jacksons_ai` audio-script generation returned 200 and created `audio_scripts/jacksons_ai/2026-05-17-v1.md`. |
 
 ### Backlog
 

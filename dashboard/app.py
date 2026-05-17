@@ -1334,6 +1334,7 @@ document.addEventListener('DOMContentLoaded',function(){{
                 build_asset_from_report, save_asset,
                 generate_audio_scripts, generate_social_posts,
                 save_audio_scripts, save_social_posts,
+                enable_content_use,
             )
         except ImportError:
             return None, False
@@ -1344,6 +1345,8 @@ document.addEventListener('DOMContentLoaded',function(){{
         asset = build_asset_from_report(report_path, REPORTS_DIR)
         if not asset:
             return None, False
+
+        enable_content_use(asset, audio=with_audio, social=with_social)
 
         if with_audio:
             generate_audio_scripts(asset, ai_module)
@@ -1362,6 +1365,7 @@ document.addEventListener('DOMContentLoaded',function(){{
                 find_reports, build_asset_from_report, save_asset,
                 generate_audio_scripts, generate_social_posts,
                 save_audio_scripts, save_social_posts, _get_ai_client,
+                enable_content_use,
             )
         except ImportError:
             self._send_json({"error": "Asset module not available"}, code=500)
@@ -1470,6 +1474,8 @@ document.addEventListener('DOMContentLoaded',function(){{
                 continue
             total_videos += asset.get("total_videos", 0)
 
+            enable_content_use(asset, audio=with_audio, social=with_social)
+
             if with_audio:
                 generate_audio_scripts(asset, ai_module)
                 save_audio_scripts(asset, AUDIO_SCRIPTS_DIR)
@@ -1497,6 +1503,7 @@ document.addEventListener('DOMContentLoaded',function(){{
                 find_reports, build_asset_from_report, save_asset,
                 generate_audio_scripts, generate_social_posts,
                 save_audio_scripts, save_social_posts, _get_ai_client,
+                enable_content_use,
             )
         except ImportError:
             self._send_json({"error": "Asset module not available"}, code=500)
@@ -1554,6 +1561,8 @@ document.addEventListener('DOMContentLoaded',function(){{
                 DashboardHandler._status_store[status_key] = ("error", time.time())
                 self._send_json({"error": "Failed to parse report"}, code=500)
                 return
+
+            enable_content_use(asset, audio=with_audio, social=with_social)
 
             if with_audio:
                 generate_audio_scripts(asset, ai_module)
