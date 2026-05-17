@@ -26,7 +26,6 @@ import os
 import re
 import json
 import argparse
-import tempfile
 import time
 from datetime import date as _date
 
@@ -214,8 +213,11 @@ def generate_for_topic(topic_key: str, date_str: str, voice: str = DEFAULT_VOICE
     """
     output_path = os.path.join(AUDIO_DIR, topic_key, f'{date_str}.wav')
 
-    if os.path.exists(output_path) and not force:
-        print(f'  [audio] ⏭️  {topic_key}/{date_str}.wav already exists — skipping')
+    # Per-video mode produces {date}-v1.wav, {date}-v2.wav, ... — check v1 as sentinel
+    skip_path = os.path.join(AUDIO_DIR, topic_key, f'{date_str}-v1.wav') if per_video else output_path
+    if os.path.exists(skip_path) and not force:
+        label = f'{date_str}-v1.wav' if per_video else f'{date_str}.wav'
+        print(f'  [audio] ⏭️  {topic_key}/{label} already exists — skipping')
         return True
 
     report_path = _find_report(topic_key, date_str)
@@ -261,101 +263,92 @@ def generate_for_topic(topic_key: str, date_str: str, voice: str = DEFAULT_VOICE
         return False
 
 
-def _save_combined_script(topic_key: str, date_str: str,
-                          scripts: list[tuple[str, str]]) -> str | None:
-    """Save all per-video scripts as one combined ATS script file. Returns path or None."""
+def _save_script(topic_key: str, date_str: str, video_num: int,
+                 video_title: str, script_text: str) -> str | None:
+    """Save one video's script to audio_scripts/{topic}/{date}-v{N}.md."""
     scripts_dir = os.path.join(SCRIPTS_DIR, topic_key)
     os.makedirs(scripts_dir, exist_ok=True)
-    script_path = os.path.join(scripts_dir, f'{date_str}-v1.md')
+    script_path = os.path.join(scripts_dir, f'{date_str}-v{video_num}.md')
 
     topic_display = topic_key.replace('_', ' ').title()
-    header = (
-        f"# Audio Script: {topic_display} — {date_str}\n"
+    content = (
+        f"# Audio Script: {video_title}\n"
         f"Date: {date_str}\n"
         f"Topic: {topic_display}\n"
-        f"เวอร์ชัน: auto-generated\n\n"
+        f"Video: {video_title}\n"
+        f"เวอร์ชัน: auto-generated v{video_num}\n\n"
         f"## Full Script\n\n"
+        f"{script_text}\n"
     )
-    body = "\n\n".join(script for _, script in scripts)
 
     try:
         with open(script_path, 'w', encoding='utf-8') as f:
-            f.write(header + body + "\n")
-        print(f'  [audio] 📄 Script saved: {script_path}')
+            f.write(content)
+        print(f'  [audio]   📄 Script saved: {os.path.basename(script_path)}')
         return script_path
     except Exception as e:
-        print(f'  [audio] ⚠️  Script save failed: {e}')
+        print(f'  [audio]   ⚠️  Script save failed: {e}')
         return None
 
 
 def _generate_per_video(topic_key: str, date_str: str, report_text: str,
                         output_path: str, voice: str, dry_run: bool) -> bool:
-    """Per-video mode: split → condense each section → TTS each → concatenate."""
+    """Per-video mode: split → condense + TTS each section → N separate WAV + script files."""
     sections = _split_into_video_sections(report_text)
     print(f'  [audio] 📹 Per-video mode: {len(sections)} section(s) found')
 
-    seg_paths = []
-    all_scripts: list[tuple[str, str]] = []
-    with tempfile.TemporaryDirectory() as tmpdir:
-        for i, (title, text) in enumerate(sections):
-            is_first = (i == 0)
-            is_last  = (i == len(sections) - 1)
-            label    = title or f'section_{i+1}'
-            short    = label[:50]
+    audio_dir = os.path.dirname(output_path)
+    os.makedirs(audio_dir, exist_ok=True)
 
-            if i > 0:
-                time.sleep(8)  # brief pause between sections to avoid quota bursts
+    success_count = 0
+    for i, (title, text) in enumerate(sections):
+        video_num = i + 1
+        is_first  = (i == 0)
+        is_last   = (i == len(sections) - 1)
+        label     = title or f'section_{video_num}'
+        short     = label[:50]
 
-            print(f'  [audio]   [{i+1}/{len(sections)}] 📝 Condensing: "{short}"...')
-            try:
-                script = _condense_video_section(text, label, date_str, is_first, is_last)
-                # Retry once if output is too short — model sometimes under-generates
-                if len(script) < 500:
-                    print(f'  [audio]   [{i+1}/{len(sections)}] ⚠️  Script too short ({len(script)} chars) — retrying...')
-                    time.sleep(10)
-                    script2 = _condense_video_section(text, label, date_str, is_first, is_last)
-                    if len(script2) > len(script):
-                        script = script2
-                print(f'  [audio]   [{i+1}/{len(sections)}] ✅ Script: {len(script)} chars')
-                all_scripts.append((label, script))
-            except Exception as e:
-                print(f'  [audio]   [{i+1}/{len(sections)}] ❌ Condense failed: {e}')
-                return False
+        if i > 0:
+            time.sleep(8)  # brief pause between sections to avoid quota bursts
 
-            if dry_run:
-                print(f'  [audio]   [{i+1}/{len(sections)}] 🔍 Preview:')
-                print('  ' + script[:200].replace('\n', '\n  ') + '...')
-                continue
+        print(f'  [audio]   [{video_num}/{len(sections)}] 📝 Condensing: "{short}"...')
+        try:
+            script = _condense_video_section(text, label, date_str, is_first, is_last)
+            # Retry once if output is too short — model sometimes under-generates
+            if len(script) < 500:
+                print(f'  [audio]   [{video_num}/{len(sections)}] ⚠️  Script too short ({len(script)} chars) — retrying...')
+                time.sleep(10)
+                script2 = _condense_video_section(text, label, date_str, is_first, is_last)
+                if len(script2) > len(script):
+                    script = script2
+            print(f'  [audio]   [{video_num}/{len(sections)}] ✅ Script: {len(script)} chars')
+        except Exception as e:
+            print(f'  [audio]   [{video_num}/{len(sections)}] ❌ Condense failed: {e}')
+            continue
 
-            seg_path = os.path.join(tmpdir, f'seg_{i:02d}.wav')
-            print(f'  [audio]   [{i+1}/{len(sections)}] 🎙️  TTS (voice={voice})...')
-            try:
-                _text_to_wav(script, seg_path, voice=voice)
-                size_kb = os.path.getsize(seg_path) // 1024
-                print(f'  [audio]   [{i+1}/{len(sections)}] ✅ Segment: {size_kb} KB')
-                seg_paths.append(seg_path)
-            except Exception as e:
-                print(f'  [audio]   [{i+1}/{len(sections)}] ❌ TTS failed: {e}')
-                return False
+        _save_script(topic_key, date_str, video_num, label, script)
 
         if dry_run:
-            return True
+            print(f'  [audio]   [{video_num}/{len(sections)}] 🔍 Preview:')
+            print('  ' + script[:200].replace('\n', '\n  ') + '...')
+            success_count += 1
+            continue
 
-        if not seg_paths:
-            print('  [audio] ❌ No segments generated')
-            return False
-
-        print(f'  [audio] 🔗 Concatenating {len(seg_paths)} segment(s)...')
+        wav_path = os.path.join(audio_dir, f'{date_str}-v{video_num}.wav')
+        print(f'  [audio]   [{video_num}/{len(sections)}] 🎙️  TTS → {date_str}-v{video_num}.wav...')
         try:
-            _concat_wavs(seg_paths, output_path)
-            size_kb = os.path.getsize(output_path) // 1024
-            print(f'  [audio] ✅ Saved: {output_path} ({size_kb} KB)')
+            _text_to_wav(script, wav_path, voice=voice)
+            size_kb = os.path.getsize(wav_path) // 1024
+            print(f'  [audio]   [{video_num}/{len(sections)}] ✅ Saved: {size_kb} KB')
+            success_count += 1
         except Exception as e:
-            print(f'  [audio] ❌ Concat failed: {e}')
-            return False
+            print(f'  [audio]   [{video_num}/{len(sections)}] ❌ TTS failed: {e}')
 
-    if all_scripts:
-        _save_combined_script(topic_key, date_str, all_scripts)
+    if success_count == 0:
+        print('  [audio] ❌ No segments generated')
+        return False
+
+    print(f'  [audio] ✅ {success_count}/{len(sections)} video(s) done')
     return True
 
 

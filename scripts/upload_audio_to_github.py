@@ -62,10 +62,14 @@ def upload_audio(date_str: str) -> bool:
 
     _git(['git', 'pull', 'origin', 'master'], repo)
 
+    import glob as _glob
+
     copied = []
     for topic in enabled:
-        wav = os.path.join(AUDIO_DIR, topic, f'{date_str}.wav')
-        if not os.path.exists(wav):
+        # Match both whole-file {date}.wav and per-video {date}-v*.wav
+        topic_audio_dir = os.path.join(AUDIO_DIR, topic)
+        wav_files = sorted(_glob.glob(os.path.join(topic_audio_dir, f'{date_str}*.wav')))
+        if not wav_files:
             print(f'[audio-upload] ⚠️  No WAV for {topic}/{date_str} — skipping')
             continue
 
@@ -73,16 +77,17 @@ def upload_audio(date_str: str) -> bool:
         dest_dir    = os.path.join(repo, 'voice', dest_folder)
         os.makedirs(dest_dir, exist_ok=True)
 
-        dest = os.path.join(dest_dir, f'{date_str}.wav')
-        shutil.copy2(wav, dest)
-        size_mb = os.path.getsize(dest) / (1024 * 1024)
-        rel_path = os.path.join('voice', dest_folder, f'{date_str}.wav')
-        print(f'[audio-upload] ✅ Copied: {rel_path} ({size_mb:.1f} MB)')
-        copied.append(rel_path)
+        for wav in wav_files:
+            fname    = os.path.basename(wav)
+            dest     = os.path.join(dest_dir, fname)
+            shutil.copy2(wav, dest)
+            size_mb  = os.path.getsize(dest) / (1024 * 1024)
+            rel_path = os.path.join('voice', dest_folder, fname)
+            print(f'[audio-upload] ✅ Copied: {rel_path} ({size_mb:.1f} MB)')
+            copied.append(rel_path)
 
     # Copy matching script files (.md) alongside WAVs
     for topic in enabled:
-        import glob as _glob
         topic_scripts_dir = os.path.join(SCRIPTS_DIR, topic)
         script_files = _glob.glob(os.path.join(topic_scripts_dir, f'{date_str}-v*.md'))
         if not script_files:
