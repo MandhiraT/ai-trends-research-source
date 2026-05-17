@@ -863,12 +863,16 @@ function clearSearch(){{
 
         today_str = datetime.now().strftime("%Y-%m-%d")
 
+        generating_now = DashboardHandler._generating_set
+        any_generating = bool(generating_now)
+
         rows = ""
         for a in reversed(existing[-100:]):
             safe_topic  = h(a["topic"])
             safe_folder = h(a["topic_folder"])
             safe_raw    = h(a["topic_raw"])
             safe_date   = h(a["date"])
+            is_generating = (a["topic_folder"], a["date"]) in generating_now
 
             # 4-badge status column
             def badge(icon, green, click_js, title):
@@ -900,13 +904,18 @@ function clearSearch(){{
             rows += f'</td>'
             rows += f'<td class="muted" style="font-size:12px">{h(a["path"])}</td>'
             rows += f'<td id="gentd-{safe_folder}-{safe_date}" style="white-space:nowrap">'
-            rows += f'<button class="btn-sm" onclick="generateOne(\'{safe_folder}\',\'{safe_date}\',\'asset\')" title="Asset JSON only">📄</button> '
-            rows += f'<button class="btn-sm" onclick="generateOne(\'{safe_folder}\',\'{safe_date}\',\'audio\')" title="Audio scripts">🔊</button> '
-            rows += f'<button class="btn-sm" onclick="generateOne(\'{safe_folder}\',\'{safe_date}\',\'social\')" title="Social posts">📱</button> '
-            rows += f'<button class="btn-sm" onclick="generateOne(\'{safe_folder}\',\'{safe_date}\',\'all\')" title="Audio + Social">🚀</button>'
+            if is_generating:
+                rows += f'<span style="color:#6366f1;font-size:13px">⏳ กำลังสร้าง...</span>'
+            else:
+                rows += f'<button class="btn-sm" onclick="generateOne(\'{safe_folder}\',\'{safe_date}\',\'asset\')" title="Asset JSON only">📄</button> '
+                rows += f'<button class="btn-sm" onclick="generateOne(\'{safe_folder}\',\'{safe_date}\',\'audio\')" title="Audio scripts">🔊</button> '
+                rows += f'<button class="btn-sm" onclick="generateOne(\'{safe_folder}\',\'{safe_date}\',\'social\')" title="Social posts">📱</button> '
+                rows += f'<button class="btn-sm" onclick="generateOne(\'{safe_folder}\',\'{safe_date}\',\'all\')" title="Audio + Social">🚀</button>'
             rows += f'</td></tr>'
 
-        body = f"""<h1>📦 Content Assets</h1>
+        auto_refresh = '<meta http-equiv="refresh" content="8">' if any_generating else ''
+
+        body = f"""{auto_refresh}<h1>📦 Content Assets</h1>
 <section>
 <p class="muted">{len(existing)} asset files · Generate audio scripts and social posts from reports</p>
 </section>
@@ -1230,6 +1239,7 @@ function generateOne(topic,date,mode){{
 
     # ── Progress tracking for batch generation ──────────────
     _gen_progress = {"current": 0, "total": 0, "status": "idle"}
+    _generating_set: set = set()  # (topic_raw, date) while api_assets_generate_one runs
 
     def api_assets_progress(self):
         self._send_json(self._gen_progress)
@@ -1454,19 +1464,24 @@ function generateOne(topic,date,mode){{
 
         ai_module = _get_ai_client() if (with_audio or with_social) else None
 
-        asset = build_asset_from_report(report_path, REPORTS_DIR)
-        if not asset:
-            self._send_json({"error": "Failed to parse report"}, code=500)
-            return
+        gen_key = (topic_folder, date)
+        DashboardHandler._generating_set.add(gen_key)
+        try:
+            asset = build_asset_from_report(report_path, REPORTS_DIR)
+            if not asset:
+                self._send_json({"error": "Failed to parse report"}, code=500)
+                return
 
-        if with_audio:
-            generate_audio_scripts(asset, ai_module)
-            save_audio_scripts(asset, AUDIO_SCRIPTS_DIR)
-        if with_social:
-            generate_social_posts(asset, ai_module)
-            save_social_posts(asset, SOCIAL_DIR)
+            if with_audio:
+                generate_audio_scripts(asset, ai_module)
+                save_audio_scripts(asset, AUDIO_SCRIPTS_DIR)
+            if with_social:
+                generate_social_posts(asset, ai_module)
+                save_social_posts(asset, SOCIAL_DIR)
 
-        save_asset(asset, ASSETS_DIR)
+            save_asset(asset, ASSETS_DIR)
+        finally:
+            DashboardHandler._generating_set.discard(gen_key)
 
         self._send_json({
             "generated": 1,
