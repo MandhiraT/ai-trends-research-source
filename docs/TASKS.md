@@ -111,7 +111,8 @@
 | T-029 | **Design ATS voice generation architecture** | 2026-05-17 | Designed two voice types: full script voice (`vN.wav`) and deep dive voice (`vN-deep-dive.wav`), Gemini TTS chunking/concat, asset JSON extensions, and Dashboard voice UI. Design doc: `docs/VOICE-DESIGN.md`. Not implemented yet. |
 | T-030 | **Implement ATS unified voice engine — Phase 1** | 2026-05-17 | Added `scripts/voice_engine.py`, `ats_female_narrator` voice profile (`Aoede`), refactored `generate_audio_report.py` wrappers to use the shared TTS/concat engine, and extended `config/audio_topics.json` with automation policy. Verified with py_compile, config JSON, engine dry-run, CLI help, profile load. |
 | T-031 | **Implement ATS Dashboard manual voice flow — Phase 2** | 2026-05-17 | Added `/api/assets/script` GET/POST, `/api/assets/voice-status`, `/api/assets/generate-voice`, script editor on Assets page, and per-row 📝/📚/🎙️/🎧 controls. Voice is generated from saved script only; missing script returns explicit error. Verified 8/8 API tests and browser UI; no real TTS cost triggered. |
-| T-032 | **ATS output repo folder cleanup — Phase A local migration** | 2026-05-17 | Added `docs/OUTPUT-REPO-FOLDER-MIGRATION.md`, updated audio upload path to canonical `voice/{topic}/`, mapped `NATEHERK → nateherk`, and locally migrated output repo 13 WAV files `Voice/NateHerk → voice/nateherk`. Verified counts and no `.ogg`. Pending: commit/push output repo + source repo after final approval/check. |
+| T-032 | **ATS output repo folder cleanup — Phase A local migration** | 2026-05-17 | Migrated 13 WAV files `Voice/NateHerk → voice/nateherk`. Both repos committed and pushed. ✅ |
+| T-033 | **Enable Joanna Wiebe daily voice automation** | 2026-05-17 | Added `joanna_wiebe` to `enabled_topics` + `github_folder_map`, set `automated_voice_topics.joanna_wiebe.enabled=true, publish=true`. NATEHERK verified (9.9MB today). Generated and published `voice/joanna_wiebe/2026-05-17.wav` (9.2MB). From tomorrow cron generates + publishes Joanna audio automatically. |
 
 ### Backlog
 
@@ -125,7 +126,7 @@
 | T-018 | Confirm Cloudflare Access policy for AI Trends dashboard | High | Local verification cannot confirm Access policy. Dashboard can run local scripts, so `ai-trends.thequietself.com` should require Cloudflare Access login. |
 || ~~T-019~~ | **Add Dashboard Search tab backed by report index** | ~~High~~ | ✅ Completed 2026-05-14 as T-023: `/search` UI + `/api/search` JSON endpoint + `/api/search/rebuild` |
 || ~~T-020~~ | **Add content asset layer for audio/social/Sonar scripts** | ~~High~~ | ✅ Completed 2026-05-14 as T-024: `generate_content_assets.py` + dashboard Assets tab |
-| T-021 | **Implement ATS voice generation** | High | Phase 1+2 completed as T-030/T-031: unified voice engine, Aoede profile, legacy wrapper, Dashboard script editor/save, and voice-from-saved-script controls. Remaining: deep-dive script generator, better per-video status counts, real TTS acceptance test, publish generated voice assets, enable Joanna automation after NATEHERK compatibility test. |
+| T-021 | **Implement ATS voice generation** | Medium | NATEHERK + Joanna Wiebe daily automation fully enabled. Both publish to `voice/{topic}/` in output repo. Remaining: deep-dive script generator, per-video voice status counts in Dashboard. |
 
 ---
 
