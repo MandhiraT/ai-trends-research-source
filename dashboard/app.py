@@ -857,7 +857,7 @@ function clearSearch(){{
             rows += f'<button class="btn-sm" onclick="generateVoice(\'{safe_folder}\',\'{safe_date}\',\'deep_dive\')" title="Generate deep dive voice from saved script">🎧</button>'
             rows += f'</td>'
             rows += f'<td class="muted" style="font-size:12px">{h(a["path"])}</td>'
-            rows += f'<td style="white-space:nowrap">'
+            rows += f'<td id="gentd-{safe_folder}-{safe_date}" style="white-space:nowrap">'
             rows += f'<button class="btn-sm" onclick="generateOne(\'{safe_folder}\',\'{safe_date}\',\'asset\')" title="Asset JSON only">📄</button> '
             rows += f'<button class="btn-sm" onclick="generateOne(\'{safe_folder}\',\'{safe_date}\',\'audio\')" title="Audio scripts">🔊</button> '
             rows += f'<button class="btn-sm" onclick="generateOne(\'{safe_folder}\',\'{safe_date}\',\'social\')" title="Social posts">📱</button> '
@@ -1115,21 +1115,26 @@ function generateVoiceFromEditor(){{
 
 function generateOne(topic,date,mode){{
   if(!_confirmIfAI(mode,topic,date,date)) return;
-  var row=document.getElementById('row-'+topic+'-'+date);
-  if(row){{
-    var btns=row.querySelectorAll('.btn-sm');
-    btns.forEach(function(b){{b.disabled=true}});
+  var gentd=document.getElementById('gentd-'+topic+'-'+date);
+  var origHtml=gentd?gentd.innerHTML:'';
+  if(gentd){{
+    gentd.innerHTML='<span style="color:#6366f1;font-size:12px">⏳ กำลังสร้าง '+_modeLabel(mode)+'...</span>';
   }}
   var params='?mode='+mode+'&topic='+encodeURIComponent(topic)+'&date='+encodeURIComponent(date);
   fetch('/api/assets/generate-one'+params)
     .then(function(r){{return r.json()}})
     .then(function(data){{
-      if(data.error){{alert('Error: '+data.error);if(row){{row.querySelectorAll('.btn-sm').forEach(function(b){{b.disabled=false}});}}return;}}
-      setTimeout(function(){{location.reload();}},1000);
+      if(data.error){{
+        alert('Error: '+data.error);
+        if(gentd) gentd.innerHTML=origHtml;
+        return;
+      }}
+      if(gentd) gentd.innerHTML='<span style="color:#16a34a;font-size:12px">✅ เสร็จแล้ว — โหลดใหม่...</span>';
+      setTimeout(function(){{location.reload();}},1500);
     }})
     .catch(function(err){{
       alert('Error: '+err);
-      if(row){{row.querySelectorAll('.btn-sm').forEach(function(b){{b.disabled=false}});}}
+      if(gentd) gentd.innerHTML=origHtml;
     }});
 }}
 </script>"""
