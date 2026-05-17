@@ -24,7 +24,7 @@
 | Searchable report index | ✅ Working (385 summarized video sections indexed locally, no-AI-cost backfill) |
 | Cloudflare dashboard route | ✅ Working (`https://ai-trends.thequietself.com`) |
 | Dashboard systemd service | ✅ Working (user-level `ats-dashboard.service`, auto-restart, linger enabled) |
-| Content asset generation | ✅ Working (`generate_content_assets.py`, dashboard Assets tab; manual audio/social works for all topics) |
+| Content asset generation | ✅ Working (`generate_content_assets.py`, dashboard Assets tab; manual audio/social works for all topics; asset JSON folders canonicalized to slug paths) |
 | Dashboard Asset batch generate | ✅ Working (date range, skip existing, progress bar, per-row buttons; manual AI generation overrides default priority-topic policy) |
 | Dashboard Existing Assets filters | ✅ Working (client-side topic/date table filter, verified Joanna today case) |
 | Voice generation design / manual flow | ✅ Implemented for script-first workflow (`docs/VOICE-DESIGN.md`, Assets page) |
@@ -115,6 +115,7 @@
 | T-033 | **Enable Joanna Wiebe daily voice automation** | 2026-05-17 | Added `joanna_wiebe` to `enabled_topics` + `github_folder_map`, set `automated_voice_topics.joanna_wiebe.enabled=true, publish=true`. NATEHERK verified (9.9MB today). Generated and published `voice/joanna_wiebe/2026-05-17.wav` (9.2MB). From tomorrow cron generates + publishes Joanna audio automatically. |
 | T-034 | **Fix Dashboard Assets all-topic manual audio/social generation** | 2026-05-17 | Fixed `name '_slug' is not defined` in `scripts/generate_content_assets.py`, added explicit manual generation override so Dashboard `+Audio`, `+Social`, and `+All` work for any topic while `PRIORITY_TOPICS` remains default automation policy only. Updated full-script prompt framing to “คนที่เพิ่งดูมาแล้วอยากบอกเล่าสิ่งที่ได้เรียนรู้”, hook-first opening, no “คลิปนี้” opening, and banned over-casual words (`แก`, `เว้ย`, `แกๆ`, `โห`, `โคตร`, `เจ๋ง`, `อ่ะ`). Verification: py_compile passed, unit/fake-AI all-topic test passed, local `/assets` + asset endpoints 5/5, browser page loads via Cloudflare route with no console errors, real `jacksons_ai` audio-script generation returned 200 and created `audio_scripts/jacksons_ai/2026-05-17-v1.md`. |
 | T-035 | **Add Dashboard deep-dive script generation** | 2026-05-17 | Added script-first `📖 Generate deep dive script` button and `POST /api/assets/generate-deep-dive-script`. The endpoint creates only `audio_scripts/{topic}/{date}-vN-deep-dive.md` with `## Deep Dive Script`; it does not create voice. Existing scripts are not overwritten unless `force=1`. Added deep-dive prompt based on the Full Episode Formula plus a quality retry guard for forbidden greetings/openings. Verification: new tests 5/5 for generator + Dashboard workflow, full test suite 9/9, py_compile passed, local `/assets` 200, Cloudflare Assets page shows 📖 controls with no console errors, real `jacksons_ai` deep-dive script generated (8,482 chars) and no WAV was created. |
+| T-036 | **Fix Dashboard asset duplicate rows + nested underscore topic generation** | 2026-05-17 | Root cause: legacy/display-name asset folders (`AI Agents/`, `Jacksons AI/`, `NATEHERK/`, `claude code design/`) coexisted with canonical slug folders, and `/api/assets/generate-one` could not resolve nested subtopic reports such as `reports/claude_code/claude_code_design/2026-05-17.md`, then falsely fell back to an unrelated date match (`NATEHERK`). Fixes: added slug-safe nested report resolver, fixed `find_reports()` for nested underscore topics, added Dashboard asset-row dedupe, added success validation so audio/social modes error if no output file is created, canonicalized all asset JSON files to slug folders, and removed legacy empty folders after backup. Verification: `15 passed`, py_compile passed, asset audit shows `duplicate_key_count=0`, `space_dir_count=0`, `noncanonical_count=0`; real `claude_code_design/2026-05-17` audio script generation created v1/v2/v3 markdown files and Dashboard 📝 status is green. |
 
 ### Backlog
 
@@ -140,6 +141,7 @@
 | B-002 | workspace-atlas scripts out of sync with source | Low | Open | Missing `import time` and `time.sleep(15)` — low risk since crontab uses source directly |
 | B-003 | Subtopic hash files saved inside reports/claude_code/ not ai_trends_reports/ | Low | Open | Inconsistent path: `ai_trends_reports/reports/claude_code/content_hashes_*.json` vs `ai_trends_reports/content_hashes_*.json` for other topics |
 | B-004 | AI Trends cron used lowercase `/Desktop/projects/...` path | High | ✅ Fixed 2026-05-12 | Root cause of missed 2026-05-12 daily summary; crontab now uses `/Desktop/Projects/...` |
+| B-005 | Dashboard Assets duplicate rows / false "เสร็จแล้ว" for nested underscore topics | High | ✅ Fixed 2026-05-17 | Caused by display-name asset JSON folders plus generate-one fallback resolving `claude_code_design` to unrelated `NATEHERK` report. Fixed in T-036. |
 
 ---
 

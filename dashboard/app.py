@@ -60,6 +60,81 @@ def _find_topic_dir(base: Path, raw_name: str, slug_name: str) -> Path | None:
     return None
 
 
+def _resolve_report_path(topic: str, date: str) -> tuple[Path | None, str]:
+    """Resolve a Dashboard topic/date request to the actual report file.
+
+    Reports can live directly under reports/{topic}/{date}.md or under a nested
+    parent, e.g. reports/claude_code/claude_code_design/{date}.md. The old
+    fallback picked the first folder that happened to contain the date, which
+    could falsely generate NATEHERK when the user clicked claude_code_design.
+    Always match by slug before returning a report.
+    """
+    topic = (topic or "").strip()
+    topic_slug = _slug(topic)
+    if not topic_slug or not re.match(r"^\d{4}-\d{2}-\d{2}$", date or ""):
+        return None, topic_slug
+
+    for candidate in (
+        REPORTS_DIR / topic / f"{date}.md",
+        REPORTS_DIR / topic_slug / f"{date}.md",
+    ):
+        if candidate.exists() and candidate.is_file():
+            return candidate, _slug(candidate.parent.name)
+
+    matches: list[Path] = []
+    if REPORTS_DIR.exists():
+        for candidate in REPORTS_DIR.rglob(f"{date}.md"):
+            if not candidate.is_file():
+                continue
+            rel_parent = candidate.parent.relative_to(REPORTS_DIR).as_posix()
+            leaf_slug = _slug(candidate.parent.name)
+            rel_slug = _slug(rel_parent.replace("/", "_"))
+            if leaf_slug == topic_slug or rel_slug == topic_slug:
+                matches.append(candidate)
+
+    if not matches:
+        return None, topic_slug
+
+    matches.sort(key=lambda p: (len(p.relative_to(REPORTS_DIR).parts), p.as_posix()))
+    return matches[0], _slug(matches[0].parent.name)
+
+
+def _asset_entry_score(entry: dict) -> tuple[int, int]:
+    """Score asset entries so canonical slug-folder rows win during dedupe."""
+    path = str(entry.get("path", ""))
+    first = path.split("/", 1)[0]
+    slug = entry.get("topic_folder", "")
+    canonical = 1 if first == slug else 0
+    generated_count = sum(
+        1 for key in ("has_script_file", "has_voice_file", "has_social_file")
+        if entry.get(key)
+    )
+    return canonical, generated_count
+
+
+def _dedupe_asset_entries(entries: list[dict]) -> list[dict]:
+    """Merge duplicate asset JSON rows caused by display-name vs slug folders."""
+    merged: dict[tuple[str, str, str], dict] = {}
+    order: list[tuple[str, str, str]] = []
+    for entry in entries:
+        key = (
+            entry.get("topic_folder") or _slug(entry.get("topic") or entry.get("topic_raw") or ""),
+            entry.get("date", ""),
+            entry.get("report_path", ""),
+        )
+        if key not in merged:
+            merged[key] = dict(entry)
+            order.append(key)
+            continue
+        current = merged[key]
+        preferred = dict(entry) if _asset_entry_score(entry) > _asset_entry_score(current) else current
+        for flag in ("has_script_file", "has_voice_file", "has_social_file"):
+            preferred[flag] = bool(current.get(flag) or entry.get(flag))
+        preferred["videos"] = max(int(current.get("videos") or 0), int(entry.get("videos") or 0))
+        merged[key] = preferred
+    return [merged[key] for key in order]
+
+
 def ensure_dirs():
     CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -817,16 +892,8 @@ function clearSearch(){{
                 })
                 return
 
-            report_path = REPORTS_DIR / safe_topic / f"{date}.md"
-            if not report_path.exists():
-                for subdir in sorted(REPORTS_DIR.iterdir()):
-                    if not subdir.is_dir():
-                        continue
-                    candidate = subdir / f"{date}.md"
-                    if candidate.exists() and _slug(subdir.name) == safe_topic:
-                        report_path = candidate
-                        break
-            if not report_path.exists():
+            report_path, resolved_topic = _resolve_report_path(safe_topic, date)
+            if not report_path:
                 self._send_json({"error": f"Report not found: {topic}/{date}"}, code=404)
                 return
 
@@ -934,6 +1001,7 @@ function clearSearch(){{
                     existing.append({
                         "topic": topic, "topic_folder": topic_folder, "topic_raw": raw_name,
                         "date": date, "videos": n,
+                        "report_path": data.get("report_path", ""),
                         "has_script_file": has_script_file,
                         "has_voice_file":  has_voice_file,
                         "has_social_file": has_social_file or has_social_json,
@@ -941,6 +1009,7 @@ function clearSearch(){{
                     })
                 except (json.JSONDecodeError, OSError):
                     pass
+        existing = _dedupe_asset_entries(existing)
 
         # Collect available topics
         topics = sorted(set(str(p.parent.name) for p in REPORTS_DIR.rglob("*.md") if p.is_file()))
@@ -1612,22 +1681,13 @@ document.addEventListener('DOMContentLoaded',function(){{
             self._send_json({"error": "Both topic and date required"}, code=400)
             return
 
-        # Find the specific report — try folder name first, then scan for display name match
-        report_path = REPORTS_DIR / topic / f"{date}.md"
-        topic_folder = topic
-        if not report_path.exists():
-            # topic might be a display name — scan subfolders for a matching report
-            for subdir in sorted(REPORTS_DIR.iterdir()):
-                if subdir.is_dir():
-                    candidate = subdir / f"{date}.md"
-                    if candidate.exists():
-                        # Check if this folder's reports contain this display topic
-                        report_path = candidate
-                        topic_folder = subdir.name
-                        break
-            if not report_path.exists():
-                self._send_json({"error": f"Report not found: {topic}/{date}"}, code=404)
-                return
+        # Find the specific report by normalized topic slug. Supports nested topics
+        # such as reports/claude_code/claude_code_design/{date}.md and refuses to
+        # silently fall back to an unrelated topic.
+        report_path, topic_folder = _resolve_report_path(topic, date)
+        if not report_path:
+            self._send_json({"error": f"Report not found: {topic}/{date}"}, code=404)
+            return
 
         with_audio = mode in ("audio", "all")
         with_social = mode in ("social", "all")
@@ -1643,9 +1703,10 @@ document.addEventListener('DOMContentLoaded',function(){{
 
         ai_module = _get_ai_client() if (with_audio or with_social) else None
 
-        # Both keyed by URL param (topic, already slugified) to match render_assets() lookups
-        status_key = (topic, date)
-        gen_key = (topic, date)
+        # Store UI status by canonical slug so gen-status matches rendered rows.
+        topic_slug = _slug(topic_folder or topic)
+        status_key = (topic_slug, date)
+        gen_key = (topic_slug, date)
         DashboardHandler._status_store[status_key] = ("generating", time.time())
         DashboardHandler._generating_set.add(gen_key)
         try:
@@ -1657,14 +1718,22 @@ document.addEventListener('DOMContentLoaded',function(){{
 
             enable_content_use(asset, audio=with_audio, social=with_social)
 
+            audio_paths = []
+            social_paths = []
+            audio_result = {"audio_scripts_generated": 0}
+            social_result = {"social_posts_generated": 0}
             if with_audio:
-                generate_audio_scripts(asset, ai_module)
-                save_audio_scripts(asset, AUDIO_SCRIPTS_DIR)
+                audio_result = generate_audio_scripts(asset, ai_module)
+                audio_paths = save_audio_scripts(asset, AUDIO_SCRIPTS_DIR)
+                if not audio_paths:
+                    raise RuntimeError("Audio script generation finished but no script file was created")
             if with_social:
-                generate_social_posts(asset, ai_module)
-                save_social_posts(asset, SOCIAL_DIR)
+                social_result = generate_social_posts(asset, ai_module)
+                social_paths = save_social_posts(asset, SOCIAL_DIR)
+                if not social_paths:
+                    raise RuntimeError("Social generation finished but no social file was created")
 
-            save_asset(asset, ASSETS_DIR)
+            asset_path = save_asset(asset, ASSETS_DIR)
             DashboardHandler._status_store[status_key] = ("done", time.time())
         except Exception as exc:
             DashboardHandler._status_store[status_key] = ("error", time.time())
@@ -1678,8 +1747,14 @@ document.addEventListener('DOMContentLoaded',function(){{
             "total_videos": asset.get("total_videos", 0),
             "with_audio": with_audio,
             "with_social": with_social,
-            "topic": topic,
+            "topic": topic_slug,
             "date": date,
+            "report_path": str(report_path.relative_to(REPORTS_DIR)),
+            "asset_path": str(asset_path.relative_to(PROJECT_ROOT)),
+            "audio_scripts_generated": audio_result.get("audio_scripts_generated", 0),
+            "audio_paths": [str(p.relative_to(PROJECT_ROOT)) for p in audio_paths],
+            "social_posts_generated": social_result.get("social_posts_generated", 0),
+            "social_paths": [str(p.relative_to(PROJECT_ROOT)) for p in social_paths],
         })
 
 

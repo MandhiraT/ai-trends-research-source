@@ -553,18 +553,38 @@ def process_report(report_path: Path, reports_root: Path,
 
 
 def find_reports(topic: str | None = None, reports_root: Path = REPORTS_ROOT) -> list[Path]:
-    """Find report files, optionally filtered by topic."""
-    if topic:
-        topic_dir = reports_root / topic
-        if topic_dir.exists():
-            return sorted(topic_dir.rglob("*.md"))
-        # Try lowercase/slug variants
-        for d in reports_root.iterdir():
-            if d.is_dir() and topic.lower() in d.name.lower():
-                return sorted(d.rglob("*.md"))
-        return []
+    """Find report files, optionally filtered by topic slug/display name.
 
-    return sorted(reports_root.rglob("*.md"))
+    Supports nested topics such as reports/claude_code/claude_code_design/*.md.
+    Matching is by normalized slug, not substring, so selecting one topic cannot
+    accidentally return another topic's reports.
+    """
+    if topic:
+        topic_slug = _slug(topic)
+        direct_dirs = [reports_root / topic, reports_root / topic_slug]
+        for topic_dir in direct_dirs:
+            if topic_dir.exists() and topic_dir.is_dir():
+                return sorted(
+                    p for p in topic_dir.rglob("*.md")
+                    if re.match(r"^\d{4}-\d{2}-\d{2}$", p.stem)
+                )
+
+        matches: list[Path] = []
+        if reports_root.exists():
+            for p in reports_root.rglob("*.md"):
+                if not p.is_file() or not re.match(r"^\d{4}-\d{2}-\d{2}$", p.stem):
+                    continue
+                rel_parent = p.parent.relative_to(reports_root).as_posix()
+                leaf_slug = _slug(p.parent.name)
+                rel_slug = _slug(rel_parent.replace("/", "_"))
+                if leaf_slug == topic_slug or rel_slug == topic_slug:
+                    matches.append(p)
+        return sorted(matches)
+
+    return sorted(
+        p for p in reports_root.rglob("*.md")
+        if p.is_file() and re.match(r"^\d{4}-\d{2}-\d{2}$", p.stem)
+    )
 
 
 def main() -> None:
