@@ -45,6 +45,15 @@ def _slug(name: str) -> str:
     return _re.sub(r"[\s\-]+", "_", name.strip()).lower()
 
 
+def _find_topic_dir(base: Path, raw_name: str, slug_name: str) -> Path | None:
+    """Return the first existing subdir matching raw_name or slug_name (case-sensitive)."""
+    for candidate in (raw_name, slug_name):
+        d = base / candidate
+        if d.is_dir():
+            return d
+    return None
+
+
 def ensure_dirs():
     CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -294,6 +303,10 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self.api_assets_script_get()
         elif parsed.path == "/api/assets/voice-status":
             self.api_assets_voice_status()
+        elif parsed.path == "/api/audio/serve":
+            self.api_audio_serve()
+        elif parsed.path == "/api/social/view":
+            self.api_social_view()
         else:
             self.send_error(404)
 
@@ -810,6 +823,9 @@ function clearSearch(){{
 
         # Collect existing assets
         assets_dir = ASSETS_DIR
+        audio_base    = PROJECT_ROOT / "ai_trends_reports" / "audio"
+        scripts_base  = AUDIO_SCRIPTS_DIR
+        social_base   = SOCIAL_DIR
         existing = []
         if assets_dir.exists():
             for p in sorted(assets_dir.rglob("*.json")):
@@ -818,13 +834,23 @@ function clearSearch(){{
                     topic = data.get("topic", "?")
                     date = data.get("date", "?")
                     # Use folder name (slug) for API calls, not display name
-                    topic_folder = _slug(p.parent.name) if p.parent != assets_dir else _slug(topic)
+                    raw_name = p.parent.name if p.parent != assets_dir else topic
+                    topic_folder = _slug(raw_name)
                     n = data.get("total_videos", 0)
-                    has_audio = any(v.get("audio_script_full") for v in data.get("videos", []))
-                    has_social = any(v.get("social_posts") for v in data.get("videos", []))
+                    has_social_json = any(v.get("social_posts") for v in data.get("videos", []))
+                    # Check actual files on disk (try raw name and slug)
+                    scripts_dir = _find_topic_dir(scripts_base, raw_name, topic_folder)
+                    audio_dir   = _find_topic_dir(audio_base, raw_name, topic_folder)
+                    social_dir  = _find_topic_dir(social_base, raw_name, topic_folder)
+                    has_script_file = bool(scripts_dir and list(scripts_dir.glob(f"{date}-v*.md")))
+                    has_voice_file  = bool(audio_dir and list(audio_dir.glob(f"{date}*.wav")))
+                    has_social_file = bool(social_dir and (social_dir / f"{date}.json").exists())
                     existing.append({
-                        "topic": topic, "topic_folder": topic_folder, "date": date, "videos": n,
-                        "has_audio": has_audio, "has_social": has_social,
+                        "topic": topic, "topic_folder": topic_folder, "topic_raw": raw_name,
+                        "date": date, "videos": n,
+                        "has_script_file": has_script_file,
+                        "has_voice_file":  has_voice_file,
+                        "has_social_file": has_social_file or has_social_json,
                         "path": str(p.relative_to(assets_dir)),
                     })
                 except (json.JSONDecodeError, OSError):
@@ -839,22 +865,38 @@ function clearSearch(){{
 
         rows = ""
         for a in reversed(existing[-100:]):
-            audio_icon = "🔊" if a["has_audio"] else "—"
-            social_icon = "📱" if a["has_social"] else "—"
-            safe_topic = h(a["topic"])
+            safe_topic  = h(a["topic"])
             safe_folder = h(a["topic_folder"])
-            safe_date = h(a["date"])
+            safe_raw    = h(a["topic_raw"])
+            safe_date   = h(a["date"])
+
+            # 4-badge status column
+            def badge(icon, green, click_js, title):
+                cls = "badge badge-green" if green else "badge badge-gray"
+                onclick = f' onclick="{click_js}"' if green and click_js else ''
+                return f'<span class="{cls}"{onclick} title="{title}">{icon}</span>'
+
+            b_asset  = badge("📄", True,  "", "Asset JSON ✓")
+            b_script = badge("📝", a["has_script_file"],
+                             f"openScript('{safe_folder}','{safe_date}','full')",
+                             "Audio script ✓ — click to edit" if a["has_script_file"] else "Audio script not generated")
+            b_voice  = badge("🎙️", a["has_voice_file"],
+                             f"downloadVoice('{safe_raw}','{safe_date}')",
+                             "Voice WAV ✓ — click to download" if a["has_voice_file"] else "Voice not generated")
+            b_social = badge("📱", a["has_social_file"],
+                             f"viewSocial('{safe_raw}','{safe_date}')",
+                             "Social posts ✓ — click to view" if a["has_social_file"] else "Social posts not generated")
+
             rows += f'<tr data-topic="{safe_folder}" data-date="{safe_date}" id="row-{safe_folder}-{safe_date}">'
             rows += f'<td>{safe_date}</td>'
             rows += f'<td><span class="pill">{safe_topic}</span></td>'
-            rows += f'<td>{a["videos"]}</td>'
-            rows += f'<td>{audio_icon}</td>'
-            rows += f'<td>{social_icon}</td>'
+            rows += f'<td style="text-align:center">{a["videos"]}</td>'
+            rows += f'<td style="white-space:nowrap">{b_asset} {b_script} {b_voice} {b_social}</td>'
             rows += f'<td style="white-space:nowrap">'
-            rows += f'<button class="btn-sm" onclick="openScript(\'{safe_folder}\',\'{safe_date}\',\'full\')" title="Edit saved full script">📝</button> '
-            rows += f'<button class="btn-sm" onclick="openScript(\'{safe_folder}\',\'{safe_date}\',\'deep_dive\')" title="Edit saved deep dive script">📚</button> '
-            rows += f'<button class="btn-sm" onclick="generateVoice(\'{safe_folder}\',\'{safe_date}\',\'full\')" title="Generate full voice from saved script">🎙️</button> '
-            rows += f'<button class="btn-sm" onclick="generateVoice(\'{safe_folder}\',\'{safe_date}\',\'deep_dive\')" title="Generate deep dive voice from saved script">🎧</button>'
+            rows += f'<button class="btn-sm" onclick="openScript(\'{safe_folder}\',\'{safe_date}\',\'full\')" title="Edit full script">📝</button> '
+            rows += f'<button class="btn-sm" onclick="openScript(\'{safe_folder}\',\'{safe_date}\',\'deep_dive\')" title="Edit deep dive script">📚</button> '
+            rows += f'<button class="btn-sm" onclick="generateVoice(\'{safe_folder}\',\'{safe_date}\',\'full\')" title="Generate full voice">🎙️</button> '
+            rows += f'<button class="btn-sm" onclick="generateVoice(\'{safe_folder}\',\'{safe_date}\',\'deep_dive\')" title="Generate deep dive voice">🎧</button>'
             rows += f'</td>'
             rows += f'<td class="muted" style="font-size:12px">{h(a["path"])}</td>'
             rows += f'<td id="gentd-{safe_folder}-{safe_date}" style="white-space:nowrap">'
@@ -912,9 +954,10 @@ function clearSearch(){{
 </section>
 <section>
 <h2>Existing Assets <span id="assetCount" class="muted" style="font-size:14px"></span></h2>
-<p class="muted" style="font-size:13px">Per-row: 📄=JSON only · 🔊=+Audio script · 📱=+Social · 🚀=+All · 📝/📚=Edit saved script · 🎙️/🎧=Voice from saved script only</p>
-<table><thead><tr><th>Date</th><th>Topic</th><th>Videos</th><th>Audio</th><th>Social</th><th>Script/Voice</th><th>Path</th><th>Gen</th></tr></thead>
-<tbody>{rows if rows else '<tr><td colspan="8">No assets yet. Generate some above.</td></tr>'}</tbody></table>
+<p class="muted" style="font-size:13px">Status: 📄=Asset JSON · 📝=Audio script (click to edit) · 🎙️=Voice WAV (click to download) · 📱=Social posts (click to view) — green=ready, gray=not yet generated</p>
+<p class="muted" style="font-size:13px">Gen: 📄=JSON only · 🔊=+Audio script · 📱=+Social · 🚀=+All | Script/Voice: 📝/📚=Edit · 🎙️/🎧=Generate voice from saved script</p>
+<table><thead><tr><th>Date</th><th>Topic</th><th>Videos</th><th>Status</th><th>Script/Voice</th><th>Path</th><th>Gen</th></tr></thead>
+<tbody>{rows if rows else '<tr><td colspan="7">No assets yet. Generate some above.</td></tr>'}</tbody></table>
 </section>
 <section id="scriptEditor" style="display:none;border:2px solid #6366f1">
   <h2>🎙️ Script Editor <span id="scriptMeta" class="muted" style="font-size:14px"></span></h2>
@@ -928,13 +971,28 @@ function clearSearch(){{
     <span id="scriptStatus" class="muted"></span>
   </p>
 </section>
+<div id="socialModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1000;overflow-y:auto">
+  <div style="background:#fff;max-width:680px;margin:40px auto;border-radius:10px;padding:24px;position:relative">
+    <button onclick="closeSocialModal()" style="position:absolute;top:12px;right:16px;background:none;border:none;font-size:22px;cursor:pointer;color:#5f6c80">✕</button>
+    <h2 id="socialModalTitle" style="margin:0 0 16px;font-size:18px"></h2>
+    <div id="socialModalBody" style="white-space:pre-wrap;font-size:14px;line-height:1.7;color:#172033"></div>
+  </div>
+</div>
 <style>
 .btn-sm{{
-  padding:2px 6px;font-size:14px;border:1px solid #d1d5db;border-radius:4px;
+  padding:6px 10px;font-size:20px;border:1px solid #d1d5db;border-radius:6px;
   background:#f9fafb;cursor:pointer;line-height:1.2;
 }}
 .btn-sm:hover{{background:#e0e7ff;border-color:#6366f1}}
 .btn-sm:disabled{{opacity:0.4;cursor:default}}
+.badge{{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:32px;height:32px;border-radius:8px;font-size:16px;
+  border:1px solid transparent;
+}}
+.badge-green{{background:#dcfce7;border-color:#86efac;cursor:pointer}}
+.badge-green:hover{{background:#bbf7d0}}
+.badge-gray{{background:#f3f4f6;border-color:#d1d5db;opacity:0.55;cursor:default}}
 </style>
 <script>
 function setLast7(){{
@@ -1113,6 +1171,36 @@ function generateVoiceFromEditor(){{
   generateVoiceDirect(topic,date,type,video);
 }}
 
+function downloadVoice(topic,date){{
+  window.location.href='/api/audio/serve?topic='+encodeURIComponent(topic)+'&date='+encodeURIComponent(date);
+}}
+
+function viewSocial(topic,date){{
+  fetch('/api/social/view?topic='+encodeURIComponent(topic)+'&date='+encodeURIComponent(date))
+    .then(function(r){{return r.json()}})
+    .then(function(data){{
+      if(data.error){{alert('Error: '+data.error);return;}}
+      var title=document.getElementById('socialModalTitle');
+      var body=document.getElementById('socialModalBody');
+      title.textContent='📱 Social Posts — '+topic+' '+date;
+      var html='';
+      Object.entries(data.posts||{{}}).forEach(function([key,v]){{
+        html+='<strong>'+v.video_title+'</strong>\n';
+        var s=v.social||{{}};
+        if(s.raw) html+=s.raw+'\n';
+        else Object.entries(s).forEach(function([k2,txt]){{html+=txt+'\n\n';}});
+        html+='\n---\n\n';
+      }});
+      body.textContent=html.trim();
+      document.getElementById('socialModal').style.display='block';
+    }})
+    .catch(function(err){{alert('Error: '+err);}});
+}}
+
+function closeSocialModal(){{
+  document.getElementById('socialModal').style.display='none';
+}}
+
 function generateOne(topic,date,mode){{
   if(!_confirmIfAI(mode,topic,date,date)) return;
   var gentd=document.getElementById('gentd-'+topic+'-'+date);
@@ -1130,7 +1218,7 @@ function generateOne(topic,date,mode){{
         return;
       }}
       if(gentd) gentd.innerHTML='<span style="color:#16a34a;font-size:12px">✅ เสร็จแล้ว — โหลดใหม่...</span>';
-      setTimeout(function(){{location.reload();}},1500);
+      setTimeout(function(){{location.reload();}},3000);
     }})
     .catch(function(err){{
       alert('Error: '+err);
@@ -1388,6 +1476,64 @@ function generateOne(topic,date,mode){{
             "topic": topic,
             "date": date,
         })
+
+
+    def api_audio_serve(self):
+        """Serve a WAV file for browser download. Matches {date}.wav or {date}-v*.wav."""
+        qs = parse_qs(urlparse(self.path).query)
+        topic = qs.get("topic", [""])[0].strip()
+        date  = qs.get("date",  [""])[0].strip()
+        if not topic or not re.match(r"^\d{4}-\d{2}-\d{2}$", date):
+            self.send_error(400)
+            return
+
+        audio_base = PROJECT_ROOT / "ai_trends_reports" / "audio"
+        topic_dir  = _find_topic_dir(audio_base, topic, _slug(topic))
+        if not topic_dir:
+            self.send_error(404)
+            return
+
+        # Prefer per-video v1 first, then whole-file fallback
+        candidates = sorted(topic_dir.glob(f"{date}-v*.wav")) + list(topic_dir.glob(f"{date}.wav"))
+        if not candidates:
+            self.send_error(404)
+            return
+
+        wav_path = candidates[0]
+        data = wav_path.read_bytes()
+        fname = wav_path.name
+        self.send_response(200)
+        self.send_header("Content-Type", "audio/wav")
+        self.send_header("Content-Length", str(len(data)))
+        self.send_header("Content-Disposition", f'attachment; filename="{fname}"')
+        self.end_headers()
+        self.wfile.write(data)
+
+    def api_social_view(self):
+        """Return social posts JSON for a topic+date."""
+        qs = parse_qs(urlparse(self.path).query)
+        topic = qs.get("topic", [""])[0].strip()
+        date  = qs.get("date",  [""])[0].strip()
+        if not topic or not re.match(r"^\d{4}-\d{2}-\d{2}$", date):
+            self._send_json({"error": "Invalid topic or date"}, code=400)
+            return
+
+        social_base = PROJECT_ROOT / "ai_trends_reports" / "social"
+        topic_dir   = _find_topic_dir(social_base, topic, _slug(topic))
+        if not topic_dir:
+            self._send_json({"error": "Social posts not found"}, code=404)
+            return
+
+        social_file = topic_dir / f"{date}.json"
+        if not social_file.exists():
+            self._send_json({"error": "No social posts for this date"}, code=404)
+            return
+
+        try:
+            posts = json.loads(social_file.read_text(encoding="utf-8"))
+            self._send_json({"posts": posts})
+        except Exception as exc:
+            self._send_json({"error": str(exc)}, code=500)
 
 
 def main():
