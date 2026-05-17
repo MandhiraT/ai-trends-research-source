@@ -25,12 +25,20 @@ import sys
 import os
 import re
 import json
-import wave
-import base64
 import argparse
 import tempfile
 import time
 from datetime import date as _date
+
+from voice_engine import (
+    DEFAULT_VOICE,
+    SAMPLE_RATE,
+    SAMPLE_WIDTH,
+    CHANNELS,
+    concat_wavs,
+    load_voice_profile,
+    text_to_wav,
+)
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'config'))
@@ -187,70 +195,13 @@ def _call_condense_model(prompt: str) -> str:
 
 
 def _text_to_wav(text: str, output_path: str, voice: str = DEFAULT_VOICE) -> None:
-    """Call Gemini TTS and save audio as WAV."""
-    project  = os.environ.get('VERTEX_PROJECT_ID', '')
-    location = os.environ.get('VERTEX_LOCATION', 'us-central1')
-    if not project:
-        raise EnvironmentError('VERTEX_PROJECT_ID not set')
-
-    from google import genai as _genai
-    from google.genai.types import (
-        GenerateContentConfig,
-        SpeechConfig,
-        VoiceConfig,
-        PrebuiltVoiceConfig,
-    )
-
-    client = _genai.Client(vertexai=True, project=project, location=location)
-
-    for attempt in range(4):
-        try:
-            response = client.models.generate_content(
-                model=TTS_MODEL,
-                contents=text,
-                config=GenerateContentConfig(
-                    response_modalities=['AUDIO'],
-                    speech_config=SpeechConfig(
-                        voice_config=VoiceConfig(
-                            prebuilt_voice_config=PrebuiltVoiceConfig(voice_name=voice)
-                        )
-                    ),
-                ),
-            )
-            break
-        except Exception as e:
-            if ('429' in str(e) or 'Connection reset' in str(e)) and attempt < 3:
-                wait = 30 * (2 ** attempt)
-                print(f'  [audio]     ⏳ TTS rate limit/reset — waiting {wait}s...')
-                time.sleep(wait)
-            else:
-                raise
-
-    raw = response.candidates[0].content.parts[0].inline_data.data
-    # Vertex AI SDK returns raw bytes; AI Studio returns base64 string
-    audio_bytes = raw if isinstance(raw, bytes) else base64.b64decode(raw)
-
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    with wave.open(output_path, 'wb') as wf:
-        wf.setnchannels(CHANNELS)
-        wf.setsampwidth(SAMPLE_WIDTH)
-        wf.setframerate(SAMPLE_RATE)
-        wf.writeframes(audio_bytes)
+    """Compatibility wrapper: use unified ATS voice engine for Gemini TTS."""
+    text_to_wav(text, output_path, voice=voice)
 
 
 def _concat_wavs(wav_paths: list[str], output_path: str) -> None:
-    """Concatenate multiple WAV files (same format) into one output file."""
-    all_frames = b''
-    for p in wav_paths:
-        with wave.open(p, 'rb') as wf:
-            all_frames += wf.readframes(wf.getnframes())
-
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    with wave.open(output_path, 'wb') as wf:
-        wf.setnchannels(CHANNELS)
-        wf.setsampwidth(SAMPLE_WIDTH)
-        wf.setframerate(SAMPLE_RATE)
-        wf.writeframes(all_frames)
+    """Compatibility wrapper: use unified ATS voice engine WAV concat."""
+    concat_wavs(wav_paths, output_path)
 
 
 def generate_for_topic(topic_key: str, date_str: str, voice: str = DEFAULT_VOICE,
@@ -394,7 +345,8 @@ def main():
     args = parser.parse_args()
 
     config = _load_audio_config()
-    voice  = args.voice or config.get('voice', DEFAULT_VOICE)
+    profile = load_voice_profile(config.get('default_voice_profile'), voice_override=config.get('voice'))
+    voice  = args.voice or profile.get('voice', DEFAULT_VOICE)
 
     topics = []
     if args.topic:

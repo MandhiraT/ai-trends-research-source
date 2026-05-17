@@ -3,8 +3,8 @@
 upload_audio_to_github.py — Push generated WAV audio files to ai-trends-research GitHub repo.
 
 Reads config/audio_topics.json for enabled topics and github_folder_map.
-Copies WAV files from ai_trends_reports/audio/{TOPIC}/ to Voice/{folder}/ in
-the reports repo clone, then commits and pushes.
+Copies WAV files from ai_trends_reports/audio/{TOPIC}/ to canonical
+voice/{folder}/ in the reports repo clone, then commits and pushes.
 
 Usage:
     python3 scripts/upload_audio_to_github.py --date 2026-05-07
@@ -68,15 +68,16 @@ def upload_audio(date_str: str) -> bool:
             print(f'[audio-upload] ⚠️  No WAV for {topic}/{date_str} — skipping')
             continue
 
-        dest_folder = folder_map.get(topic, topic)
-        dest_dir    = os.path.join(repo, 'Voice', dest_folder)
+        dest_folder = folder_map.get(topic, topic).strip().replace(' ', '_').replace('-', '_').lower()
+        dest_dir    = os.path.join(repo, 'voice', dest_folder)
         os.makedirs(dest_dir, exist_ok=True)
 
         dest = os.path.join(dest_dir, f'{date_str}.wav')
         shutil.copy2(wav, dest)
         size_mb = os.path.getsize(dest) / (1024 * 1024)
-        print(f'[audio-upload] ✅ Copied: Voice/{dest_folder}/{date_str}.wav ({size_mb:.1f} MB)')
-        copied.append(os.path.join('Voice', dest_folder, f'{date_str}.wav'))
+        rel_path = os.path.join('voice', dest_folder, f'{date_str}.wav')
+        print(f'[audio-upload] ✅ Copied: {rel_path} ({size_mb:.1f} MB)')
+        copied.append(rel_path)
 
     if not copied:
         print('[audio-upload] Nothing to commit.')

@@ -3,6 +3,37 @@
   "voice": "Aoede",
   "language_hint": "th-TH",
   "github_folder_map": {
-    "NATEHERK": "NateHerk"
+    "NATEHERK": "nateherk"
+  },
+  "default_voice_profile": "ats_female_narrator",
+  "voice_profiles": {
+    "ats_female_narrator": {
+      "provider": "gemini",
+      "model": "gemini-2.5-flash-preview-tts",
+      "voice": "Aoede",
+      "language_hint": "th-TH",
+      "script_style": "Thai female narrator, warm, natural, conversational, uses ค่ะ"
+    }
+  },
+  "automated_voice_topics": {
+    "NATEHERK": {
+      "enabled": true,
+      "script_type": "full",
+      "voice_type": "full",
+      "per_video": true,
+      "publish": true,
+      "github_folder": "NateHerk",
+      "voice_profile": "ats_female_narrator"
+    },
+    "joanna_wiebe": {
+      "enabled": false,
+      "script_type": "full",
+      "voice_type": "full",
+      "per_video": true,
+      "publish": false,
+      "github_folder": "Joanna_Wiebe",
+      "voice_profile": "ats_female_narrator",
+      "note": "Prepared but disabled until NATEHERK compatibility and manual voice flow are fully verified."
+    }
   }
 }

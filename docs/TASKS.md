@@ -2,7 +2,7 @@
 
 > Working document for team/agent collaboration. Update this file whenever features change, bugs are found, or new work is planned. Keep statuses current.
 
-**Last updated:** 2026-05-14 ICT  
+**Last updated:** 2026-05-17 ICT  
 **Maintained by:** Sati (primary agent) / Mandhira / Mali
 
 ---
@@ -23,6 +23,11 @@
 | Local dashboard | ✅ Working (`http://127.0.0.1:8092`) |
 | Searchable report index | ✅ Working (385 summarized video sections indexed locally, no-AI-cost backfill) |
 | Cloudflare dashboard route | ✅ Working (`https://ai-trends.thequietself.com`) |
+| Dashboard systemd service | ✅ Working (user-level `ats-dashboard.service`, auto-restart, linger enabled) |
+| Content asset generation | ✅ Working (`generate_content_assets.py`, dashboard Assets tab) |
+| Dashboard Asset batch generate | ✅ Working (date range, skip existing, progress bar, per-row buttons) |
+| Dashboard Existing Assets filters | ✅ Working (client-side topic/date table filter, verified Joanna today case) |
+| Voice generation design | 📝 Designed, not implemented (`docs/VOICE-DESIGN.md`) |
 
 ---
 
@@ -46,6 +51,10 @@
 | Local web dashboard | Add/edit research jobs, manual runs, report/log browser, read-only cron view | `dashboard/app.py` |
 || Searchable report index | JSONL/SQLite/Markdown mobile indexes + CLI search for report archive | `scripts/build_report_index.py`, `scripts/search_reports.py` |
 || Dashboard search | Search reports by query/topic/tag from Dashboard UI | `dashboard/app.py` `/search`, `/api/search` |
+| Dashboard content assets | Generate asset JSON, audio scripts, social posts per report | `dashboard/app.py` `/assets`, `/api/assets/generate`, `/api/assets/generate-one` |
+| Dashboard asset batch generate | Date range filter, skip existing, AI confirm, progress bar, per-row buttons | `dashboard/app.py` `/api/assets/progress` |
+| Dashboard Existing Assets filters | Client-side table filtering by Topic + Date from/to; counter updates live | `dashboard/app.py` `/assets` |
+| Voice generation design | Two voice types planned: full script voice + deep dive voice; not implemented yet | `docs/VOICE-DESIGN.md` |
 | Dashboard job config | JSON-managed research job list for dashboard/manual execution | `config/research_jobs.json` |
 | Specific video/manual report routing | Supports dashboard `--video-url`, `--report-folder`, `--config-job-id` | `run_ai_trends_research_enhanced.py` |
 
@@ -55,7 +64,17 @@
 
 ### In Progress
 
-_None_
+| Task | Status | Notes |
+|------|--------|-------|
+| ATS voice generation implementation — Phase 1 | ✅ Core completed, pending next phase | Added unified voice engine `scripts/voice_engine.py`, default voice profile `ats_female_narrator` = Gemini TTS `Aoede`, refactored `generate_audio_report.py` to use the shared engine wrappers, extended `config/audio_topics.json` with automation policy. Verification passed: py_compile, config JSON, voice engine dry-run, legacy CLI help, profile load. Next: script save/edit Dashboard flow + optional Joanna automation after NATEHERK compatibility checks. |
+| ATS Dashboard manual voice flow — Phase 2 | ✅ Backend/UI completed, real TTS not triggered | Added script load/save APIs, voice status API, generate voice from saved script API, Assets page script editor, per-row 📝/📚 script edit and 🎙️/🎧 voice buttons. Voice generation blocks if script is missing and never creates script implicitly. Verified 8/8 API tests + browser UI/console + Joanna/date filter. |
+| ATS output repo folder cleanup — Phase A | ✅ Local migration done, pending commit/push decision | Documented plan in `docs/OUTPUT-REPO-FOLDER-MIGRATION.md`. Restored stale deleted reports in `/tmp/ai-trends-research`, updated source upload path logic (`scripts/upload_audio_to_github.py`) to publish to canonical `voice/{topic}/`, changed `config/audio_topics.json` map `NATEHERK → nateherk`, and local-migrated output repo with `git mv`: 13 files `Voice/NateHerk/*.wav → voice/nateherk/*.wav`. Verified: `voice/nateherk` count=13, `voice/joanna_wiebe` count=8, legacy `Voice/` gone, `.ogg` count=0. `Content Marketing/` left untouched for separate duplicate/link review. Handoff: inspect source repo and `/tmp/ai-trends-research` git status; output repo currently has 13 staged renames unless committed/pushed later. |
+
+### Recently Interrupted / Needs Resume
+
+| Task | Status | Notes |
+|------|--------|-------|
+| Hermes model switch | ⏳ Config partially updated; resume needed | Requested: primary `openai-codex/gpt-5.5`, fallback `zai/glm-5`, then restart gateway. Completed before interruption: `model.provider=openai-codex`, `model.default=gpt-5.5`, `model.base_url=https://chatgpt.com/backend-api/codex`. Still need to update `fallback_providers` to `zai/glm-5`, verify config, restart gateway, confirm status. |
 
 ### Completed
 
@@ -82,8 +101,17 @@ _None_
 | T-019 | **Add Claude Code new subtopics: Seedance, Higgsfield, Shopify** | 2026-05-12 | Added `--only "seedance,higgsfield,shopify"` cron at 07:35 Bangkok, 5 clips each, reports under `reports/claude_code/{topic}/` |
 | T-020 | **Add AI Trends Search dashboard MVP** | 2026-05-13 | Added local dashboard, JSON job config, manual run support, report/log browser, and read-only cron view |
 | T-021 | **Expose AI Trends dashboard through existing Cloudflare Tunnel** | 2026-05-13 | Reused `faw-dashboard`; added `ai-trends.thequietself.com -> localhost:8092`; verified HTTP 200 |
-|| T-022 | **Add searchable report index + no-AI backfill** | 2026-05-14 | Added `build_report_index.py`, `search_reports.py`, tests, JSONL/SQLite/Markdown mobile indexes; backfilled 385 summarized video sections |
-|| T-023 | **Add Dashboard Search tab** | 2026-05-14 | Added `/search` UI + `/api/search` JSON endpoint + `/api/search/rebuild`; filters by query/topic/tag; uses existing JSONL index |
+| T-022 | **Add searchable report index + no-AI backfill** | 2026-05-14 | Added `build_report_index.py`, `search_reports.py`, tests, JSONL/SQLite/Markdown mobile indexes; backfilled 385 summarized video sections |
+| T-023 | **Add Dashboard Search tab** | 2026-05-14 | Added `/search` UI + `/api/search` JSON endpoint + `/api/search/rebuild`; filters by query/topic/tag; uses existing JSONL index |
+| T-024 | **Add Dashboard Assets tab with batch + per-row generate** | 2026-05-14 | Content asset layer: `generate_content_assets.py` + dashboard `/assets` UI + `/api/assets/generate` endpoint |
+| T-025 | **Improve Assets tab UX: date range, skip existing, per-row buttons, confirm, progress** | 2026-05-17 | Added date-from/to filters, "Today"/"Last 7 days"/"All dates" shortcuts, skip-existing toggle, AI-mode confirm dialog, real-time progress bar, per-row generate buttons (📄🔊📱🚀), new `/api/assets/generate-one` and `/api/assets/progress` endpoints |
+| T-026 | **Create systemd service for ATS Dashboard** | 2026-05-17 | User-level `~/.config/systemd/user/ats-dashboard.service`, auto-restart on failure, enabled + linger enabled for boot-time start |
+| T-027 | **Fix ATS Dashboard Cloudflare tunnel (port 8092 down)** | 2026-05-17 | Dashboard process had died (no systemd service). Created `ats-dashboard.service` to auto-restart. Verified both `localhost:8092` and `ai-trends.thequietself.com` → HTTP 200 |
+| T-028 | **Fix ATS Dashboard Assets filters** | 2026-05-17 | Fixed display-name vs folder-slug topic mismatch, skip_existing, per-row generate-one, and Existing Assets table filtering by topic/date. Verified Joanna+today → 1 row and full filter scenarios. |
+| T-029 | **Design ATS voice generation architecture** | 2026-05-17 | Designed two voice types: full script voice (`vN.wav`) and deep dive voice (`vN-deep-dive.wav`), Gemini TTS chunking/concat, asset JSON extensions, and Dashboard voice UI. Design doc: `docs/VOICE-DESIGN.md`. Not implemented yet. |
+| T-030 | **Implement ATS unified voice engine — Phase 1** | 2026-05-17 | Added `scripts/voice_engine.py`, `ats_female_narrator` voice profile (`Aoede`), refactored `generate_audio_report.py` wrappers to use the shared TTS/concat engine, and extended `config/audio_topics.json` with automation policy. Verified with py_compile, config JSON, engine dry-run, CLI help, profile load. |
+| T-031 | **Implement ATS Dashboard manual voice flow — Phase 2** | 2026-05-17 | Added `/api/assets/script` GET/POST, `/api/assets/voice-status`, `/api/assets/generate-voice`, script editor on Assets page, and per-row 📝/📚/🎙️/🎧 controls. Voice is generated from saved script only; missing script returns explicit error. Verified 8/8 API tests and browser UI; no real TTS cost triggered. |
+| T-032 | **ATS output repo folder cleanup — Phase A local migration** | 2026-05-17 | Added `docs/OUTPUT-REPO-FOLDER-MIGRATION.md`, updated audio upload path to canonical `voice/{topic}/`, mapped `NATEHERK → nateherk`, and locally migrated output repo 13 WAV files `Voice/NateHerk → voice/nateherk`. Verified counts and no `.ogg`. Pending: commit/push output repo + source repo after final approval/check. |
 
 ### Backlog
 
@@ -96,7 +124,8 @@ _None_
 | T-017 | Add new topic: Prompt Engineering | Low | Potential high-value topic |
 | T-018 | Confirm Cloudflare Access policy for AI Trends dashboard | High | Local verification cannot confirm Access policy. Dashboard can run local scripts, so `ai-trends.thequietself.com` should require Cloudflare Access login. |
 || ~~T-019~~ | **Add Dashboard Search tab backed by report index** | ~~High~~ | ✅ Completed 2026-05-14 as T-023: `/search` UI + `/api/search` JSON endpoint + `/api/search/rebuild` |
-| T-020 | Add content asset layer for audio/social/Sonar scripts | High | Generate cached sidecars only for selected topics/videos to control cost. |
+|| ~~T-020~~ | **Add content asset layer for audio/social/Sonar scripts** | ~~High~~ | ✅ Completed 2026-05-14 as T-024: `generate_content_assets.py` + dashboard Assets tab |
+| T-021 | **Implement ATS voice generation** | High | Phase 1+2 completed as T-030/T-031: unified voice engine, Aoede profile, legacy wrapper, Dashboard script editor/save, and voice-from-saved-script controls. Remaining: deep-dive script generator, better per-video status counts, real TTS acceptance test, publish generated voice assets, enable Joanna automation after NATEHERK compatibility test. |
 
 ---
 
@@ -124,6 +153,8 @@ _None_
 | `--detailed` flag for all cron/manual runs | Standard prompt produces ~500 word slide summaries; detailed produces 2000-3000 word section-based reports which are significantly more useful |
 | Dashboard is non-invasive | Dashboard manual/config layer does not replace production cron; cron remains the production source of truth |
 | Reuse existing Cloudflare Tunnel | `ai-trends.thequietself.com` uses the existing `faw-dashboard` tunnel; no new tunnel was created |
+| Dashboard runs as user systemd service | `ats-dashboard.service` auto-restarts on failure, starts at boot via linger; no sudo required |
+| Voice generation remains separate from script generation | Current `generate_content_assets.py --with-audio` creates scripts only. Voice implementation should create WAV outputs via Gemini TTS from saved scripts, with separate full-script and deep-dive voice types. |
 
 ---
 
@@ -189,6 +220,18 @@ Dashboard URLs:
 - Local: `http://127.0.0.1:8092`
 - Public route: `https://ai-trends.thequietself.com`
 - Cloudflare Access must be checked in Cloudflare Zero Trust before treating the public route as private.
+
+Dashboard service management (user systemd):
+
+```bash
+systemctl --user status ats-dashboard     # check status
+systemctl --user restart ats-dashboard    # restart
+systemctl --user stop ats-dashboard       # stop
+systemctl --user start ats-dashboard      # start
+journalctl --user -u ats-dashboard -f     # live logs
+```
+
+Service file: `~/.config/systemd/user/ats-dashboard.service`
 
 ---
 
