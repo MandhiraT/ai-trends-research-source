@@ -27,7 +27,7 @@
 | Content asset generation | ✅ Working (`generate_content_assets.py`, dashboard Assets tab; manual audio/social works for all topics) |
 | Dashboard Asset batch generate | ✅ Working (date range, skip existing, progress bar, per-row buttons; manual AI generation overrides default priority-topic policy) |
 | Dashboard Existing Assets filters | ✅ Working (client-side topic/date table filter, verified Joanna today case) |
-| Voice generation design | 📝 Designed, not implemented (`docs/VOICE-DESIGN.md`) |
+| Voice generation design / manual flow | ✅ Implemented for script-first workflow (`docs/VOICE-DESIGN.md`, Assets page) |
 
 ---
 
@@ -51,10 +51,10 @@
 | Local web dashboard | Add/edit research jobs, manual runs, report/log browser, read-only cron view | `dashboard/app.py` |
 || Searchable report index | JSONL/SQLite/Markdown mobile indexes + CLI search for report archive | `scripts/build_report_index.py`, `scripts/search_reports.py` |
 || Dashboard search | Search reports by query/topic/tag from Dashboard UI | `dashboard/app.py` `/search`, `/api/search` |
-| Dashboard content assets | Generate asset JSON, audio scripts, social posts per report | `dashboard/app.py` `/assets`, `/api/assets/generate`, `/api/assets/generate-one` |
+| Dashboard content assets | Generate asset JSON, audio scripts, deep-dive scripts, social posts per report | `dashboard/app.py` `/assets`, `/api/assets/generate`, `/api/assets/generate-one`, `/api/assets/generate-deep-dive-script` |
 | Dashboard asset batch generate | Date range filter, skip existing, AI confirm, progress bar, per-row buttons | `dashboard/app.py` `/api/assets/progress` |
 | Dashboard Existing Assets filters | Client-side table filtering by Topic + Date from/to; counter updates live | `dashboard/app.py` `/assets` |
-| Voice generation design | Two voice types planned: full script voice + deep dive voice; not implemented yet | `docs/VOICE-DESIGN.md` |
+| Voice generation manual flow | Script editor/save + Gemini TTS voice from saved full/deep-dive scripts only | `dashboard/app.py`, `scripts/voice_engine.py` |
 | Dashboard job config | JSON-managed research job list for dashboard/manual execution | `config/research_jobs.json` |
 | Specific video/manual report routing | Supports dashboard `--video-url`, `--report-folder`, `--config-job-id` | `run_ai_trends_research_enhanced.py` |
 
@@ -114,6 +114,7 @@
 | T-032 | **ATS output repo folder cleanup — Phase A local migration** | 2026-05-17 | Migrated 13 WAV files `Voice/NateHerk → voice/nateherk`. Both repos committed and pushed. ✅ |
 | T-033 | **Enable Joanna Wiebe daily voice automation** | 2026-05-17 | Added `joanna_wiebe` to `enabled_topics` + `github_folder_map`, set `automated_voice_topics.joanna_wiebe.enabled=true, publish=true`. NATEHERK verified (9.9MB today). Generated and published `voice/joanna_wiebe/2026-05-17.wav` (9.2MB). From tomorrow cron generates + publishes Joanna audio automatically. |
 | T-034 | **Fix Dashboard Assets all-topic manual audio/social generation** | 2026-05-17 | Fixed `name '_slug' is not defined` in `scripts/generate_content_assets.py`, added explicit manual generation override so Dashboard `+Audio`, `+Social`, and `+All` work for any topic while `PRIORITY_TOPICS` remains default automation policy only. Updated full-script prompt framing to “คนที่เพิ่งดูมาแล้วอยากบอกเล่าสิ่งที่ได้เรียนรู้”, hook-first opening, no “คลิปนี้” opening, and banned over-casual words (`แก`, `เว้ย`, `แกๆ`, `โห`, `โคตร`, `เจ๋ง`, `อ่ะ`). Verification: py_compile passed, unit/fake-AI all-topic test passed, local `/assets` + asset endpoints 5/5, browser page loads via Cloudflare route with no console errors, real `jacksons_ai` audio-script generation returned 200 and created `audio_scripts/jacksons_ai/2026-05-17-v1.md`. |
+| T-035 | **Add Dashboard deep-dive script generation** | 2026-05-17 | Added script-first `📖 Generate deep dive script` button and `POST /api/assets/generate-deep-dive-script`. The endpoint creates only `audio_scripts/{topic}/{date}-vN-deep-dive.md` with `## Deep Dive Script`; it does not create voice. Existing scripts are not overwritten unless `force=1`. Added deep-dive prompt based on the Full Episode Formula plus a quality retry guard for forbidden greetings/openings. Verification: new tests 5/5 for generator + Dashboard workflow, full test suite 9/9, py_compile passed, local `/assets` 200, Cloudflare Assets page shows 📖 controls with no console errors, real `jacksons_ai` deep-dive script generated (8,482 chars) and no WAV was created. |
 
 ### Backlog
 
@@ -127,7 +128,7 @@
 | T-018 | Confirm Cloudflare Access policy for AI Trends dashboard | High | Local verification cannot confirm Access policy. Dashboard can run local scripts, so `ai-trends.thequietself.com` should require Cloudflare Access login. |
 || ~~T-019~~ | **Add Dashboard Search tab backed by report index** | ~~High~~ | ✅ Completed 2026-05-14 as T-023: `/search` UI + `/api/search` JSON endpoint + `/api/search/rebuild` |
 || ~~T-020~~ | **Add content asset layer for audio/social/Sonar scripts** | ~~High~~ | ✅ Completed 2026-05-14 as T-024: `generate_content_assets.py` + dashboard Assets tab |
-| T-021 | **Implement ATS voice generation** | Medium | NATEHERK + Joanna Wiebe daily automation fully enabled. Both publish to `voice/{topic}/` in output repo. Remaining: deep-dive script generator, per-video voice status counts in Dashboard. |
+| T-021 | **Implement ATS voice generation** | Medium | NATEHERK + Joanna Wiebe daily automation fully enabled. Both publish to `voice/{topic}/` in output repo. Deep-dive script generation is now available from Dashboard. Remaining: per-video voice status counts in Dashboard and optional short-script voice button if needed. |
 
 ---
 

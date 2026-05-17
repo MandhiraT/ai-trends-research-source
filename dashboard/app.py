@@ -330,6 +330,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self.run_job_action(data)
         elif parsed.path == "/api/assets/script":
             self.api_assets_script_save(data)
+        elif parsed.path == "/api/assets/generate-deep-dive-script":
+            self.api_assets_generate_deep_dive_script(data)
         elif parsed.path == "/api/assets/generate-voice":
             self.api_assets_generate_voice(data)
         else:
@@ -783,6 +785,77 @@ function clearSearch(){{
         except Exception as exc:
             self._send_json({"error": str(exc)}, code=400)
 
+    def api_assets_generate_deep_dive_script(self, data):
+        """Generate a deep-dive script only; voice remains a separate saved-script step."""
+        try:
+            from generate_content_assets import (
+                AUDIO_SCRIPTS_DIR,
+                build_asset_from_report,
+                generate_deep_dive_script,
+                save_deep_dive_script,
+                _get_ai_client,
+            )
+        except ImportError:
+            self._send_json({"error": "Asset module not available"}, code=500)
+            return
+
+        try:
+            topic = data.get("topic", [""])[0]
+            date = data.get("date", [""])[0]
+            video = data.get("video", ["1"])[0]
+            force = data.get("force", [""])[0] == "1"
+            safe_topic, vno, script_path, _voice_path = self._voice_script_paths(topic, date, video, "deep_dive")
+            if script_path.exists() and not force:
+                self._send_json({
+                    "status": "exists",
+                    "topic": safe_topic,
+                    "date": date,
+                    "video": vno,
+                    "type": "deep_dive",
+                    "path": str(script_path.relative_to(PROJECT_ROOT)),
+                    "message": "Deep dive script already exists — open editor or pass force=1 to regenerate",
+                })
+                return
+
+            report_path = REPORTS_DIR / safe_topic / f"{date}.md"
+            if not report_path.exists():
+                for subdir in sorted(REPORTS_DIR.iterdir()):
+                    if not subdir.is_dir():
+                        continue
+                    candidate = subdir / f"{date}.md"
+                    if candidate.exists() and _slug(subdir.name) == safe_topic:
+                        report_path = candidate
+                        break
+            if not report_path.exists():
+                self._send_json({"error": f"Report not found: {topic}/{date}"}, code=404)
+                return
+
+            for creds in (PROJECT_ROOT / "credentials.env", Path.home() / ".credentials.env"):
+                if creds.exists():
+                    for line in creds.read_text().splitlines():
+                        if "=" in line and not line.startswith("#"):
+                            k, _, v = line.partition("=")
+                            os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+
+            asset = build_asset_from_report(report_path, REPORTS_DIR)
+            if not asset:
+                self._send_json({"error": "Failed to parse report"}, code=500)
+                return
+            ai_module = _get_ai_client()
+            result = generate_deep_dive_script(asset, vno, ai_module)
+            saved_path = save_deep_dive_script(asset, vno, AUDIO_SCRIPTS_DIR)
+            self._send_json({
+                "status": "ok",
+                "topic": safe_topic,
+                "date": date,
+                "video": vno,
+                "type": "deep_dive",
+                "path": str(saved_path.relative_to(PROJECT_ROOT)),
+                **result,
+            })
+        except Exception as exc:
+            self._send_json({"error": str(exc)}, code=500)
+
     def api_assets_generate_voice(self, data):
         """Generate voice only from an existing saved script. Never creates a script."""
         try:
@@ -918,6 +991,7 @@ function clearSearch(){{
             rows += f'<td style="white-space:nowrap">{b_asset} {b_script} {b_voice} {b_social}</td>'
             rows += f'<td style="white-space:nowrap">'
             rows += f'<button class="btn-sm" onclick="openScript(\'{safe_folder}\',\'{safe_date}\',\'full\')" title="Edit full script">📝</button> '
+            rows += f'<button class="btn-sm" onclick="generateDeepDiveScript(\'{safe_folder}\',\'{safe_date}\')" title="Generate deep dive script">📖</button> '
             rows += f'<button class="btn-sm" onclick="openScript(\'{safe_folder}\',\'{safe_date}\',\'deep_dive\')" title="Edit deep dive script">📚</button> '
             rows += f'<button class="btn-sm" onclick="generateVoice(\'{safe_folder}\',\'{safe_date}\',\'full\')" title="Generate full voice">🎙️</button> '
             rows += f'<button class="btn-sm" onclick="generateVoice(\'{safe_folder}\',\'{safe_date}\',\'deep_dive\')" title="Generate deep dive voice">🎧</button>'
@@ -991,7 +1065,7 @@ function clearSearch(){{
 <section>
 <h2>Existing Assets <span id="assetCount" class="muted" style="font-size:14px"></span></h2>
 <p class="muted" style="font-size:13px">Status: 📄=Asset JSON · 📝=Audio script (click to edit) · 🎙️=Voice WAV (click to download) · 📱=Social posts (click to view) — green=ready, gray=not yet generated</p>
-<p class="muted" style="font-size:13px">Gen: 📄=JSON only · 🔊=+Audio script · 📱=+Social · 🚀=+All | Script/Voice: 📝/📚=Edit · 🎙️/🎧=Generate voice from saved script</p>
+<p class="muted" style="font-size:13px">Gen: 📄=JSON only · 🔊=+Audio script · 📱=+Social · 🚀=+All | Script/Voice: 📝=Edit full · 📖=Generate deep dive script · 📚=Edit deep dive · 🎙️/🎧=Generate voice from saved script</p>
 <table><thead><tr><th>Date</th><th>Topic</th><th>Videos</th><th>Status</th><th>Script/Voice</th><th>Path</th><th>Gen</th></tr></thead>
 <tbody>{rows if rows else '<tr><td colspan="7">No assets yet. Generate some above.</td></tr>'}</tbody></table>
 </section>
@@ -1172,6 +1246,25 @@ function saveScript(){{
       st.textContent='✅ Saved '+data.path+(data.voice_stale?' · voice stale/regenerate needed':'');
     }})
     .catch(function(err){{st.textContent='Error: '+err;}});
+}}
+
+function generateDeepDiveScript(topic,date){{
+  var video=prompt('Video number to generate deep dive script for?', '1');
+  if(!video) return;
+  if(!confirm('Generate DEEP DIVE SCRIPT for '+topic+' '+date+' v'+video+'?\\nThis uses AI to create script text only. It will NOT generate voice.')) return;
+  var body=new URLSearchParams({{topic:topic,date:date,video:video}});
+  fetch('/api/assets/generate-deep-dive-script',{{method:'POST',headers:{{'Content-Type':'application/x-www-form-urlencoded'}},body:body}})
+    .then(function(r){{return r.json()}})
+    .then(function(data){{
+      if(data.error){{alert('Error: '+data.error);return;}}
+      if(data.status==='exists'){{
+        alert('Deep dive script already exists: '+data.path+'\\nOpening editor now.');
+      }}else{{
+        alert('✅ Deep dive script generated: '+data.path+'\\nPlease review/edit/save before generating voice.');
+      }}
+      openScript(topic,date,'deep_dive',video);
+    }})
+    .catch(function(err){{alert('Error: '+err);}});
 }}
 
 function generateVoice(topic,date,type){{

@@ -118,6 +118,35 @@ SOCIAL_PROMPT = """เขียนเป็นภาษาไทยทั้ง�
 ตอบเป็น JSON:
 {{"facebook": "ข้อความ post", "threads": ["post1", "post2"], "x_thread": ["tweet1", "tweet2", "tweet3"], "short_caption": "caption #hashtag1 #hashtag2", "hashtags": ["#tag1", "#tag2"]}}"""
 
+DEEP_DIVE_SCRIPT_PROMPT = """เขียนเป็นภาษาไทยทั้งหมด
+
+เป้าหมาย: เขียนสคริปต์เสียงแบบ Deep Dive ให้คนฟังเข้าใจเนื้อหาจากวิดีโอ/รายงานนี้ได้ครบ โดยไม่ต้องกลับไปดูต้นฉบับ
+
+โครงสร้างที่ต้องมีในเนื้อหา:
+1. Hook & Promise — เปิดด้วย pain/problem หรือ insight ที่ทำให้อยากฟังต่อ และบอกว่าคนฟังจะได้อะไร
+2. Core Problem — อธิบายความเข้าใจผิด ปัญหา หรือบริบทหลักที่คลิปกำลังตอบ
+3. Deep Dive — เดินตามทุกประเด็นสำคัญจากรายงานตามลำดับ อธิบายว่าแต่ละประเด็นหมายถึงอะไร มีตัวอย่างอะไร ทำไมจึงสำคัญ และควรเอาไปใช้ยังไง
+4. Master Insights — ร้อย insight สำคัญให้เห็นภาพใหญ่
+5. How-to Blueprint — สรุปเป็นขั้นตอนนำไปใช้จริง โดยยึดจากรายงาน
+6. Outro — ปิดด้วยความคิดที่จำง่ายและชวนเอาไปทดลองใช้
+
+กติกาเสียง/รูปแบบ:
+- Natural spoken Thai เหมือน host พอดแคสต์ที่เล่าให้ฟังอย่างเข้าใจจริง
+- ใช้ภาษาพูดที่อบอุ่น ชัดเจน เป็นผู้ใหญ่ ไม่แข็งแบบรายงาน และไม่สนิทเกิน
+- ยกตัวอย่าง คน บริษัท framework หรือคำพูดสำคัญจากรายงานให้ครบเท่าที่มี
+- ห้ามใช้ bullet, numbered list, markdown, heading หรือ table ในคำตอบสุดท้าย ให้เป็น plain text สำหรับ TTS เท่านั้น
+- บรรทัดแรกต้องเป็น hook เท่านั้น: เริ่มด้วยคำถาม/ความขัดแย้ง/ข้อเท็จจริงที่น่าสนใจจากเนื้อหา ห้ามขึ้นต้นด้วยคำทักทาย
+- ห้ามเริ่มด้วย "คลิปนี้", "สวัสดี", "วันนี้", "ในตอนนี้", "เราจะมา", คำทักทาย หรือการแนะนำตัว
+- ห้ามใช้คำเติมแบบ AI: "แน่นอน!", "รับรองว่า", "นี่คือสรุป", "เริ่มกันเลย", "พร้อมแล้วใช่ไหม"
+- เป้าหมายความยาว: 8–12 นาทีถ้าเนื้อหาในรายงานมากพอ แต่ห้ามเติมน้ำเกินข้อมูลต้นฉบับ
+
+หัวข้อวิดีโอ: {video_title}
+
+เนื้อหาจาก report:
+{section_text}
+
+Deep Dive audio script:"""
+
 
 def _get_ai_client():
     """Get AI client for generation. Uses summarize_local.py's provider chain."""
@@ -318,6 +347,75 @@ def generate_social_posts(asset: dict, module=None) -> dict:
     return {"social_posts_generated": generated}
 
 
+def _find_asset_video(asset: dict, video_no: int) -> dict | None:
+    """Return a video dict by 1-based report video number."""
+    for video in asset.get("videos", []):
+        try:
+            if int(video.get("video_no", 0)) == int(video_no):
+                return video
+        except (TypeError, ValueError):
+            continue
+    return None
+
+
+def _deep_dive_needs_quality_retry(text: str) -> bool:
+    """Return True when a generated deep-dive script violates critical voice rules."""
+    first_line = next((line.strip() for line in (text or "").splitlines() if line.strip()), "")
+    forbidden_openings = (
+        "สวัสดี", "คลิปนี้", "วันนี้", "ในตอนนี้", "เราจะมา",
+        "แน่นอน", "นี่คือสรุป", "เริ่มกันเลย", "พร้อมแล้วใช่ไหม",
+    )
+    return first_line.startswith(forbidden_openings)
+
+
+def _quality_retry_prompt(original_prompt: str, bad_result: str) -> str:
+    """Build a correction prompt that preserves content but fixes forbidden openings."""
+    return f"""งานก่อนหน้านี้ยังผิดกติกาสำคัญ: ห้ามขึ้นต้นด้วยคำทักทาย ห้ามขึ้นต้นด้วย "คลิปนี้", "วันนี้", "เราจะมา" หรือการแนะนำตัว
+
+ให้เขียนสคริปต์ใหม่ทั้งหมด โดยบรรทัดแรกต้องเป็น hook จากเนื้อหาเท่านั้น เช่น คำถาม ข้อขัดแย้ง หรือข้อเท็จจริงที่น่าสนใจ ห้ามมี markdown/bullet/heading
+
+ผลลัพธ์ก่อนหน้าที่ต้องแก้:
+{bad_result[:2000]}
+
+คำสั่งต้นฉบับ:
+{original_prompt}"""
+
+
+def generate_deep_dive_script(asset: dict, video_no: int, module=None) -> dict:
+    """Generate one deep-dive audio script for a selected video.
+
+    Deep-dive generation is intentionally per-video and script-only. It writes
+    text into the asset dict; callers then save the reviewable script file and
+    voice generation remains a separate saved-script step.
+    """
+    video = _find_asset_video(asset, video_no)
+    if not video:
+        raise ValueError(f"video {video_no} not found in asset")
+    if video.get("audio_script_deep_dive"):
+        return {"deep_dive_scripts_generated": 0, "reason": "already exists", "quality_retry_count": 0}
+
+    section_text = video.get("section_text", "")
+    if not section_text or len(section_text) < 200:
+        raise ValueError("selected video has no usable report section")
+
+    prompt = DEEP_DIVE_SCRIPT_PROMPT.format(
+        video_title=video.get("video_title") or video.get("thai_title") or "",
+        section_text=section_text[:12000],
+    )
+    result = _call_ai(prompt, module)
+    retry_count = 0
+    if result and _deep_dive_needs_quality_retry(result):
+        retry_count = 1
+        retry_result = _call_ai(_quality_retry_prompt(prompt, result), module)
+        if retry_result:
+            result = retry_result
+    if not result:
+        raise RuntimeError("AI did not return a deep-dive script")
+
+    video["audio_script_deep_dive"] = result.strip()
+    return {"deep_dive_scripts_generated": 1, "quality_retry_count": retry_count}
+
+
 def save_asset(asset: dict, output_dir: Path) -> Path:
     """Save asset JSON to output directory."""
     topic = asset.get("topic", "unknown")
@@ -365,6 +463,35 @@ def save_audio_scripts(asset: dict, output_dir: Path) -> list[Path]:
         paths.append(out_path)
 
     return paths
+
+
+def save_deep_dive_script(asset: dict, video_no: int, output_dir: Path) -> Path:
+    """Save one generated deep-dive script as a separate reviewable markdown file."""
+    topic = asset.get("topic", "unknown")
+    date = asset.get("date", "unknown")
+    video = _find_asset_video(asset, video_no)
+    if not video:
+        raise ValueError(f"video {video_no} not found in asset")
+    script = (video.get("audio_script_deep_dive") or "").strip()
+    if not script:
+        raise ValueError("selected video has no deep-dive script to save")
+
+    lines = [
+        f"# Deep Dive Audio Script: {video.get('thai_title', video.get('video_title', ''))}",
+        f"Date: {date}",
+        f"Topic: {topic}",
+        f"Video: {video.get('video_title', '')}",
+        f"Source: {video.get('source_url', '')}",
+        "",
+        "## Deep Dive Script",
+        "",
+        script,
+        "",
+    ]
+    out_path = output_dir / _slug(topic) / f"{date}-v{int(video_no)}-deep-dive.md"
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text("\n".join(lines), encoding="utf-8")
+    return out_path
 
 
 def save_social_posts(asset: dict, output_dir: Path) -> Path | None:
