@@ -68,11 +68,12 @@ AUDIO_SCRIPT_PROMPT = """เขียนเป็นภาษาไทยทั�
 คุณเพิ่งดูคลิปนี้มา แล้วอยากเล่าให้คนฟังเข้าใจเนื้อหาแบบเห็นภาพ โดยไม่ต้องไปดูเอง
 
 กติกา:
-- เล่าแบบเพื่อนเล่าให้เพื่อนฟัง ไม่ใช่ผู้อ่านข่าว
+- เล่าแบบคนที่เพิ่งดูมาแล้วอยากบอกเล่าสิ่งที่ได้เรียนรู้ — ไม่เป็นทางการเกิน แต่ไม่ใช่แบบเพื่อนสนิทเม้าท์กัน
+- เปิดด้วย hook ที่ดึงความสนใจทันที เช่น ข้อความที่ขัดแย้งกับสิ่งที่คนทั่วไปคิด, คำถามที่กระตุ้นความอยากรู้, หรือข้อเท็จจริงที่น่าตกใจจากคลิป — ห้ามเริ่มด้วย "คลิปนี้", คำทักทาย หรือการแนะนำตัว
 - ยกคำพูดจริงของผู้พูดในคลิปมาด้วย เช่น "...เขาพูดไว้ชัดๆ ว่า..." หรือ "...คำที่เขาใช้คือ..."
 - เล่าเหมือนมีความรู้สึกกับเนื้อหา เช่น "จริงด้วย", "ตรงนี้น่าสนใจมาก", "คิดได้แบบนี้ก็ดีเหมือนกัน"
+- ห้ามใช้คำสนิทสนมเกินไป เช่น "แก", "เว้ย", "แกๆ", "คิดดูดิ", "โห", "โคตร", "เจ๋ง", "อ่ะ" หรือคำอุทานแบบวัยรุ่น
 - ห้ามใช้คำเติมแบบ AI: "แน่นอน!", "รับรองว่า", "นี่คือสรุป", "เริ่มกันเลย", "พร้อมแล้วใช่ไหม"
-- ห้ามเริ่มด้วยการทักทายหรือแนะนำตัว เข้าเรื่องทันที
 - เขียนเป็น script พูดได้จริง ไม่ใช่บทความอ่าน
 - ความยาว: ประมาณ {target_words} คำ
 - ปิดท้ายด้วยความคิดเห็นสั้นๆ 1-2 ประโยค แบบเห็นด้วยหรือไม่เห็นด้วยก็ได้
@@ -127,32 +128,30 @@ def _call_ai(prompt: str, module=None) -> str:
     if module and hasattr(module, 'generate_text'):
         return module.generate_text(prompt)
 
-    # Fallback: try direct API calls
-    # Try Vertex AI first, then others
-    providers = []
+    # Use summarize_local provider chain (Vertex → Gemini) if available
+    if module and hasattr(module, '_call_provider'):
+        for provider in ('vertex', 'gemini'):
+            try:
+                result = module._call_provider(provider, prompt)
+                if result:
+                    return result
+            except Exception:
+                continue
 
-    # Try Gemini API key
+    # Direct Gemini API fallback
     gemini_key = os.environ.get("GEMINI_API_KEY")
-    if gemini_key:
-        providers.append(("gemini", gemini_key))
-
-    if not providers:
+    if not gemini_key:
         return ""
-
-    for provider_name, key in providers:
-        try:
-            if provider_name == "gemini":
-                import urllib.request
-                url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={key}"
-                data = json.dumps({"contents": [{"parts": [{"text": prompt}]}]}).encode()
-                req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
-                resp = urllib.request.urlopen(req, timeout=120)
-                result = json.loads(resp.read().decode())
-                return result["candidates"][0]["content"]["parts"][0]["text"]
-        except Exception:
-            continue
-
-    return ""
+    try:
+        import urllib.request
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={gemini_key}"
+        data = json.dumps({"contents": [{"parts": [{"text": prompt}]}]}).encode()
+        req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
+        resp = urllib.request.urlopen(req, timeout=120)
+        result = json.loads(resp.read().decode())
+        return result["candidates"][0]["content"]["parts"][0]["text"]
+    except Exception:
+        return ""
 
 
 def build_asset_from_report(report_path: Path, reports_root: Path) -> dict[str, Any] | None:
@@ -178,7 +177,7 @@ def build_asset_from_report(report_path: Path, reports_root: Path) -> dict[str, 
         summary_short = _extract_summary_short(section)
         keywords, keywords_normalized, tags = _extract_keywords(topic, video_title, thai_title, summary_short)
 
-        is_priority = topic.upper() in {t.upper() for t in PRIORITY_TOPICS}
+        is_priority = topic.replace(' ', '_').lower() in {t.replace(' ', '_').lower() for t in PRIORITY_TOPICS}
 
         videos.append({
             "video_no": video_no,
@@ -294,7 +293,7 @@ def save_asset(asset: dict, output_dir: Path) -> Path:
     """Save asset JSON to output directory."""
     topic = asset.get("topic", "unknown")
     date = asset.get("date", "unknown")
-    out_path = output_dir / topic / f"{date}.json"
+    out_path = output_dir / _slug(topic) / f"{date}.json"
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
     # Remove section_text from saved JSON (too large, exists in report)
@@ -331,7 +330,7 @@ def save_audio_scripts(asset: dict, output_dir: Path) -> list[Path]:
         if video.get("audio_script_short"):
             lines.extend(["## Short Script", "", video["audio_script_short"], ""])
 
-        out_path = output_dir / topic / f"{date}-v{video.get('video_no', 0)}.md"
+        out_path = output_dir / _slug(topic) / f"{date}-v{video.get('video_no', 0)}.md"
         out_path.parent.mkdir(parents=True, exist_ok=True)
         out_path.write_text("\n".join(lines), encoding="utf-8")
         paths.append(out_path)
@@ -358,7 +357,7 @@ def save_social_posts(asset: dict, output_dir: Path) -> Path | None:
     if not posts:
         return None
 
-    out_path = output_dir / topic / f"{date}.json"
+    out_path = output_dir / _slug(topic) / f"{date}.json"
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(json.dumps(posts, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return out_path

@@ -9,6 +9,7 @@ import re
 import subprocess
 import sys
 import threading
+import time
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -46,11 +47,16 @@ def _slug(name: str) -> str:
 
 
 def _find_topic_dir(base: Path, raw_name: str, slug_name: str) -> Path | None:
-    """Return the first existing subdir matching raw_name or slug_name (case-sensitive)."""
+    """Return the first existing subdir matching raw_name, slug_name, or any dir whose slug matches."""
     for candidate in (raw_name, slug_name):
         d = base / candidate
         if d.is_dir():
             return d
+    # Fallback: scan for a dir whose slug equals slug_name (handles NATEHERK vs nateherk etc.)
+    if base.is_dir():
+        for sub in base.iterdir():
+            if sub.is_dir() and _slug(sub.name) == slug_name:
+                return sub
     return None
 
 
@@ -299,6 +305,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self.api_assets_generate_one()
         elif parsed.path == "/api/assets/progress":
             self.api_assets_progress()
+        elif parsed.path == "/api/assets/gen-status":
+            self.api_assets_gen_status()
         elif parsed.path == "/api/assets/script":
             self.api_assets_script_get()
         elif parsed.path == "/api/assets/voice-status":
@@ -332,6 +340,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
         self.send_response(code)
         self.send_header("Content-Type", "text/html; charset=utf-8")
         self.send_header("Content-Length", str(len(encoded)))
+        self.send_header("Cache-Control", "no-store")
         self.end_headers()
         self.wfile.write(encoded)
 
@@ -658,8 +667,6 @@ function clearSearch(){{
     def _voice_script_paths(self, topic, date, video_no, script_type):
         """Return safe script/output paths for an asset video voice workflow."""
         safe_topic = _slug(topic)
-        if topic == "NATEHERK":
-            safe_topic = "NATEHERK"
         try:
             vno = int(video_no)
         except (TypeError, ValueError):
@@ -673,15 +680,21 @@ function clearSearch(){{
         if script_type not in ("full", "deep_dive"):
             raise ValueError("type must be full or deep_dive")
 
-        audio_scripts_dir = PROJECT_ROOT / "ai_trends_reports" / "audio_scripts"
-        voice_dir = PROJECT_ROOT / "ai_trends_reports" / "voice" / safe_topic
+        audio_scripts_base = PROJECT_ROOT / "ai_trends_reports" / "audio_scripts"
+        voice_base         = PROJECT_ROOT / "ai_trends_reports" / "voice"
+        # Resolve actual folder names on disk (handles NATEHERK vs nateherk, Joanna Wiebe vs joanna_wiebe, etc.)
+        scripts_dir = _find_topic_dir(audio_scripts_base, topic, safe_topic)
+        actual_scripts_folder = scripts_dir.name if scripts_dir else safe_topic
+        voice_dir_found = _find_topic_dir(voice_base, topic, safe_topic)
+        actual_voice_folder = voice_dir_found.name if voice_dir_found else safe_topic
+
         if script_type == "deep_dive":
-            script_path = audio_scripts_dir / safe_topic / f"{date}-v{vno}-deep-dive.md"
-            voice_path = voice_dir / f"{date}-v{vno}-deep-dive.wav"
+            script_path = audio_scripts_base / actual_scripts_folder / f"{date}-v{vno}-deep-dive.md"
+            voice_path  = voice_base / actual_voice_folder / f"{date}-v{vno}-deep-dive.wav"
         else:
-            script_path = audio_scripts_dir / safe_topic / f"{date}-v{vno}.md"
-            voice_path = voice_dir / f"{date}-v{vno}.wav"
-        return safe_topic, vno, script_path, voice_path
+            script_path = audio_scripts_base / actual_scripts_folder / f"{date}-v{vno}.md"
+            voice_path  = voice_base / actual_voice_folder / f"{date}-v{vno}.wav"
+        return actual_scripts_folder, vno, script_path, voice_path
 
     def _extract_voice_text(self, content, script_type):
         """Extract spoken script text from saved script markdown."""
@@ -865,14 +878,21 @@ function clearSearch(){{
 
         generating_now = DashboardHandler._generating_set
         any_generating = bool(generating_now)
+        status_store   = DashboardHandler._status_store
+        now_ts         = time.time()
 
         rows = ""
+        any_recently_done = False
         for a in reversed(existing[-100:]):
             safe_topic  = h(a["topic"])
             safe_folder = h(a["topic_folder"])
             safe_raw    = h(a["topic_raw"])
             safe_date   = h(a["date"])
             is_generating = (a["topic_folder"], a["date"]) in generating_now
+            _se = status_store.get((a["topic_folder"], a["date"]))
+            recently_done = bool(_se and _se[0] == "done" and now_ts - _se[1] < 30)
+            if recently_done:
+                any_recently_done = True
 
             # 4-badge status column
             def badge(icon, green, click_js, title):
@@ -906,6 +926,8 @@ function clearSearch(){{
             rows += f'<td id="gentd-{safe_folder}-{safe_date}" style="white-space:nowrap">'
             if is_generating:
                 rows += f'<span style="color:#6366f1;font-size:13px">⏳ กำลังสร้าง...</span>'
+            elif recently_done:
+                rows += f'<span style="color:#16a34a;font-size:13px">✅ เสร็จแล้ว</span>'
             else:
                 rows += f'<button class="btn-sm" onclick="generateOne(\'{safe_folder}\',\'{safe_date}\',\'asset\')" title="Asset JSON only">📄</button> '
                 rows += f'<button class="btn-sm" onclick="generateOne(\'{safe_folder}\',\'{safe_date}\',\'audio\')" title="Audio scripts">🔊</button> '
@@ -913,7 +935,12 @@ function clearSearch(){{
                 rows += f'<button class="btn-sm" onclick="generateOne(\'{safe_folder}\',\'{safe_date}\',\'all\')" title="Audio + Social">🚀</button>'
             rows += f'</td></tr>'
 
-        auto_refresh = '<meta http-equiv="refresh" content="8">' if any_generating else ''
+        if any_generating:
+            auto_refresh = '<meta http-equiv="refresh" content="8">'
+        elif any_recently_done:
+            auto_refresh = '<meta http-equiv="refresh" content="12">'
+        else:
+            auto_refresh = ''
 
         body = f"""{auto_refresh}<h1>📦 Content Assets</h1>
 <section>
@@ -1046,12 +1073,6 @@ function filterTable(){{
   if(counter) counter.textContent=shown;
 }}
 
-document.addEventListener('DOMContentLoaded',function(){{
-  document.getElementById('at').addEventListener('change',filterTable);
-  document.getElementById('adf').addEventListener('change',filterTable);
-  document.getElementById('adt').addEventListener('change',filterTable);
-}});
-
 function generateAssets(e){{
   e.preventDefault();
   var topic=document.getElementById('at').value;
@@ -1114,9 +1135,8 @@ function generateAssets(e){{
   return false;
 }}
 
-function openScript(topic,date,type){{
-  var video=prompt('Video number to edit/generate voice for?', '1');
-  if(!video) return;
+function openScript(topic,date,type,video){{
+  if(!video) video='1';
   var st=document.getElementById('scriptStatus');
   st.textContent='Loading script...';
   fetch('/api/assets/script?topic='+encodeURIComponent(topic)+'&date='+encodeURIComponent(date)+'&video='+encodeURIComponent(video)+'&type='+encodeURIComponent(type))
@@ -1194,11 +1214,11 @@ function viewSocial(topic,date){{
       title.textContent='📱 Social Posts — '+topic+' '+date;
       var html='';
       Object.entries(data.posts||{{}}).forEach(function([key,v]){{
-        html+='<strong>'+v.video_title+'</strong>\n';
+        html+='<strong>'+v.video_title+'</strong>\\n';
         var s=v.social||{{}};
-        if(s.raw) html+=s.raw+'\n';
-        else Object.entries(s).forEach(function([k2,txt]){{html+=txt+'\n\n';}});
-        html+='\n---\n\n';
+        if(s.raw) html+=s.raw+'\\n';
+        else Object.entries(s).forEach(function([k2,txt]){{html+=txt+'\\n\\n';}});
+        html+='\\n---\\n\\n';
       }});
       body.textContent=html.trim();
       document.getElementById('socialModal').style.display='block';
@@ -1210,39 +1230,98 @@ function closeSocialModal(){{
   document.getElementById('socialModal').style.display='none';
 }}
 
+function _genLsKey(topic,date){{return 'ats_gen_'+topic+'_'+date;}}
+
+function _lockGenRow(topic,date,label){{
+  var gentd=document.getElementById('gentd-'+topic+'-'+date);
+  if(gentd) gentd.innerHTML='<span style="color:#6366f1;font-size:13px">⏳ '+label+'...</span>';
+}}
+
 function generateOne(topic,date,mode){{
   if(!_confirmIfAI(mode,topic,date,date)) return;
-  var gentd=document.getElementById('gentd-'+topic+'-'+date);
-  var origHtml=gentd?gentd.innerHTML:'';
-  if(gentd){{
-    gentd.innerHTML='<span style="color:#6366f1;font-size:12px">⏳ กำลังสร้าง '+_modeLabel(mode)+'...</span>';
-  }}
+  var lsKey=_genLsKey(topic,date);
+  _lockGenRow(topic,date,'กำลังสร้าง '+_modeLabel(mode));
+  try{{localStorage.setItem(lsKey,JSON.stringify({{topic:topic,date:date,mode:mode,ts:Date.now()}}));}}catch(e){{}}
   var params='?mode='+mode+'&topic='+encodeURIComponent(topic)+'&date='+encodeURIComponent(date);
   fetch('/api/assets/generate-one'+params)
     .then(function(r){{return r.json()}})
     .then(function(data){{
       if(data.error){{
+        try{{localStorage.removeItem(lsKey);}}catch(e){{}}
         alert('Error: '+data.error);
-        if(gentd) gentd.innerHTML=origHtml;
+        location.reload();
         return;
       }}
-      if(gentd) gentd.innerHTML='<span style="color:#16a34a;font-size:12px">✅ เสร็จแล้ว — โหลดใหม่...</span>';
+      try{{localStorage.setItem(lsKey,JSON.stringify({{topic:topic,date:date,ts:Date.now(),status:'done'}}));}}catch(e){{try{{localStorage.removeItem(lsKey);}}catch(e2){{}}}}
+      var gentd=document.getElementById('gentd-'+topic+'-'+date);
+      if(gentd) gentd.innerHTML='<span style="color:#16a34a;font-size:13px">✅ เสร็จแล้ว — โหลดใหม่...</span>';
       setTimeout(function(){{location.reload();}},3000);
     }})
     .catch(function(err){{
+      try{{localStorage.removeItem(lsKey);}}catch(e){{}}
       alert('Error: '+err);
-      if(gentd) gentd.innerHTML=origHtml;
+      location.reload();
     }});
 }}
+
+document.addEventListener('DOMContentLoaded',function(){{
+  document.getElementById('at').addEventListener('change',filterTable);
+  document.getElementById('adf').addEventListener('change',filterTable);
+  document.getElementById('adt').addEventListener('change',filterTable);
+  filterTable();
+  var keys=[];
+  for(var i=0;i<localStorage.length;i++){{var k=localStorage.key(i);if(k&&k.startsWith('ats_gen_'))keys.push(k);}}
+  keys.forEach(function(lsKey){{
+    var val;try{{val=JSON.parse(localStorage.getItem(lsKey));}}catch(e){{try{{localStorage.removeItem(lsKey);}}catch(e2){{}}return;}}
+    if(!val||!val.topic||!val.date){{try{{localStorage.removeItem(lsKey);}}catch(e){{}}return;}}
+    if(Date.now()-val.ts>600000){{try{{localStorage.removeItem(lsKey);}}catch(e){{}}return;}}
+    if(val.status==='done'){{
+      var gtd=document.getElementById('gentd-'+val.topic+'-'+val.date);
+      if(gtd) gtd.innerHTML='<span style="color:#16a34a;font-size:13px">✅ เสร็จแล้ว</span>';
+      setTimeout(function(){{try{{localStorage.removeItem(lsKey);}}catch(e){{}} location.reload();}},8000);
+      return;
+    }}
+    fetch('/api/assets/gen-status?topic='+encodeURIComponent(val.topic)+'&date='+encodeURIComponent(val.date))
+      .then(function(r){{return r.json()}})
+      .then(function(data){{
+        if(data.status==='generating'){{
+          _lockGenRow(val.topic,val.date,'กำลังสร้าง');
+        }}else if(data.status==='done'){{
+          var gtd2=document.getElementById('gentd-'+val.topic+'-'+val.date);
+          if(gtd2) gtd2.innerHTML='<span style="color:#16a34a;font-size:13px">✅ เสร็จแล้ว</span>';
+          setTimeout(function(){{try{{localStorage.removeItem(lsKey);}}catch(e){{}} location.reload();}},8000);
+        }}else{{
+          try{{localStorage.removeItem(lsKey);}}catch(e){{}}
+        }}
+      }})
+      .catch(function(){{try{{localStorage.removeItem(lsKey);}}catch(e){{}}  }});
+  }});
+}});
 </script>"""
         self.send_html(page("Content Assets", body))
 
     # ── Progress tracking for batch generation ──────────────
     _gen_progress = {"current": 0, "total": 0, "status": "idle"}
     _generating_set: set = set()  # (topic_raw, date) while api_assets_generate_one runs
+    _status_store: dict = {}      # (topic_slug, date) → ("generating"|"done"|"error", timestamp)
 
     def api_assets_progress(self):
         self._send_json(self._gen_progress)
+
+    def api_assets_gen_status(self):
+        qs = parse_qs(urlparse(self.path).query)
+        topic = qs.get("topic", [""])[0].strip()
+        date  = qs.get("date",  [""])[0].strip()
+        now = time.time()
+        # purge stale entries (>120s)
+        stale = [k for k, v in DashboardHandler._status_store.items() if now - v[1] > 120]
+        for k in stale:
+            DashboardHandler._status_store.pop(k, None)
+        entry = DashboardHandler._status_store.get((topic, date))
+        if entry and now - entry[1] <= 120:
+            self._send_json({"status": entry[0], "topic": topic, "date": date})
+        else:
+            self._send_json({"status": "unknown", "topic": topic, "date": date})
 
     def _set_progress(self, current, total, status):
         self._gen_progress = {"current": current, "total": total, "status": status}
@@ -1323,12 +1402,12 @@ function generateOne(topic,date,mode){{
 
         # Load credentials for AI
         if with_audio or with_social:
-            creds = PROJECT_ROOT / "credentials.env"
-            if creds.exists():
-                for line in creds.read_text().splitlines():
-                    if "=" in line and not line.startswith("#"):
-                        k, _, v = line.partition("=")
-                        os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+            for creds in (PROJECT_ROOT / "credentials.env", Path.home() / ".credentials.env"):
+                if creds.exists():
+                    for line in creds.read_text().splitlines():
+                        if "=" in line and not line.startswith("#"):
+                            k, _, v = line.partition("=")
+                            os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
 
         ai_module = _get_ai_client() if (with_audio or with_social) else None
 
@@ -1455,20 +1534,24 @@ function generateOne(topic,date,mode){{
 
         # Load credentials for AI
         if with_audio or with_social:
-            creds = PROJECT_ROOT / "credentials.env"
-            if creds.exists():
-                for line in creds.read_text().splitlines():
-                    if "=" in line and not line.startswith("#"):
-                        k, _, v = line.partition("=")
-                        os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+            for creds in (PROJECT_ROOT / "credentials.env", Path.home() / ".credentials.env"):
+                if creds.exists():
+                    for line in creds.read_text().splitlines():
+                        if "=" in line and not line.startswith("#"):
+                            k, _, v = line.partition("=")
+                            os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
 
         ai_module = _get_ai_client() if (with_audio or with_social) else None
 
-        gen_key = (topic_folder, date)
+        # Both keyed by URL param (topic, already slugified) to match render_assets() lookups
+        status_key = (topic, date)
+        gen_key = (topic, date)
+        DashboardHandler._status_store[status_key] = ("generating", time.time())
         DashboardHandler._generating_set.add(gen_key)
         try:
             asset = build_asset_from_report(report_path, REPORTS_DIR)
             if not asset:
+                DashboardHandler._status_store[status_key] = ("error", time.time())
                 self._send_json({"error": "Failed to parse report"}, code=500)
                 return
 
@@ -1480,6 +1563,11 @@ function generateOne(topic,date,mode){{
                 save_social_posts(asset, SOCIAL_DIR)
 
             save_asset(asset, ASSETS_DIR)
+            DashboardHandler._status_store[status_key] = ("done", time.time())
+        except Exception as exc:
+            DashboardHandler._status_store[status_key] = ("error", time.time())
+            self._send_json({"error": str(exc)}, code=500)
+            return
         finally:
             DashboardHandler._generating_set.discard(gen_key)
 
