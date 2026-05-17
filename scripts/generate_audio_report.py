@@ -55,6 +55,7 @@ load_credentials()
 
 AUDIO_CONFIG_FILE = os.path.join(PROJECT_ROOT, 'config', 'audio_topics.json')
 AUDIO_PROMPT_FILE = os.path.join(PROMPTS_DIR, 'audio_script_prompt.txt')
+SCRIPTS_DIR       = os.path.join(PROJECT_ROOT, 'ai_trends_reports', 'audio_scripts')
 TTS_MODEL         = 'gemini-2.5-flash-preview-tts'
 CONDENSE_MODEL    = 'gemini-2.5-flash'
 DEFAULT_VOICE     = 'Aoede'
@@ -260,6 +261,33 @@ def generate_for_topic(topic_key: str, date_str: str, voice: str = DEFAULT_VOICE
         return False
 
 
+def _save_combined_script(topic_key: str, date_str: str,
+                          scripts: list[tuple[str, str]]) -> str | None:
+    """Save all per-video scripts as one combined ATS script file. Returns path or None."""
+    scripts_dir = os.path.join(SCRIPTS_DIR, topic_key)
+    os.makedirs(scripts_dir, exist_ok=True)
+    script_path = os.path.join(scripts_dir, f'{date_str}-v1.md')
+
+    topic_display = topic_key.replace('_', ' ').title()
+    header = (
+        f"# Audio Script: {topic_display} — {date_str}\n"
+        f"Date: {date_str}\n"
+        f"Topic: {topic_display}\n"
+        f"เวอร์ชัน: auto-generated\n\n"
+        f"## Full Script\n\n"
+    )
+    body = "\n\n".join(script for _, script in scripts)
+
+    try:
+        with open(script_path, 'w', encoding='utf-8') as f:
+            f.write(header + body + "\n")
+        print(f'  [audio] 📄 Script saved: {script_path}')
+        return script_path
+    except Exception as e:
+        print(f'  [audio] ⚠️  Script save failed: {e}')
+        return None
+
+
 def _generate_per_video(topic_key: str, date_str: str, report_text: str,
                         output_path: str, voice: str, dry_run: bool) -> bool:
     """Per-video mode: split → condense each section → TTS each → concatenate."""
@@ -267,6 +295,7 @@ def _generate_per_video(topic_key: str, date_str: str, report_text: str,
     print(f'  [audio] 📹 Per-video mode: {len(sections)} section(s) found')
 
     seg_paths = []
+    all_scripts: list[tuple[str, str]] = []
     with tempfile.TemporaryDirectory() as tmpdir:
         for i, (title, text) in enumerate(sections):
             is_first = (i == 0)
@@ -288,6 +317,7 @@ def _generate_per_video(topic_key: str, date_str: str, report_text: str,
                     if len(script2) > len(script):
                         script = script2
                 print(f'  [audio]   [{i+1}/{len(sections)}] ✅ Script: {len(script)} chars')
+                all_scripts.append((label, script))
             except Exception as e:
                 print(f'  [audio]   [{i+1}/{len(sections)}] ❌ Condense failed: {e}')
                 return False
@@ -320,10 +350,13 @@ def _generate_per_video(topic_key: str, date_str: str, report_text: str,
             _concat_wavs(seg_paths, output_path)
             size_kb = os.path.getsize(output_path) // 1024
             print(f'  [audio] ✅ Saved: {output_path} ({size_kb} KB)')
-            return True
         except Exception as e:
             print(f'  [audio] ❌ Concat failed: {e}')
             return False
+
+    if all_scripts:
+        _save_combined_script(topic_key, date_str, all_scripts)
+    return True
 
 
 def main():

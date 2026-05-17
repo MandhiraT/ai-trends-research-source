@@ -29,8 +29,9 @@ except ImportError:
 
 load_credentials()
 
-AUDIO_CONFIG = os.path.join(PROJECT_ROOT, 'config', 'audio_topics.json')
-GITHUB_REPO  = 'https://github.com/MandhiraT/ai-trends-research.git'
+AUDIO_CONFIG  = os.path.join(PROJECT_ROOT, 'config', 'audio_topics.json')
+SCRIPTS_DIR   = os.path.join(PROJECT_ROOT, 'ai_trends_reports', 'audio_scripts')
+GITHUB_REPO   = 'https://github.com/MandhiraT/ai-trends-research.git'
 
 
 def _git(args: list, cwd: str) -> bool:
@@ -78,6 +79,26 @@ def upload_audio(date_str: str) -> bool:
         rel_path = os.path.join('voice', dest_folder, f'{date_str}.wav')
         print(f'[audio-upload] ✅ Copied: {rel_path} ({size_mb:.1f} MB)')
         copied.append(rel_path)
+
+    # Copy matching script files (.md) alongside WAVs
+    for topic in enabled:
+        import glob as _glob
+        topic_scripts_dir = os.path.join(SCRIPTS_DIR, topic)
+        script_files = _glob.glob(os.path.join(topic_scripts_dir, f'{date_str}-v*.md'))
+        if not script_files:
+            continue
+
+        dest_folder = folder_map.get(topic, topic).strip().replace(' ', '_').replace('-', '_').lower()
+        dest_scripts_dir = os.path.join(repo, 'audio_scripts', dest_folder)
+        os.makedirs(dest_scripts_dir, exist_ok=True)
+
+        for src in script_files:
+            fname = os.path.basename(src)
+            dest  = os.path.join(dest_scripts_dir, fname)
+            shutil.copy2(src, dest)
+            rel_path = os.path.join('audio_scripts', dest_folder, fname)
+            print(f'[audio-upload] 📄 Copied: {rel_path}')
+            copied.append(rel_path)
 
     if not copied:
         print('[audio-upload] Nothing to commit.')
