@@ -65,6 +65,34 @@ def script_sha256(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
+def extract_script_text(text: str, script_type: str = "full") -> str:
+    """Strip metadata header from a saved script .md file, returning only spoken content.
+
+    Looks for a named section (## Full Script / ## Deep Dive Script) and returns
+    its body. Falls back to stripping known metadata header lines.
+    """
+    text = (text or "").strip()
+    if not text:
+        return ""
+    heading_map = {
+        "full": r"^##\s+Full Script\s*$",
+        "deep_dive": r"^##\s+Deep Dive Script\s*$",
+    }
+    pattern = heading_map.get(script_type, heading_map["full"])
+    m = re.search(pattern + r"([\s\S]*?)(?=^##\s+|\Z)", text, re.MULTILINE)
+    if m:
+        return m.group(1).strip()
+    # Fallback: strip known metadata header lines and H1 title
+    lines = text.splitlines()
+    while lines and (
+        not lines[0].strip()
+        or lines[0].startswith(("#", "Date:", "Topic:", "Video:", "Source:",
+                                "แหล่งที่มา:", "หัวข้อ:", "เวอร์ชัน:"))
+    ):
+        lines.pop(0)
+    return "\n".join(lines).strip() or text
+
+
 def load_voice_profile(profile_name: str | None = None, *, voice_override: str | None = None) -> dict:
     """Load built-in voice profile, optionally overriding voice name for CLI compatibility."""
     name = profile_name or DEFAULT_VOICE_PROFILE
@@ -192,13 +220,18 @@ def concat_wavs(wav_paths: Sequence[str | Path], output_path: str | Path) -> Pat
 
 def generate_voice_from_text(script_text: str, output_path: str | Path, *,
                              script_path: str | Path | None = None,
+                             raw_script_text: str | None = None,
                              voice_profile: str | None = None,
                              voice_override: str | None = None,
                              max_chars: int = MAX_TTS_CHARS,
                              metadata_path: str | Path | None = None,
                              pause_between_chunks: int = 8,
                              dry_run: bool = False) -> VoiceMetadata:
-    """Generate WAV from saved/reviewed script text and write sidecar metadata."""
+    """Generate WAV from saved/reviewed script text and write sidecar metadata.
+
+    raw_script_text: full file content before extraction; used for sha256 so
+    is_voice_stale() (which reads the raw file) stays consistent.
+    """
     script_text = (script_text or "").strip()
     if not script_text:
         raise ValueError("Script text is empty")
@@ -206,7 +239,7 @@ def generate_voice_from_text(script_text: str, output_path: str | Path, *,
     profile = load_voice_profile(voice_profile, voice_override=voice_override)
     chunks = chunk_script(script_text, max_chars=max_chars)
     output = Path(output_path)
-    sha = script_sha256(script_text)
+    sha = script_sha256(raw_script_text if raw_script_text is not None else script_text)
 
     meta = VoiceMetadata(
         path=str(output),
@@ -245,12 +278,25 @@ def generate_voice_from_text(script_text: str, output_path: str | Path, *,
 
 
 def generate_voice_from_saved_script(script_path: str | Path, output_path: str | Path, **kwargs) -> VoiceMetadata:
-    """Generate voice from an already saved script file. This is the canonical manual-flow entrypoint."""
+    """Generate voice from an already saved script file. This is the canonical manual-flow entrypoint.
+
+    Automatically strips metadata header (Date/Topic/Video/Source) so TTS only
+    receives the spoken script content. sha256 is computed on the full raw file
+    so is_voice_stale() stays consistent.
+    """
     path = Path(script_path)
     if not path.exists():
         raise FileNotFoundError(f"Script missing — generate script first: {path}")
-    text = path.read_text(encoding="utf-8")
-    return generate_voice_from_text(text, output_path, script_path=path, **kwargs)
+    script_type = kwargs.pop("script_type", "full")
+    raw_text = path.read_text(encoding="utf-8")
+    voice_text = extract_script_text(raw_text, script_type)
+    if not voice_text:
+        raise ValueError(f"No usable voice text found in script: {path}")
+    return generate_voice_from_text(
+        voice_text, output_path,
+        script_path=path, raw_script_text=raw_text,
+        **kwargs,
+    )
 
 
 def is_voice_stale(script_path: str | Path, metadata_path: str | Path) -> bool:
@@ -275,6 +321,8 @@ if __name__ == "__main__":
     parser.add_argument("--output", required=True, help="Output WAV path")
     parser.add_argument("--voice-profile", default=DEFAULT_VOICE_PROFILE)
     parser.add_argument("--voice", default=None, help="Override Gemini prebuilt voice name")
+    parser.add_argument("--script-type", default="full", choices=["full", "deep_dive"],
+                        help="Script section to extract: full (default) or deep_dive")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
 
@@ -283,6 +331,7 @@ if __name__ == "__main__":
         args.output,
         voice_profile=args.voice_profile,
         voice_override=args.voice,
+        script_type=args.script_type,
         dry_run=args.dry_run,
     )
     print(json.dumps(asdict(metadata), ensure_ascii=False, indent=2))

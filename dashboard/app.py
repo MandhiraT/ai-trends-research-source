@@ -672,17 +672,8 @@ function clearSearch(){{
 
     def _extract_voice_text(self, content, script_type):
         """Extract spoken script text from saved script markdown."""
-        text = (content or "").strip()
-        if not text:
-            return ""
-        if script_type == "full":
-            m = re.search(r"^##\s+Full Script\s*$([\s\S]*?)(?=^##\s+|\Z)", text, re.MULTILINE)
-            if m:
-                return m.group(1).strip()
-        lines = text.splitlines()
-        while lines and (lines[0].startswith(("แหล่งที่มา:", "หัวข้อ:", "เวอร์ชัน:", "Date:", "Topic:", "Video:", "Source:")) or not lines[0].strip()):
-            lines.pop(0)
-        return "\n".join(lines).strip() or text
+        from voice_engine import extract_script_text
+        return extract_script_text(content, script_type)
 
     def api_assets_script_get(self):
         qs = parse_qs(urlparse(self.path).query)
@@ -789,6 +780,7 @@ function clearSearch(){{
                 voice_text,
                 voice_path,
                 script_path=script_path,
+                raw_script_text=content,
                 dry_run=dry_run,
             )
             self._send_json({
