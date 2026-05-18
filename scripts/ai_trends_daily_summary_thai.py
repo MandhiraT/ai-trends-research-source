@@ -82,11 +82,21 @@ def build_status(date_str):
 
 
 AUDIO_CONFIG = _os.path.join(PROJECT_ROOT, 'config', 'audio_topics.json')
-GITHUB_AUDIO_BASE = "https://github.com/MandhiraT/ai-trends-research/tree/master/Voice"
+GITHUB_AUDIO_BASE = "https://github.com/MandhiraT/ai-trends-research/tree/master/voice"
+
+
+def _slug(value):
+    return str(value).strip().replace(' ', '_').replace('-', '_').lower()
 
 
 def build_audio_status(date_str):
-    """Check which enabled audio topics have a WAV file for date_str."""
+    """Check which enabled audio topics have WAV file(s) for date_str.
+
+    Daily automation can produce either the legacy whole-day file
+    ``YYYY-MM-DD.wav`` or per-video files like ``YYYY-MM-DD-v1.wav``.
+    Treat any ``date*.wav`` file as a valid audio output and link to the
+    canonical lowercase output repo folder: ``voice/{topic_slug}/``.
+    """
     try:
         with open(AUDIO_CONFIG, encoding='utf-8') as f:
             cfg = json.load(f)
@@ -97,11 +107,19 @@ def build_audio_status(date_str):
     folder_map = cfg.get('github_folder_map', {})
     results = []
     for topic in enabled:
-        wav = _os.path.join(AUDIO_DIR, topic, f'{date_str}.wav')
-        gh_folder = folder_map.get(topic, topic)
-        if _os.path.exists(wav):
-            size_mb = _os.path.getsize(wav) / (1024 * 1024)
-            url = f"{GITHUB_AUDIO_BASE}/{gh_folder}/{date_str}.wav"
+        topic_audio_dir = _os.path.join(AUDIO_DIR, topic)
+        wav_files = []
+        if _os.path.isdir(topic_audio_dir):
+            wav_files = sorted(
+                _os.path.join(topic_audio_dir, name)
+                for name in _os.listdir(topic_audio_dir)
+                if name.startswith(date_str) and name.endswith('.wav')
+            )
+
+        gh_folder = _slug(folder_map.get(topic, topic))
+        if wav_files:
+            size_mb = sum(_os.path.getsize(wav) for wav in wav_files) / (1024 * 1024)
+            url = f"{GITHUB_AUDIO_BASE}/{gh_folder}"
             results.append(('ok', topic, gh_folder, size_mb, url))
         else:
             results.append(('missing', topic, gh_folder, 0, ''))
@@ -177,7 +195,7 @@ def build_telegram_message(date_str, time_str, lines, total_videos, found, audio
         for status, topic, gh_folder, size_mb, url in audio_status:
             if status == 'ok':
                 msg += f"✅ {gh_folder} — {size_mb:.1f} MB\n"
-                msg += f"   <a href='{url}'>{date_str}.wav</a>\n"
+                msg += f"   <a href='{url}'>voice/{gh_folder}</a>\n"
             else:
                 msg += f"❌ {gh_folder} — ไม่พบไฟล์เสียง\n"
 
