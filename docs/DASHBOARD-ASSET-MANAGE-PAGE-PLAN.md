@@ -690,23 +690,56 @@ Implementation is complete only when all are true:
 
 ---
 
-## Open Questions for Mandy Before Implementation
+## Open Questions — Resolved 2026-05-21
 
-1. Main row action label preference:
-   - `🎛️ Manage`
-   - `Manage Scripts/Voice`
-   - `Open Videos`
+1. **Main row action label** → `🎛️ Manage` ✅
 
-2. Manage page layout preference:
-   - Table view: compact, good for many videos
-   - Card view: easier to read on mobile
+2. **Manage page layout** → Card view (2-column responsive grid) ✅
+   Reason: Cards are clearer when each video has 5+ action states to show. Degrades better to mobile.
 
-3. Bulk voice default:
-   - No videos selected by default, safest
-   - All videos selected by default, faster but riskier
+3. **Bulk voice default** → No videos selected by default ✅
+   Reason: Voice generation is intentional; force explicit opt-in.
 
-4. Should normal audio script generation remain “all videos at once”?
-   - Current recommendation: yes
+4. **Normal audio script generation** → Remains “all videos at once” at report level ✅
+   Per-video force-regenerate available via “Regen All Scripts” button on manage page (regenerates all videos for the report).
 
-5. Should deep-dive script generation have bulk option in v1?
-   - Current recommendation: no, add later if needed
+5. **Deep-dive bulk in v1** → No, skip — add only when requested ✅
+
+---
+
+## Implementation Gaps Resolved 2026-05-21
+
+The following gaps were identified in pre-implementation analysis and resolved:
+
+### Gap 1 — Voice directory: `audio/` vs `voice/`
+WAV files exist in both `ai_trends_reports/audio/` (legacy) and `ai_trends_reports/voice/` (current output).
+- `_voice_script_paths()` correctly uses `voice/` for all new generation
+- Aggregate voice counts in main table check `voice/` via `find_voice_files()`
+- `api_audio_serve` (download) continues to check `audio/` for backward compatibility
+- **Decision:** Aggregate status badges on main page and manage page read from `voice/`
+
+### Gap 2 — Partial script scenario (e.g. v1 missing, v2+v3 exist)
+Real data: `claude_code_design/2026-05-17-v2.md` and `v3.md` exist, `v1.md` missing.
+- Manage page shows each video's script status independently
+- Missing script shows “— Full Script missing” with Regen All button
+- No crash or silent fallback for the missing video
+- **Decision:** Show per-video missing state clearly; “Regen All” regenerates all from the report
+
+### Gap 3 — Per-video force-regenerate normal script
+No endpoint for single-video script regeneration exists.
+- **Decision:** “Regen All Scripts” button on each card calls `generate-one?mode=audio` which regenerates all videos' scripts for that topic+date. Confirm dialog explicitly states “all videos”.
+- Individual video regeneration can be added later when needed.
+
+### Gap 4 — Script editor removal from main `/assets` page
+- **Decision:** Script editor HTML removed from main `/assets` page. Editor lives only on manage page. Main page is summary-only.
+
+### Gap 5 — Generation in-progress state on manage page
+- `generateVoiceDirect` and `generateDeepDiveScriptDirect` update a `bulkVoiceStatus` span inline
+- Page reloads automatically after successful completion (2s delay)
+- No localStorage polling needed for manage page (single-operation flow)
+
+### Gap 6 — Short Script voice scope
+- **Decision:** Short Script voice is out of scope for this implementation. Script files contain `## Short Script` section but no UI exposes it. Can be added later as a variant.
+
+### Gap 7 — Single-video row hybrid UX
+- **Decision:** All rows show `🎛️ Manage` in v1 for consistency. Hybrid (quick buttons for single-video rows) can be added later if UX feedback warrants it.

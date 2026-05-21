@@ -86,6 +86,7 @@ AUDIO_SCRIPT_PROMPT = """เขียนเป็นภาษาไทยทั�
 - เล่าเหมือนมีความรู้สึกกับเนื้อหา เช่น "จริงด้วย", "ตรงนี้น่าสนใจมาก", "คิดได้แบบนี้ก็ดีเหมือนกัน"
 - ห้ามใช้คำสนิทสนมเกินไป เช่น "แก", "เว้ย", "แกๆ", "คิดดูดิ", "โห", "โคตร", "เจ๋ง", "อ่ะ" หรือคำอุทานแบบวัยรุ่น
 - ห้ามใช้คำเติมแบบ AI: "แน่นอน!", "รับรองว่า", "นี่คือสรุป", "เริ่มกันเลย", "พร้อมแล้วใช่ไหม"
+- ห้ามใช้ 'ผม' หรือ 'ครับ' เพราะผู้บรรยายเป็นผู้หญิง — ใช้ 'ฉัน' หรือ 'ดิฉัน' แทน 'ผม' และ 'ค่ะ' แทน 'ครับ'
 - เขียนเป็น script พูดได้จริง ไม่ใช่บทความอ่าน
 - ความยาว: ประมาณ {target_words} คำ
 - ปิดท้ายด้วยความคิดเห็นสั้นๆ 1-2 ประโยค แบบเห็นด้วยหรือไม่เห็นด้วยก็ได้
@@ -138,6 +139,7 @@ DEEP_DIVE_SCRIPT_PROMPT = """เขียนเป็นภาษาไทยท
 - บรรทัดแรกต้องเป็น hook เท่านั้น: เริ่มด้วยคำถาม/ความขัดแย้ง/ข้อเท็จจริงที่น่าสนใจจากเนื้อหา ห้ามขึ้นต้นด้วยคำทักทาย
 - ห้ามเริ่มด้วย "คลิปนี้", "สวัสดี", "วันนี้", "ในตอนนี้", "เราจะมา", คำทักทาย หรือการแนะนำตัว
 - ห้ามใช้คำเติมแบบ AI: "แน่นอน!", "รับรองว่า", "นี่คือสรุป", "เริ่มกันเลย", "พร้อมแล้วใช่ไหม"
+- ห้ามใช้ 'ผม' หรือ 'ครับ' เพราะผู้บรรยายเป็นผู้หญิง — ใช้ 'ฉัน' หรือ 'ดิฉัน' แทน 'ผม' และ 'ค่ะ' แทน 'ครับ'
 - เป้าหมายความยาว: 8–12 นาทีถ้าเนื้อหาในรายงานมากพอ แต่ห้ามเติมน้ำเกินข้อมูลต้นฉบับ
 
 หัวข้อวิดีโอ: {video_title}
@@ -297,7 +299,7 @@ def generate_audio_scripts(asset: dict, module=None) -> dict:
         )
         result = _call_ai(prompt, module)
         if result:
-            video["audio_script_full"] = result.strip()
+            video["audio_script_full"] = _fix_gender(result.strip())
             generated += 1
             time.sleep(2)  # Rate limit
 
@@ -308,7 +310,7 @@ def generate_audio_scripts(asset: dict, module=None) -> dict:
         )
         result = _call_ai(prompt, module)
         if result:
-            video["audio_script_short"] = result.strip()
+            video["audio_script_short"] = _fix_gender(result.strip())
             time.sleep(2)
 
     return {"audio_scripts_generated": generated}
@@ -381,6 +383,16 @@ def _quality_retry_prompt(original_prompt: str, bad_result: str) -> str:
 {original_prompt}"""
 
 
+def _fix_gender(text: str) -> str:
+    """Replace masculine Thai particles with female equivalents as a safety net.
+
+    Prompt rules are the primary guard; this catches any slipthrough.
+    """
+    text = text.replace("ครับ", "ค่ะ")
+    text = text.replace("ผม", "ฉัน")
+    return text
+
+
 def generate_deep_dive_script(asset: dict, video_no: int, module=None) -> dict:
     """Generate one deep-dive audio script for a selected video.
 
@@ -412,7 +424,7 @@ def generate_deep_dive_script(asset: dict, video_no: int, module=None) -> dict:
     if not result:
         raise RuntimeError("AI did not return a deep-dive script")
 
-    video["audio_script_deep_dive"] = result.strip()
+    video["audio_script_deep_dive"] = _fix_gender(result.strip())
     return {"deep_dive_scripts_generated": 1, "quality_retry_count": retry_count}
 
 

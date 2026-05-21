@@ -12,7 +12,7 @@ Per-video mode (--per-video):
   - Concatenates all WAV segments into one output file
   - Produces more complete coverage vs. whole-file 400-word summary
 
-Output: ai_trends_reports/audio/{topic}/YYYY-MM-DD.wav
+Output: ai_trends_reports/audio/{topic}/{topic_slug}-YYYY-MM-DD.wav
 
 Usage:
     python3 scripts/generate_audio_report.py --topic ai_agents
@@ -38,6 +38,7 @@ from voice_engine import (
     load_voice_profile,
     text_to_wav,
 )
+from voice_filenames import voice_filename
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'config'))
@@ -211,12 +212,12 @@ def generate_for_topic(topic_key: str, date_str: str, voice: str = DEFAULT_VOICE
     Run the full condense → TTS pipeline for one topic.
     Returns True on success, False on skip/error.
     """
-    output_path = os.path.join(AUDIO_DIR, topic_key, f'{date_str}.wav')
+    output_path = os.path.join(AUDIO_DIR, topic_key, voice_filename(topic_key, date_str, variant="whole"))
 
-    # Per-video mode produces {date}-v1.wav, {date}-v2.wav, ... — check v1 as sentinel
-    skip_path = os.path.join(AUDIO_DIR, topic_key, f'{date_str}-v1.wav') if per_video else output_path
+    # Per-video mode produces {topic_slug}-{date}-v1.wav, v2.wav, ... — check v1 as sentinel
+    skip_path = os.path.join(AUDIO_DIR, topic_key, voice_filename(topic_key, date_str, video_no=1)) if per_video else output_path
     if os.path.exists(skip_path) and not force:
-        label = f'{date_str}-v1.wav' if per_video else f'{date_str}.wav'
+        label = os.path.basename(skip_path)
         print(f'  [audio] ⏭️  {topic_key}/{label} already exists — skipping')
         return True
 
@@ -334,8 +335,9 @@ def _generate_per_video(topic_key: str, date_str: str, report_text: str,
             success_count += 1
             continue
 
-        wav_path = os.path.join(audio_dir, f'{date_str}-v{video_num}.wav')
-        print(f'  [audio]   [{video_num}/{len(sections)}] 🎙️  TTS → {date_str}-v{video_num}.wav...')
+        fname = voice_filename(topic_key, date_str, video_no=video_num)
+        wav_path = os.path.join(audio_dir, fname)
+        print(f'  [audio]   [{video_num}/{len(sections)}] 🎙️  TTS → {fname}...')
         try:
             _text_to_wav(script, wav_path, voice=voice)
             size_kb = os.path.getsize(wav_path) // 1024

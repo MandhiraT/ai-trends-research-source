@@ -17,6 +17,8 @@ import json
 import shutil
 import subprocess
 from datetime import date as _date
+from pathlib import Path
+from voice_filenames import find_voice_files
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'config'))
 try:
@@ -68,7 +70,7 @@ def upload_audio(date_str: str) -> bool:
     for topic in enabled:
         # Match both whole-file {date}.wav and per-video {date}-v*.wav
         topic_audio_dir = os.path.join(AUDIO_DIR, topic)
-        wav_files = sorted(_glob.glob(os.path.join(topic_audio_dir, f'{date_str}*.wav')))
+        wav_files = [str(p) for p in find_voice_files(Path(topic_audio_dir), topic, date_str)]
         if not wav_files:
             print(f'[audio-upload] ⚠️  No WAV for {topic}/{date_str} — skipping')
             continue

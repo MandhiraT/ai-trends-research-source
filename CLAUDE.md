@@ -51,9 +51,9 @@ Automated daily AI trends research from YouTube. Scrapes videos → generates **
 | NATEHERK | @NATEHERK channel | channel |
 | Joanna Wiebe | @joanna-wiebe channel | channel |
 | Claude Code base subtopics | YouTube search | search (obsidian, notebooklm, design, skills, remotion video, video) |
-| Claude Code new subtopics | YouTube search | search (seedance, higgsfield, shopify) |
+| Claude Code new subtopics | YouTube search | search (seedance, higgsfield, shopify, hyperframe) |
 
-**Claude Code subtopics:** obsidian · notebooklm · design · skills · remotion video · video · seedance · higgsfield · shopify
+**Claude Code subtopics:** obsidian · notebooklm · design · skills · remotion video · video · seedance · higgsfield · shopify · hyperframe
 
 ---
 
@@ -72,7 +72,7 @@ Automated daily AI trends research from YouTube. Scrapes videos → generates **
 | 07:05 | 00:05 | Jacksons AI | `--max-results 3 --detailed` |
 | 07:15 | 00:15 | Make Money Matt | `--max-results 3 --detailed` |
 | 07:25 | 00:25 | Miss Luna Vega | `--max-results 3 --detailed` |
-| 07:35 | 00:35 | Claude Code New Subtopics | `--only "seedance,higgsfield,shopify" --max-results 5 --total-videos 15 --detailed` |
+| 07:35 | 00:35 | Claude Code New Subtopics | `--only "seedance,higgsfield,shopify,hyperframe" --max-results 5 --total-videos 20 --detailed` |
 | 07:55 | 00:55 | Daily Summary + Audio + GitHub | — |
 
 **Reports + audio available on GitHub ~08:10–08:30 Bangkok every day.**

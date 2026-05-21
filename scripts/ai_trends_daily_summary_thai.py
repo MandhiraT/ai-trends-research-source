@@ -19,6 +19,8 @@ import os
 import json
 import requests
 from datetime import datetime
+from pathlib import Path
+from voice_filenames import find_voice_files
 
 GITHUB_BASE = "https://github.com/MandhiraT/ai-trends-research/blob/master/reports"
 
@@ -40,6 +42,7 @@ TOPICS = [
     ("CC Seedance",        "claude_code_seedance",       "claude_code/claude_code_seedance"),
     ("CC Higgsfield",      "claude_code_higgsfield",     "claude_code/claude_code_higgsfield"),
     ("CC Shopify",         "claude_code_shopify",        "claude_code/claude_code_shopify"),
+    ("CC Hyperframe",      "claude_code_hyperframe",     "claude_code/claude_code_hyperframe"),
 ]
 
 
@@ -108,13 +111,7 @@ def build_audio_status(date_str):
     results = []
     for topic in enabled:
         topic_audio_dir = _os.path.join(AUDIO_DIR, topic)
-        wav_files = []
-        if _os.path.isdir(topic_audio_dir):
-            wav_files = sorted(
-                _os.path.join(topic_audio_dir, name)
-                for name in _os.listdir(topic_audio_dir)
-                if name.startswith(date_str) and name.endswith('.wav')
-            )
+        wav_files = [str(p) for p in find_voice_files(Path(topic_audio_dir), topic, date_str)]
 
         gh_folder = _slug(folder_map.get(topic, topic))
         if wav_files:

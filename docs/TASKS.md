@@ -2,7 +2,7 @@
 
 > Working document for team/agent collaboration. Update this file whenever features change, bugs are found, or new work is planned. Keep statuses current.
 
-**Last updated:** 2026-05-17 ICT  
+**Last updated:** 2026-05-21 ICT  
 **Maintained by:** Sati (primary agent) / Mandhira / Mali
 
 ---
@@ -19,7 +19,7 @@
 | Telegram daily digest | ✅ Working (includes audio status) |
 | Hallucination guard | ✅ Fixed 2026-05-09 (non-English → transcript unavailable) |
 | Cron project path | ✅ Fixed 2026-05-12 (`Desktop/Projects`, not lowercase `projects`) |
-| Claude Code new subtopics | ✅ Working (Seedance, Higgsfield, Shopify) |
+| Claude Code new subtopics | ✅ Working (Seedance, Higgsfield, Shopify, Hyperframe) |
 | Local dashboard | ✅ Working (`http://127.0.0.1:8092`) |
 | Searchable report index | ✅ Working (385 summarized video sections indexed locally, no-AI-cost backfill) |
 | Cloudflare dashboard route | ✅ Working (`https://ai-trends.thequietself.com`) |
@@ -28,6 +28,8 @@
 | Dashboard Asset batch generate | ✅ Working (date range, skip existing, progress bar, per-row buttons; manual AI generation overrides default priority-topic policy) |
 | Dashboard Existing Assets filters | ✅ Working (client-side topic/date table filter, verified Joanna today case) |
 | Voice generation design / manual flow | ✅ Implemented for script-first workflow (`docs/VOICE-DESIGN.md`, Assets page) |
+| Dashboard multi-video asset manage | ✅ Working — `/assets/manage?topic=&date=` per-video cards, bulk voice, script editor, no window.prompt() |
+| Dashboard Assets date filter | ✅ Fixed 2026-05-21 (empty default — was defaulting to today, hiding all historical rows) |
 
 ---
 
@@ -41,7 +43,7 @@
 | Thai summarization | Vertex AI (ADC) → qwen → glm → gemini → gemma fallback chain | `summarize_local.py` |
 | Standard prompt | Slide-based summary (~500 words) | `prompts/thai_summary_prompt.txt` |
 | Detailed prompt | Section-based summary (2000-3000 words, 🎯📝🛠️📊💡 headers) | `prompts/thai_summary_prompt_detailed.txt` |
-| Claude Code subtopics | Base + new subtopics: obsidian, notebooklm, design, skills, remotion video, video, seedance, higgsfield, shopify | `run_claude_code_subtopics_enhanced.py` |
+| Claude Code subtopics | Base + new subtopics: obsidian, notebooklm, design, skills, remotion video, video, seedance, higgsfield, shopify, hyperframe | `run_claude_code_subtopics_enhanced.py` |
 | Daily Thai digest | Aggregates all topic reports + GitHub links | `ai_trends_daily_summary_thai.py` |
 | GitHub auto-upload | Clone reports repo → copy files → git push | `upload_reports_to_github_fixed.py` |
 | Manual pipeline runner | `run_all_today.sh` runs all 11 steps sequentially | `scripts/run_all_today.sh` |
@@ -55,6 +57,7 @@
 | Dashboard asset batch generate | Date range filter, skip existing, AI confirm, progress bar, per-row buttons | `dashboard/app.py` `/api/assets/progress` |
 | Dashboard Existing Assets filters | Client-side table filtering by Topic + Date from/to; counter updates live | `dashboard/app.py` `/assets` |
 | Voice generation manual flow | Script editor/save + Gemini TTS voice from saved full/deep-dive scripts only | `dashboard/app.py`, `scripts/voice_engine.py` |
+| Dashboard multi-video manage page | `/assets/manage?topic=&date=` — per-video cards (status dots, explicit buttons), script editor, bulk voice checkboxes, Regen All Scripts; no window.prompt() anywhere | `dashboard/app.py` `/assets/manage`, `/api/assets/videos` |
 | Dashboard job config | JSON-managed research job list for dashboard/manual execution | `config/research_jobs.json` |
 | Specific video/manual report routing | Supports dashboard `--video-url`, `--report-folder`, `--config-job-id` | `run_ai_trends_research_enhanced.py` |
 
@@ -66,8 +69,7 @@
 
 | Task | Status | Notes |
 |------|--------|-------|
-| ATS voice generation implementation — Phase 1 | ✅ Core completed, pending next phase | Added unified voice engine `scripts/voice_engine.py`, default voice profile `ats_female_narrator` = Gemini TTS `Aoede`, refactored `generate_audio_report.py` to use the shared engine wrappers, extended `config/audio_topics.json` with automation policy. Verification passed: py_compile, config JSON, voice engine dry-run, legacy CLI help, profile load. Next: script save/edit Dashboard flow + optional Joanna automation after NATEHERK compatibility checks. |
-| ATS Dashboard manual voice flow — Phase 2 | ✅ Backend/UI completed, real TTS not triggered | Added script load/save APIs, voice status API, generate voice from saved script API, Assets page script editor, per-row 📝/📚 script edit and 🎙️/🎧 voice buttons. Voice generation blocks if script is missing and never creates script implicitly. Verified 8/8 API tests + browser UI/console + Joanna/date filter. |
+| ATS voice generation implementation — Phase 1 | ✅ Core completed, pending next phase | Added unified voice engine `scripts/voice_engine.py`, default voice profile `ats_female_narrator` = Gemini TTS `Aoede`, refactored `generate_audio_report.py` to use the shared engine wrappers, extended `config/audio_topics.json` with automation policy. Verification passed: py_compile, config JSON, voice engine dry-run, legacy CLI help, profile load. Next: optional Joanna automation after NATEHERK compatibility checks. |
 | ATS output repo folder cleanup — Phase A | ✅ Local migration done, pending commit/push decision | Documented plan in `docs/OUTPUT-REPO-FOLDER-MIGRATION.md`. Restored stale deleted reports in `/tmp/ai-trends-research`, updated source upload path logic (`scripts/upload_audio_to_github.py`) to publish to canonical `voice/{topic}/`, changed `config/audio_topics.json` map `NATEHERK → nateherk`, and local-migrated output repo with `git mv`: 13 files `Voice/NateHerk/*.wav → voice/nateherk/*.wav`. Verified: `voice/nateherk` count=13, `voice/joanna_wiebe` count=8, legacy `Voice/` gone, `.ogg` count=0. `Content Marketing/` left untouched for separate duplicate/link review. Handoff: inspect source repo and `/tmp/ai-trends-research` git status; output repo currently has 13 staged renames unless committed/pushed later. |
 
 ### Recently Interrupted / Needs Resume
@@ -116,6 +118,9 @@
 | T-034 | **Fix Dashboard Assets all-topic manual audio/social generation** | 2026-05-17 | Fixed `name '_slug' is not defined` in `scripts/generate_content_assets.py`, added explicit manual generation override so Dashboard `+Audio`, `+Social`, and `+All` work for any topic while `PRIORITY_TOPICS` remains default automation policy only. Updated full-script prompt framing to “คนที่เพิ่งดูมาแล้วอยากบอกเล่าสิ่งที่ได้เรียนรู้”, hook-first opening, no “คลิปนี้” opening, and banned over-casual words (`แก`, `เว้ย`, `แกๆ`, `โห`, `โคตร`, `เจ๋ง`, `อ่ะ`). Verification: py_compile passed, unit/fake-AI all-topic test passed, local `/assets` + asset endpoints 5/5, browser page loads via Cloudflare route with no console errors, real `jacksons_ai` audio-script generation returned 200 and created `audio_scripts/jacksons_ai/2026-05-17-v1.md`. |
 | T-035 | **Add Dashboard deep-dive script generation** | 2026-05-17 | Added script-first `📖 Generate deep dive script` button and `POST /api/assets/generate-deep-dive-script`. The endpoint creates only `audio_scripts/{topic}/{date}-vN-deep-dive.md` with `## Deep Dive Script`; it does not create voice. Existing scripts are not overwritten unless `force=1`. Added deep-dive prompt based on the Full Episode Formula plus a quality retry guard for forbidden greetings/openings. Verification: new tests 5/5 for generator + Dashboard workflow, full test suite 9/9, py_compile passed, local `/assets` 200, Cloudflare Assets page shows 📖 controls with no console errors, real `jacksons_ai` deep-dive script generated (8,482 chars) and no WAV was created. |
 | T-036 | **Fix Dashboard asset duplicate rows + nested underscore topic generation** | 2026-05-17 | Root cause: legacy/display-name asset folders (`AI Agents/`, `Jacksons AI/`, `NATEHERK/`, `claude code design/`) coexisted with canonical slug folders, and `/api/assets/generate-one` could not resolve nested subtopic reports such as `reports/claude_code/claude_code_design/2026-05-17.md`, then falsely fell back to an unrelated date match (`NATEHERK`). Fixes: added slug-safe nested report resolver, fixed `find_reports()` for nested underscore topics, added Dashboard asset-row dedupe, added success validation so audio/social modes error if no output file is created, canonicalized all asset JSON files to slug folders, and removed legacy empty folders after backup. Verification: `15 passed`, py_compile passed, asset audit shows `duplicate_key_count=0`, `space_dir_count=0`, `noncanonical_count=0`; real `claude_code_design/2026-05-17` audio script generation created v1/v2/v3 markdown files and Dashboard 📝 status is green. |
+| T-037 | **Fix Dashboard Assets page showing empty table (date filter defaulted to today)** | 2026-05-21 | Root causes: (1) `date_from`/`date_to` inputs defaulted to today's date, so `filterTable()` on DOMContentLoaded hid all historical rows; (2) no asset JSONs generated since 2026-05-18 (asset generation is manual). Fix: changed both date inputs to `value=""`. Verified: May 18 rows visible on fresh page load, "Today" and "Last 7 days" shortcuts still work. |
+| T-038 | **Add Hyperframe to Claude Code new subtopics** | 2026-05-21 | Added `hyperframe` to `--only` list, bumped `--total-videos` from 15 to 20. Updated `CLAUDE.md` and `docs/TASKS.md`. |
+| T-039 | **Implement Dashboard multi-video asset manage page** | 2026-05-21 | Full multi-video manage implementation in `dashboard/app.py`. New: `GET /assets/manage?topic=&date=` (per-video cards with status dots, explicit script/voice buttons, script editor, bulk voice with checkboxes + confirm, Regen All Scripts), `GET /api/assets/videos` JSON endpoint (per-video `full_script.exists`, `deep_dive_script.exists`, `full_voice.exists`, `deep_dive_voice.exists`). Main `/assets` page: Script/Voice column → Manage column (🎛️ link), aggregate count badges (📝📖🎙️🎧 in N/T green/yellow/gray format), script editor removed, old prompt-based `generateDeepDiveScript`/`generateVoice`/`openScript`/`saveScript` JS removed. No `window.prompt()` anywhere. Plan doc `DASHBOARD-ASSET-MANAGE-PAGE-PLAN.md` updated with 7 implementation gaps + open question answers. All 32 ISC + 3 anti-criteria verified. |
 
 ### Backlog
 
@@ -129,7 +134,7 @@
 | T-018 | Confirm Cloudflare Access policy for AI Trends dashboard | High | Local verification cannot confirm Access policy. Dashboard can run local scripts, so `ai-trends.thequietself.com` should require Cloudflare Access login. |
 || ~~T-019~~ | **Add Dashboard Search tab backed by report index** | ~~High~~ | ✅ Completed 2026-05-14 as T-023: `/search` UI + `/api/search` JSON endpoint + `/api/search/rebuild` |
 || ~~T-020~~ | **Add content asset layer for audio/social/Sonar scripts** | ~~High~~ | ✅ Completed 2026-05-14 as T-024: `generate_content_assets.py` + dashboard Assets tab |
-| T-021 | **Implement ATS voice generation** | Medium | NATEHERK + Joanna Wiebe daily automation fully enabled. Both publish to `voice/{topic}/` in output repo. Deep-dive script generation is now available from Dashboard. Remaining: per-video voice status counts in Dashboard and optional short-script voice button if needed. |
+| T-021 | **Implement ATS voice generation** | Medium | NATEHERK + Joanna Wiebe daily automation fully enabled. Both publish to `voice/{topic}/` in output repo. Deep-dive script + voice generation available from Dashboard manage page. Remaining: optional short-script voice if needed. |
 
 ---
 
@@ -178,7 +183,7 @@
 | 07:05 | Jacksons AI (channel) | `--max-results 3 --detailed` |
 | 07:15 | Make Money Matt (channel) | `--max-results 3 --detailed` |
 | 07:25 | Miss Luna Vega (playlist) | `--max-results 3 --detailed` |
-| 07:35 | Claude Code new subtopics | `--only "seedance,higgsfield,shopify" --max-results 5 --total-videos 15 --detailed` |
+| 07:35 | Claude Code new subtopics | `--only "seedance,higgsfield,shopify,hyperframe" --max-results 5 --total-videos 20 --detailed` |
 | 07:55 | Daily Summary + GitHub Upload + Audio + Telegram | — |
 
 ---
@@ -204,7 +209,7 @@ bash scripts/run_ai_trends_with_creds.sh \
 bash scripts/run_claude_code_subtopics_with_creds.sh --max-results 3 --total-videos 18 --detailed
 
 # Claude Code new subtopics only
-bash scripts/run_claude_code_subtopics_with_creds.sh --only "seedance,higgsfield,shopify" --max-results 5 --total-videos 15 --detailed
+bash scripts/run_claude_code_subtopics_with_creds.sh --only "seedance,higgsfield,shopify,hyperframe" --max-results 5 --total-videos 20 --detailed
 
 # Daily summary + GitHub upload only
 bash scripts/run_daily_summary_cron.sh

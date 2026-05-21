@@ -179,7 +179,8 @@ def main():
         "claude code video",
         "claude code seedance",
         "claude code higgsfield",
-        "claude code shopify"
+        "claude code shopify",
+        "claude code hyperframe"
     ]
 
     if args.only:

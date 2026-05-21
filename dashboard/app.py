@@ -19,6 +19,7 @@ from urllib.parse import parse_qs, quote, unquote, urlparse
 _SCRIPT_DIR = Path(__file__).resolve().parent.parent / "scripts"
 if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
+from voice_filenames import voice_filename, find_voice_files
 try:
     from build_report_index import INDEX_DIR, load_jsonl, search_records, build_index_records, write_indexes  # noqa: E402
     _SEARCH_AVAILABLE = True
@@ -374,6 +375,10 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self.api_search_rebuild()
         elif parsed.path == "/assets":
             self.render_assets()
+        elif parsed.path == "/assets/manage":
+            self.render_assets_manage()
+        elif parsed.path == "/api/assets/videos":
+            self.api_assets_videos()
         elif parsed.path == "/api/assets/generate":
             self.api_assets_generate()
         elif parsed.path == "/api/assets/generate-one":
@@ -767,10 +772,10 @@ function clearSearch(){{
 
         if script_type == "deep_dive":
             script_path = audio_scripts_base / actual_scripts_folder / f"{date}-v{vno}-deep-dive.md"
-            voice_path  = voice_base / actual_voice_folder / f"{date}-v{vno}-deep-dive.wav"
+            voice_path  = voice_base / actual_voice_folder / voice_filename(actual_voice_folder, date, video_no=vno, variant="deep_dive")
         else:
             script_path = audio_scripts_base / actual_scripts_folder / f"{date}-v{vno}.md"
-            voice_path  = voice_base / actual_voice_folder / f"{date}-v{vno}.wav"
+            voice_path  = voice_base / actual_voice_folder / voice_filename(actual_voice_folder, date, video_no=vno)
         return actual_scripts_folder, vno, script_path, voice_path
 
     def _extract_voice_text(self, content, script_type):
@@ -932,6 +937,12 @@ function clearSearch(){{
             script_type = data.get("type", ["full"])[0]
             dry_run = data.get("dry_run", [""])[0] == "1"
             safe_topic, vno, script_path, voice_path = self._voice_script_paths(topic, date, video, script_type)
+            for creds in (PROJECT_ROOT / "credentials.env", Path.home() / ".credentials.env"):
+                if creds.exists():
+                    for line in creds.read_text().splitlines():
+                        if "=" in line and not line.startswith("#"):
+                            k, _, v = line.partition("=")
+                            os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
             if not script_path.exists():
                 self._send_json({"error": "Script missing — generate script first", "script_path": str(script_path.relative_to(PROJECT_ROOT))}, code=400)
                 return
@@ -977,6 +988,7 @@ function clearSearch(){{
         # Collect existing assets
         assets_dir = ASSETS_DIR
         audio_base    = PROJECT_ROOT / "ai_trends_reports" / "audio"
+        voice_base    = PROJECT_ROOT / "ai_trends_reports" / "voice"
         scripts_base  = AUDIO_SCRIPTS_DIR
         social_base   = SOCIAL_DIR
         existing = []
@@ -996,8 +1008,15 @@ function clearSearch(){{
                     audio_dir   = _find_topic_dir(audio_base, raw_name, topic_folder)
                     social_dir  = _find_topic_dir(social_base, raw_name, topic_folder)
                     has_script_file = bool(scripts_dir and list(scripts_dir.glob(f"{date}-v*.md")))
-                    has_voice_file  = bool(audio_dir and list(audio_dir.glob(f"{date}*.wav")))
+                    has_voice_file  = bool(audio_dir and find_voice_files(audio_dir, topic_folder, date))
                     has_social_file = bool(social_dir and (social_dir / f"{date}.json").exists())
+                    # Aggregate counts for manage-page status badges
+                    n_full_s = len([f for f in scripts_dir.glob(f"{date}-v*.md") if "-deep-dive" not in f.name]) if scripts_dir else 0
+                    n_dd_s   = len(list(scripts_dir.glob(f"{date}-v*-deep-dive.md"))) if scripts_dir else 0
+                    v_dir_voice = _find_topic_dir(voice_base, raw_name, topic_folder)
+                    all_vf   = find_voice_files(v_dir_voice, topic_folder, date) if v_dir_voice else []
+                    n_full_v = len([f for f in all_vf if "deep-dive" not in f.stem])
+                    n_dd_v   = len([f for f in all_vf if "deep-dive" in f.stem])
                     existing.append({
                         "topic": topic, "topic_folder": topic_folder, "topic_raw": raw_name,
                         "date": date, "videos": n,
@@ -1006,6 +1025,10 @@ function clearSearch(){{
                         "has_voice_file":  has_voice_file,
                         "has_social_file": has_social_file or has_social_json,
                         "path": str(p.relative_to(assets_dir)),
+                        "n_full_scripts": n_full_s,
+                        "n_dd_scripts":   n_dd_s,
+                        "n_full_voices":  n_full_v,
+                        "n_dd_voices":    n_dd_v,
                     })
                 except (json.JSONDecodeError, OSError):
                     pass
@@ -1023,6 +1046,16 @@ function clearSearch(){{
         status_store   = DashboardHandler._status_store
         now_ts         = time.time()
 
+        def cnt_badge(icon, count, total, title):
+            if total > 0 and count == total:
+                cls = "cnt-badge cnt-green"
+            elif count > 0:
+                cls = "cnt-badge cnt-partial"
+            else:
+                cls = "cnt-badge cnt-gray"
+            label = f"{count}/{total}" if total != 1 else ("✓" if count else "—")
+            return f'<span class="{cls}" title="{title}">{icon}&thinsp;{label}</span>'
+
         rows = ""
         any_recently_done = False
         for a in reversed(existing[-100:]):
@@ -1030,41 +1063,28 @@ function clearSearch(){{
             safe_folder = h(a["topic_folder"])
             safe_raw    = h(a["topic_raw"])
             safe_date   = h(a["date"])
+            n_tot       = max(a["videos"], 1)
             is_generating = (a["topic_folder"], a["date"]) in generating_now
             _se = status_store.get((a["topic_folder"], a["date"]))
             recently_done = bool(_se and _se[0] == "done" and now_ts - _se[1] < 30)
             if recently_done:
                 any_recently_done = True
 
-            # 4-badge status column
-            def badge(icon, green, click_js, title):
-                cls = "badge badge-green" if green else "badge badge-gray"
-                onclick = f' onclick="{click_js}"' if green and click_js else ''
-                return f'<span class="{cls}"{onclick} title="{title}">{icon}</span>'
-
-            b_asset  = badge("📄", True,  "", "Asset JSON ✓")
-            b_script = badge("📝", a["has_script_file"],
-                             f"openScript('{safe_folder}','{safe_date}','full')",
-                             "Audio script ✓ — click to edit" if a["has_script_file"] else "Audio script not generated")
-            b_voice  = badge("🎙️", a["has_voice_file"],
-                             f"downloadVoice('{safe_raw}','{safe_date}')",
-                             "Voice WAV ✓ — click to download" if a["has_voice_file"] else "Voice not generated")
-            b_social = badge("📱", a["has_social_file"],
-                             f"viewSocial('{safe_raw}','{safe_date}')",
-                             "Social posts ✓ — click to view" if a["has_social_file"] else "Social posts not generated")
+            b_asset  = '<span class="cnt-badge cnt-green" title="Asset JSON ✓">📄&thinsp;✓</span>'
+            b_script = cnt_badge("📝", a["n_full_scripts"], n_tot, f"Full audio scripts: {a['n_full_scripts']}/{n_tot}")
+            b_dd     = cnt_badge("📖", a["n_dd_scripts"],   n_tot, f"Deep-dive scripts: {a['n_dd_scripts']}/{n_tot}")
+            b_voice  = cnt_badge("🎙️", a["n_full_voices"],  n_tot, f"Full voices: {a['n_full_voices']}/{n_tot}")
+            b_dd_v   = cnt_badge("🎧", a["n_dd_voices"],    n_tot, f"Deep-dive voices: {a['n_dd_voices']}/{n_tot}")
+            b_social_cls = "cnt-badge cnt-green" if a["has_social_file"] else "cnt-badge cnt-gray"
+            b_social_onclick = f' onclick="viewSocial(\'{safe_raw}\',\'{safe_date}\')" style="cursor:pointer"' if a["has_social_file"] else ""
+            b_social = f'<span class="{b_social_cls}" title="{"Social posts ✓ — click to view" if a["has_social_file"] else "Social not generated"}"{b_social_onclick}>📱&thinsp;{"✓" if a["has_social_file"] else "—"}</span>'
 
             rows += f'<tr data-topic="{safe_folder}" data-date="{safe_date}" id="row-{safe_folder}-{safe_date}">'
             rows += f'<td>{safe_date}</td>'
             rows += f'<td><span class="pill">{safe_topic}</span></td>'
             rows += f'<td style="text-align:center">{a["videos"]}</td>'
-            rows += f'<td style="white-space:nowrap">{b_asset} {b_script} {b_voice} {b_social}</td>'
-            rows += f'<td style="white-space:nowrap">'
-            rows += f'<button class="btn-sm" onclick="openScript(\'{safe_folder}\',\'{safe_date}\',\'full\')" title="Edit full script">📝</button> '
-            rows += f'<button class="btn-sm" onclick="generateDeepDiveScript(\'{safe_folder}\',\'{safe_date}\')" title="Generate deep dive script">📖</button> '
-            rows += f'<button class="btn-sm" onclick="openScript(\'{safe_folder}\',\'{safe_date}\',\'deep_dive\')" title="Edit deep dive script">📚</button> '
-            rows += f'<button class="btn-sm" onclick="generateVoice(\'{safe_folder}\',\'{safe_date}\',\'full\')" title="Generate full voice">🎙️</button> '
-            rows += f'<button class="btn-sm" onclick="generateVoice(\'{safe_folder}\',\'{safe_date}\',\'deep_dive\')" title="Generate deep dive voice">🎧</button>'
-            rows += f'</td>'
+            rows += f'<td style="white-space:nowrap;font-size:13px">{b_asset} {b_script} {b_dd} {b_voice} {b_dd_v} {b_social}</td>'
+            rows += f'<td><a class="btn-sm" href="/assets/manage?topic={safe_folder}&date={safe_date}" title="Manage scripts and voice per video">🎛️ Manage</a></td>'
             rows += f'<td class="muted" style="font-size:12px">{h(a["path"])}</td>'
             rows += f'<td id="gentd-{safe_folder}-{safe_date}" style="white-space:nowrap">'
             if is_generating:
@@ -1073,7 +1093,7 @@ function clearSearch(){{
                 rows += f'<span style="color:#16a34a;font-size:13px">✅ เสร็จแล้ว</span>'
             else:
                 rows += f'<button class="btn-sm" onclick="generateOne(\'{safe_folder}\',\'{safe_date}\',\'asset\')" title="Asset JSON only">📄</button> '
-                rows += f'<button class="btn-sm" onclick="generateOne(\'{safe_folder}\',\'{safe_date}\',\'audio\')" title="Audio scripts">🔊</button> '
+                rows += f'<button class="btn-sm" onclick="generateOne(\'{safe_folder}\',\'{safe_date}\',\'audio\')" title="Generate audio scripts for all videos">🔊</button> '
                 rows += f'<button class="btn-sm" onclick="generateOne(\'{safe_folder}\',\'{safe_date}\',\'social\')" title="Social posts">📱</button> '
                 rows += f'<button class="btn-sm" onclick="generateOne(\'{safe_folder}\',\'{safe_date}\',\'all\')" title="Audio + Social">🚀</button>'
             rows += f'</td></tr>'
@@ -1108,11 +1128,11 @@ function clearSearch(){{
     </div>
     <div>
       <label>Date from</label>
-      <input type="date" id="adf" name="date_from" value="{today_str}">
+      <input type="date" id="adf" name="date_from" value="">
     </div>
     <div>
       <label>Date to</label>
-      <input type="date" id="adt" name="date_to" value="{today_str}">
+      <input type="date" id="adt" name="date_to" value="">
     </div>
   </div>
   <div style="margin-top:4px;margin-bottom:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
@@ -1135,20 +1155,8 @@ function clearSearch(){{
 <h2>Existing Assets <span id="assetCount" class="muted" style="font-size:14px"></span></h2>
 <p class="muted" style="font-size:13px">Status: 📄=Asset JSON · 📝=Audio script (click to edit) · 🎙️=Voice WAV (click to download) · 📱=Social posts (click to view) — green=ready, gray=not yet generated</p>
 <p class="muted" style="font-size:13px">Gen: 📄=JSON only · 🔊=+Audio script · 📱=+Social · 🚀=+All | Script/Voice: 📝=Edit full · 📖=Generate deep dive script · 📚=Edit deep dive · 🎙️/🎧=Generate voice from saved script</p>
-<table><thead><tr><th>Date</th><th>Topic</th><th>Videos</th><th>Status</th><th>Script/Voice</th><th>Path</th><th>Gen</th></tr></thead>
+<table><thead><tr><th>Date</th><th>Topic</th><th>Videos</th><th>Status</th><th>Manage</th><th>Path</th><th>Gen</th></tr></thead>
 <tbody>{rows if rows else '<tr><td colspan="7">No assets yet. Generate some above.</td></tr>'}</tbody></table>
-</section>
-<section id="scriptEditor" style="display:none;border:2px solid #6366f1">
-  <h2>🎙️ Script Editor <span id="scriptMeta" class="muted" style="font-size:14px"></span></h2>
-  <p class="muted" style="font-size:13px">Voice generation uses the saved script below only. If script is missing, generate audio script first or paste/edit here and Save.</p>
-  <input type="hidden" id="scriptTopic"><input type="hidden" id="scriptDate"><input type="hidden" id="scriptVideo"><input type="hidden" id="scriptType">
-  <textarea id="scriptContent" style="width:100%;min-height:360px;font-family:ui-monospace,monospace;font-size:13px"></textarea>
-  <p>
-    <button type="button" onclick="saveScript()">💾 Save Script</button>
-    <button type="button" class="secondary" onclick="generateVoiceFromEditor()">🎙️ Generate Voice from Saved Script</button>
-    <button type="button" class="secondary" onclick="document.getElementById('scriptEditor').style.display='none'">Close</button>
-    <span id="scriptStatus" class="muted"></span>
-  </p>
 </section>
 <div id="socialModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1000;overflow-y:auto">
   <div style="background:#fff;max-width:680px;margin:40px auto;border-radius:10px;padding:24px;position:relative">
@@ -1172,6 +1180,13 @@ function clearSearch(){{
 .badge-green{{background:#dcfce7;border-color:#86efac;cursor:pointer}}
 .badge-green:hover{{background:#bbf7d0}}
 .badge-gray{{background:#f3f4f6;border-color:#d1d5db;opacity:0.55;cursor:default}}
+.cnt-badge{{
+  display:inline-flex;align-items:center;padding:2px 6px;border-radius:4px;
+  font-size:12px;border:1px solid transparent;white-space:nowrap;
+}}
+.cnt-green{{background:#dcfce7;border-color:#86efac;color:#166534}}
+.cnt-partial{{background:#fef9c3;border-color:#fde047;color:#713f12}}
+.cnt-gray{{background:#f3f4f6;border-color:#d1d5db;color:#9ca3af}}
 </style>
 <script>
 function setLast7(){{
@@ -1276,90 +1291,6 @@ function generateAssets(e){{
       pb.style.display='none';
     }});
   return false;
-}}
-
-function openScript(topic,date,type,video){{
-  if(!video) video='1';
-  var st=document.getElementById('scriptStatus');
-  st.textContent='Loading script...';
-  fetch('/api/assets/script?topic='+encodeURIComponent(topic)+'&date='+encodeURIComponent(date)+'&video='+encodeURIComponent(video)+'&type='+encodeURIComponent(type))
-    .then(function(r){{return r.json()}})
-    .then(function(data){{
-      if(data.error){{alert('Error: '+data.error);return;}}
-      document.getElementById('scriptTopic').value=data.topic;
-      document.getElementById('scriptDate').value=data.date;
-      document.getElementById('scriptVideo').value=data.video;
-      document.getElementById('scriptType').value=data.type;
-      document.getElementById('scriptContent').value=data.content||'';
-      document.getElementById('scriptMeta').textContent=data.topic+' / '+data.date+' / v'+data.video+' / '+data.type+' — '+(data.exists?'saved':'missing');
-      document.getElementById('scriptEditor').style.display='block';
-      document.getElementById('scriptEditor').scrollIntoView({{behavior:'smooth'}});
-      st.textContent=data.exists?('Loaded '+data.path+' · voice text '+data.voice_text_chars+' chars'):'Script missing — generate audio script first or paste content here and Save';
-    }})
-    .catch(function(err){{alert('Error: '+err);}});
-}}
-
-function saveScript(){{
-  var topic=document.getElementById('scriptTopic').value;
-  var date=document.getElementById('scriptDate').value;
-  var video=document.getElementById('scriptVideo').value;
-  var type=document.getElementById('scriptType').value;
-  var content=document.getElementById('scriptContent').value;
-  var st=document.getElementById('scriptStatus');
-  st.textContent='Saving...';
-  var body=new URLSearchParams({{topic:topic,date:date,video:video,type:type,content:content}});
-  fetch('/api/assets/script',{{method:'POST',headers:{{'Content-Type':'application/x-www-form-urlencoded'}},body:body}})
-    .then(function(r){{return r.json()}})
-    .then(function(data){{
-      if(data.error){{st.textContent='Error: '+data.error;return;}}
-      st.textContent='✅ Saved '+data.path+(data.voice_stale?' · voice stale/regenerate needed':'');
-    }})
-    .catch(function(err){{st.textContent='Error: '+err;}});
-}}
-
-function generateDeepDiveScript(topic,date){{
-  var video=prompt('Video number to generate deep dive script for?', '1');
-  if(!video) return;
-  if(!confirm('Generate DEEP DIVE SCRIPT for '+topic+' '+date+' v'+video+'?\\nThis uses AI to create script text only. It will NOT generate voice.')) return;
-  var body=new URLSearchParams({{topic:topic,date:date,video:video}});
-  fetch('/api/assets/generate-deep-dive-script',{{method:'POST',headers:{{'Content-Type':'application/x-www-form-urlencoded'}},body:body}})
-    .then(function(r){{return r.json()}})
-    .then(function(data){{
-      if(data.error){{alert('Error: '+data.error);return;}}
-      if(data.status==='exists'){{
-        alert('Deep dive script already exists: '+data.path+'\\nOpening editor now.');
-      }}else{{
-        alert('✅ Deep dive script generated: '+data.path+'\\nPlease review/edit/save before generating voice.');
-      }}
-      openScript(topic,date,'deep_dive',video);
-    }})
-    .catch(function(err){{alert('Error: '+err);}});
-}}
-
-function generateVoice(topic,date,type){{
-  var video=prompt('Video number to generate voice for?', '1');
-  if(!video) return;
-  generateVoiceDirect(topic,date,type,video);
-}}
-
-function generateVoiceDirect(topic,date,type,video){{
-  if(!confirm('Generate '+type+' voice for '+topic+' '+date+' v'+video+' from SAVED script only?\\nThis uses Gemini TTS.')) return;
-  var body=new URLSearchParams({{topic:topic,date:date,video:video,type:type}});
-  fetch('/api/assets/generate-voice',{{method:'POST',headers:{{'Content-Type':'application/x-www-form-urlencoded'}},body:body}})
-    .then(function(r){{return r.json()}})
-    .then(function(data){{
-      if(data.error){{alert('Error: '+data.error);return;}}
-      alert('✅ Voice generated: '+data.voice_path);
-    }})
-    .catch(function(err){{alert('Error: '+err);}});
-}}
-
-function generateVoiceFromEditor(){{
-  var topic=document.getElementById('scriptTopic').value;
-  var date=document.getElementById('scriptDate').value;
-  var video=document.getElementById('scriptVideo').value;
-  var type=document.getElementById('scriptType').value;
-  generateVoiceDirect(topic,date,type,video);
 }}
 
 function downloadVoice(topic,date){{
@@ -1773,8 +1704,8 @@ document.addEventListener('DOMContentLoaded',function(){{
             self.send_error(404)
             return
 
-        # Prefer per-video v1 first, then whole-file fallback
-        candidates = sorted(topic_dir.glob(f"{date}-v*.wav")) + list(topic_dir.glob(f"{date}.wav"))
+        # Prefer canonical topic-prefixed files first, then legacy date-only names
+        candidates = find_voice_files(topic_dir, topic, date)
         if not candidates:
             self.send_error(404)
             return
@@ -1814,6 +1745,357 @@ document.addEventListener('DOMContentLoaded',function(){{
             self._send_json({"posts": posts})
         except Exception as exc:
             self._send_json({"error": str(exc)}, code=500)
+
+    def api_assets_videos(self):
+        """Return per-video status JSON for a topic+date."""
+        qs = parse_qs(urlparse(self.path).query)
+        topic = qs.get("topic", [""])[0].strip()
+        date  = qs.get("date",  [""])[0].strip()
+        if not topic or not re.match(r"^\d{4}-\d{2}-\d{2}$", date):
+            self._send_json({"error": "topic and date required"}, code=400)
+            return
+
+        try:
+            from generate_content_assets import ASSETS_DIR, AUDIO_SCRIPTS_DIR
+        except ImportError:
+            self._send_json({"error": "Asset module not available"}, code=500)
+            return
+
+        assets_dir = ASSETS_DIR
+        topic_slug = _slug(topic)
+        asset_dir = _find_topic_dir(assets_dir, topic, topic_slug)
+        if not asset_dir:
+            self._send_json({"error": "Asset folder not found"}, code=404)
+            return
+
+        asset_file = asset_dir / f"{date}.json"
+        if not asset_file.exists():
+            self._send_json({"error": "Asset JSON not found"}, code=404)
+            return
+
+        try:
+            asset_data = json.loads(asset_file.read_text(encoding="utf-8"))
+        except Exception as exc:
+            self._send_json({"error": str(exc)}, code=500)
+            return
+
+        scripts_base = AUDIO_SCRIPTS_DIR
+        voice_base   = PROJECT_ROOT / "ai_trends_reports" / "voice"
+        scripts_dir  = _find_topic_dir(scripts_base, topic, topic_slug)
+        voice_dir    = _find_topic_dir(voice_base, topic, topic_slug)
+
+        videos_out = []
+        for v in asset_data.get("videos", []):
+            vno = v.get("video_no", 1)
+            full_script_path  = (scripts_dir / f"{date}-v{vno}.md") if scripts_dir else None
+            dd_script_path    = (scripts_dir / f"{date}-v{vno}-deep-dive.md") if scripts_dir else None
+            from voice_filenames import voice_filename as _vf
+            full_voice_name  = _vf(voice_dir.name if voice_dir else topic_slug, date, video_no=vno, variant="full")
+            dd_voice_name    = _vf(voice_dir.name if voice_dir else topic_slug, date, video_no=vno, variant="deep_dive")
+            full_voice_path  = (voice_dir / full_voice_name) if voice_dir else None
+            dd_voice_path    = (voice_dir / dd_voice_name)   if voice_dir else None
+
+            videos_out.append({
+                "video_no":   vno,
+                "title":      v.get("title", ""),
+                "source_url": v.get("source_url", ""),
+                "full_script":      {"exists": bool(full_script_path and full_script_path.exists())},
+                "deep_dive_script": {"exists": bool(dd_script_path and dd_script_path.exists())},
+                "full_voice":       {"exists": bool(full_voice_path and full_voice_path.exists())},
+                "deep_dive_voice":  {"exists": bool(dd_voice_path and dd_voice_path.exists())},
+            })
+
+        self._send_json({
+            "topic":        topic_slug,
+            "date":         date,
+            "total_videos": asset_data.get("total_videos", len(videos_out)),
+            "videos":       videos_out,
+        })
+
+    def render_assets_manage(self):
+        """Server-rendered manage page — per-video cards with script + voice actions."""
+        qs = parse_qs(urlparse(self.path).query)
+        topic = qs.get("topic", [""])[0].strip()
+        date  = qs.get("date",  [""])[0].strip()
+
+        if not topic or not re.match(r"^\d{4}-\d{2}-\d{2}$", date):
+            self.send_html(page("Manage", '<p class="failed">topic and date required</p>'))
+            return
+
+        try:
+            from generate_content_assets import ASSETS_DIR, AUDIO_SCRIPTS_DIR
+        except ImportError:
+            self.send_html(page("Manage", '<p class="failed">Asset module not available</p>'))
+            return
+
+        topic_slug = _slug(topic)
+        assets_dir = ASSETS_DIR
+        asset_dir  = _find_topic_dir(assets_dir, topic, topic_slug)
+        asset_file = (asset_dir / f"{date}.json") if asset_dir else None
+
+        if not asset_file or not asset_file.exists():
+            self.send_html(page("Manage", f'<p class="failed">No asset JSON for {h(topic)} / {h(date)}. Generate asset first.</p><p><a href="/assets">← Back to Assets</a></p>'))
+            return
+
+        try:
+            asset_data = json.loads(asset_file.read_text(encoding="utf-8"))
+        except Exception as exc:
+            self.send_html(page("Manage", f'<p class="failed">Error reading asset: {h(str(exc))}</p>'))
+            return
+
+        scripts_base = AUDIO_SCRIPTS_DIR
+        voice_base   = PROJECT_ROOT / "ai_trends_reports" / "voice"
+        scripts_dir  = _find_topic_dir(scripts_base, topic, topic_slug)
+        voice_dir    = _find_topic_dir(voice_base, topic, topic_slug)
+
+        from voice_filenames import voice_filename as _vf
+
+        display_topic = h(asset_data.get("topic", topic))
+        safe_topic    = h(topic_slug)
+        safe_date     = h(date)
+        total_videos  = asset_data.get("total_videos", 0)
+
+        # Build per-video card data
+        card_data = []
+        for v in asset_data.get("videos", []):
+            vno = v.get("video_no", 1)
+            full_script_path = (scripts_dir / f"{date}-v{vno}.md") if scripts_dir else None
+            dd_script_path   = (scripts_dir / f"{date}-v{vno}-deep-dive.md") if scripts_dir else None
+            vdir_name = voice_dir.name if voice_dir else topic_slug
+            full_voice_path  = (voice_dir / _vf(vdir_name, date, video_no=vno, variant="full"))  if voice_dir else None
+            dd_voice_path    = (voice_dir / _vf(vdir_name, date, video_no=vno, variant="deep_dive")) if voice_dir else None
+
+            card_data.append({
+                "vno":          vno,
+                "title":        h(v.get("title", f"Video {vno}")),
+                "source_url":   h(v.get("source_url", "")),
+                "has_full_s":   bool(full_script_path and full_script_path.exists()),
+                "has_dd_s":     bool(dd_script_path and dd_script_path.exists()),
+                "has_full_v":   bool(full_voice_path and full_voice_path.exists()),
+                "has_dd_v":     bool(dd_voice_path and dd_voice_path.exists()),
+            })
+
+        # Build video cards HTML
+        cards_html = ""
+        for c in card_data:
+            vno       = c["vno"]
+            has_fs    = c["has_full_s"]
+            has_dds   = c["has_dd_s"]
+            has_fv    = c["has_full_v"]
+            has_ddv   = c["has_dd_v"]
+
+            def _dot(ok):
+                return '<span style="color:#16a34a">●</span>' if ok else '<span style="color:#d1d5db">●</span>'
+
+            src_link = f' <a href="{c["source_url"]}" target="_blank" rel="noopener" style="font-size:12px;color:#6366f1">↗</a>' if c["source_url"] else ""
+
+            cards_html += f'''<div class="vcard" id="vcard-{vno}">
+<div class="vcard-header">
+  <span class="vcard-num">Video {vno}</span>
+  <span class="vcard-title">{c["title"]}{src_link}</span>
+  <span class="vcard-dots">{_dot(has_fs)} Script &nbsp;{_dot(has_dds)} DD Script &nbsp;{_dot(has_fv)} Voice &nbsp;{_dot(has_ddv)} DD Voice</span>
+</div>
+<div class="vcard-actions">
+  <button class="btn-sm" onclick="openManageScript('{safe_topic}','{safe_date}',{vno},'full')" title="Open / edit full script">📝 {'Open' if has_fs else 'Create'} Script</button>
+  <button class="btn-sm" onclick="genDeepDive('{safe_topic}','{safe_date}',{vno})" title="Generate deep-dive script via AI">📖 {'Regen' if has_dds else 'Generate'} Deep-Dive</button>
+  <button class="btn-sm" onclick="openManageScript('{safe_topic}','{safe_date}',{vno},'deep_dive')" title="Open / edit deep-dive script">{'📚 Open DD Script' if has_dds else '<span style=\"opacity:.45\">📚 No DD Script</span>'}</button>
+  <button class="btn-sm{'' if has_fs else ' disabled-btn'}" onclick="genVoice('{safe_topic}','{safe_date}',{vno},'full')" title="Generate full voice from saved script" {'disabled' if not has_fs else ''}>🎙️ Full Voice</button>
+  <button class="btn-sm{'' if has_dds else ' disabled-btn'}" onclick="genVoice('{safe_topic}','{safe_date}',{vno},'deep_dive')" title="Generate deep-dive voice from saved script" {'disabled' if not has_dds else ''}>🎧 DD Voice</button>
+  <span id="vstatus-{vno}" class="muted" style="font-size:12px"></span>
+</div>
+</div>'''
+
+        # Build script editor section
+        editor_html = f'''<section id="manageEditor" style="display:none;border:2px solid #6366f1;margin-top:24px">
+  <h2>🎙️ Script Editor <span id="manageMeta" class="muted" style="font-size:14px"></span></h2>
+  <p class="muted" style="font-size:13px">Voice generation uses the saved script below only. Edit then Save before generating voice.</p>
+  <input type="hidden" id="meTopic"><input type="hidden" id="meDate"><input type="hidden" id="meVideo"><input type="hidden" id="meType">
+  <textarea id="meContent" style="width:100%;min-height:360px;font-family:ui-monospace,monospace;font-size:13px"></textarea>
+  <p>
+    <button type="button" onclick="saveManageScript()">💾 Save Script</button>
+    <button type="button" class="secondary" onclick="genVoiceFromEditor()">🎙️ Generate Voice from Saved Script</button>
+    <button type="button" class="secondary" onclick="document.getElementById('manageEditor').style.display='none'">Close</button>
+    <span id="meStatus" class="muted"></span>
+  </p>
+</section>'''
+
+        # Bulk voice section
+        checkboxes_html = "".join(
+            f'<label style="display:block;margin:4px 0"><input type="checkbox" class="bv-check" data-vno="{c["vno"]}" data-type="full"> Video {c["vno"]} — {c["title"]}</label>'
+            for c in card_data
+        )
+        bulk_html = f'''<section style="margin-top:24px">
+  <h2>Bulk Voice Generation</h2>
+  <p class="muted" style="font-size:13px">Select videos to generate full voice for. Requires saved script per video. Runs sequentially.</p>
+  {checkboxes_html}
+  <p style="margin-top:8px">
+    <button type="button" id="bulkVoiceBtn" onclick="runBulkVoice()" disabled>🎙️ Generate Voice for Selected</button>
+    <span id="bulkStatus" class="muted" style="font-size:13px"></span>
+  </p>
+</section>'''
+
+        # Regen All Scripts button
+        regen_html = f'''<section style="margin-top:16px">
+  <button type="button" class="secondary" onclick="regenAllScripts('{safe_topic}','{safe_date}')">🔄 Regen All Scripts</button>
+  <span class="muted" style="font-size:12px"> — regenerates full audio scripts for all {total_videos} video(s) using AI</span>
+</section>'''
+
+        # Inline JS for manage page
+        js = f'''<script>
+var _manageTopic='{safe_topic}', _manageDate='{safe_date}';
+
+function openManageScript(topic,date,video,type){{
+  var st=document.getElementById('meStatus');
+  st.textContent='Loading...';
+  fetch('/api/assets/script?topic='+encodeURIComponent(topic)+'&date='+encodeURIComponent(date)+'&video='+encodeURIComponent(video)+'&type='+encodeURIComponent(type))
+    .then(function(r){{return r.json()}})
+    .then(function(data){{
+      if(data.error){{alert('Error: '+data.error);return;}}
+      document.getElementById('meTopic').value=data.topic;
+      document.getElementById('meDate').value=data.date;
+      document.getElementById('meVideo').value=data.video;
+      document.getElementById('meType').value=data.type;
+      document.getElementById('meContent').value=data.content||'';
+      document.getElementById('manageMeta').textContent=data.topic+' / '+data.date+' / v'+data.video+' / '+data.type+' — '+(data.exists?'saved':'missing');
+      document.getElementById('manageEditor').style.display='block';
+      document.getElementById('manageEditor').scrollIntoView({{behavior:'smooth'}});
+      st.textContent=data.exists?'Loaded · '+data.voice_text_chars+' chars':'Script missing — paste content and Save';
+    }})
+    .catch(function(err){{alert('Error: '+err);}});
+}}
+
+function saveManageScript(){{
+  var topic=document.getElementById('meTopic').value;
+  var date=document.getElementById('meDate').value;
+  var video=document.getElementById('meVideo').value;
+  var type=document.getElementById('meType').value;
+  var content=document.getElementById('meContent').value;
+  var st=document.getElementById('meStatus');
+  st.textContent='Saving...';
+  var body=new URLSearchParams({{topic:topic,date:date,video:video,type:type,content:content}});
+  fetch('/api/assets/script',{{method:'POST',headers:{{'Content-Type':'application/x-www-form-urlencoded'}},body:body}})
+    .then(function(r){{return r.json()}})
+    .then(function(data){{
+      if(data.error){{st.textContent='Error: '+data.error;return;}}
+      st.textContent='✅ Saved';
+      setTimeout(function(){{location.reload();}},1200);
+    }})
+    .catch(function(err){{st.textContent='Error: '+err;}});
+}}
+
+function genVoice(topic,date,video,type){{
+  var vstatus=document.getElementById('vstatus-'+video);
+  if(vstatus) vstatus.textContent='Generating...';
+  if(!confirm('Generate '+type+' voice for v'+video+' from SAVED script?\\nThis uses Gemini TTS.')) return;
+  var body=new URLSearchParams({{topic:topic,date:date,video:video,type:type}});
+  fetch('/api/assets/generate-voice',{{method:'POST',headers:{{'Content-Type':'application/x-www-form-urlencoded'}},body:body}})
+    .then(function(r){{return r.json()}})
+    .then(function(data){{
+      if(data.error){{if(vstatus) vstatus.textContent='Error: '+data.error;alert('Error: '+data.error);return;}}
+      if(vstatus) vstatus.textContent='✅ Done';
+      setTimeout(function(){{location.reload();}},1500);
+    }})
+    .catch(function(err){{if(vstatus) vstatus.textContent='Error: '+err;alert('Error: '+err);}});
+}}
+
+function genVoiceFromEditor(){{
+  var topic=document.getElementById('meTopic').value;
+  var date=document.getElementById('meDate').value;
+  var video=document.getElementById('meVideo').value;
+  var type=document.getElementById('meType').value;
+  genVoice(topic,date,video,type);
+}}
+
+function genDeepDive(topic,date,video){{
+  var vstatus=document.getElementById('vstatus-'+video);
+  if(!confirm('Generate DEEP DIVE SCRIPT for v'+video+'?\\nThis uses AI (script only, no voice).')) return;
+  if(vstatus) vstatus.textContent='Generating deep-dive...';
+  var body=new URLSearchParams({{topic:topic,date:date,video:video}});
+  fetch('/api/assets/generate-deep-dive-script',{{method:'POST',headers:{{'Content-Type':'application/x-www-form-urlencoded'}},body:body}})
+    .then(function(r){{return r.json()}})
+    .then(function(data){{
+      if(data.error){{if(vstatus) vstatus.textContent='Error: '+data.error;alert('Error: '+data.error);return;}}
+      if(vstatus) vstatus.textContent='✅ Script ready — opening editor';
+      openManageScript(topic,date,video,'deep_dive');
+      setTimeout(function(){{location.reload();}},3000);
+    }})
+    .catch(function(err){{if(vstatus) vstatus.textContent='Error: '+err;alert('Error: '+err);}});
+}}
+
+function regenAllScripts(topic,date){{
+  if(!confirm('Regenerate ALL full audio scripts for '+topic+' '+date+'?\\nThis uses AI and overwrites existing scripts.')) return;
+  var params='?mode=audio&topic='+encodeURIComponent(topic)+'&date='+encodeURIComponent(date);
+  fetch('/api/assets/generate-one'+params)
+    .then(function(r){{return r.json()}})
+    .then(function(data){{
+      if(data.error){{alert('Error: '+data.error);return;}}
+      alert('✅ Scripts regenerated: '+data.audio_scripts_generated+' script(s)');
+      location.reload();
+    }})
+    .catch(function(err){{alert('Error: '+err);}});
+}}
+
+/* Bulk voice */
+document.addEventListener('DOMContentLoaded',function(){{
+  var checks=document.querySelectorAll('.bv-check');
+  var btn=document.getElementById('bulkVoiceBtn');
+  checks.forEach(function(cb){{cb.addEventListener('change',function(){{
+    var any=Array.from(checks).some(function(c){{return c.checked;}});
+    btn.disabled=!any;
+  }})}});
+}});
+
+function runBulkVoice(){{
+  var checks=Array.from(document.querySelectorAll('.bv-check:checked'));
+  if(!checks.length) return;
+  var names=checks.map(function(c){{return 'v'+c.dataset.vno;}}).join(', ');
+  if(!confirm('Generate full voice for: '+names+'?\\nRuns sequentially. This uses Gemini TTS.')) return;
+  var st=document.getElementById('bulkStatus');
+  var btn=document.getElementById('bulkVoiceBtn');
+  btn.disabled=true;
+  var queue=checks.slice();
+  function next(){{
+    if(!queue.length){{st.textContent='✅ All done';setTimeout(function(){{location.reload();}},1500);return;}}
+    var cb=queue.shift();
+    var vno=cb.dataset.vno;
+    st.textContent='Generating v'+vno+'...';
+    var body=new URLSearchParams({{topic:_manageTopic,date:_manageDate,video:vno,type:'full'}});
+    fetch('/api/assets/generate-voice',{{method:'POST',headers:{{'Content-Type':'application/x-www-form-urlencoded'}},body:body}})
+      .then(function(r){{return r.json()}})
+      .then(function(data){{
+        if(data.error){{st.textContent='Error on v'+vno+': '+data.error;btn.disabled=false;return;}}
+        next();
+      }})
+      .catch(function(err){{st.textContent='Error: '+err;btn.disabled=false;}});
+  }}
+  next();
+}}
+</script>'''
+
+        body = f'''<div style="display:flex;align-items:baseline;gap:16px;margin-bottom:8px">
+  <h1>🎛️ Manage: {display_topic} / {safe_date}</h1>
+  <a href="/assets" style="font-size:14px;color:#6366f1">← Back to Assets</a>
+</div>
+<p class="muted">{total_videos} video(s) · Status: ● green=exists &nbsp; ● gray=missing</p>
+{regen_html}
+<section style="margin-top:16px">
+  <h2>Videos</h2>
+  {cards_html}
+</section>
+{editor_html}
+{bulk_html}
+<style>
+.vcard{{border:1px solid #e5e7eb;border-radius:8px;padding:14px 16px;margin-bottom:12px;background:#fafafa}}
+.vcard-header{{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:8px}}
+.vcard-num{{font-weight:600;font-size:15px;color:#6366f1}}
+.vcard-title{{font-size:14px;flex:1}}
+.vcard-dots{{font-size:12px;color:#6b7280;white-space:nowrap}}
+.vcard-actions{{display:flex;gap:6px;flex-wrap:wrap;align-items:center}}
+.disabled-btn{{opacity:0.4;cursor:default}}
+</style>
+{js}'''
+
+        self.send_html(page(f"Manage — {topic_slug}/{date}", body))
 
 
 def main():
