@@ -43,6 +43,11 @@ TOPICS = [
     ("CC Higgsfield",      "claude_code_higgsfield",     "claude_code/claude_code_higgsfield"),
     ("CC Shopify",         "claude_code_shopify",        "claude_code/claude_code_shopify"),
     ("CC Hyperframe",      "claude_code_hyperframe",     "claude_code/claude_code_hyperframe"),
+    ("Finance — THE MONEY COACH", "finance_money_coach", "finance_money_coach"),
+    ("Finance — Money Buffalo", "finance_money_buffalo", "finance_money_buffalo"),
+    ("Finance — A-Academy", "finance_a_academy", "finance_a_academy"),
+    ("Finance — The Financial Diet", "finance_financial_diet", "finance_financial_diet"),
+    ("Finance — Humphrey Yang", "finance_humphrey_yang", "finance_humphrey_yang"),
 ]
 
 

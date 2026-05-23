@@ -26,22 +26,37 @@ bash "$_DIR/run_ai_trends_with_creds.sh" --topic "NATEHERK" --channel "https://y
 log "5/10 Joanna Wiebe channel..."
 bash "$_DIR/run_ai_trends_with_creds.sh" --topic "Joanna Wiebe" --channel "https://youtube.com/@joanna-wiebe" --max-results 3 --detailed >> "$LOGS/joanna_wiebe.log" 2>&1 && log "  ✅ Done" || log "  ❌ Failed"
 
-log "6/11 Claude Code Subtopics..."
+log "6/16 Claude Code Subtopics..."
 bash "$_DIR/run_claude_code_subtopics_with_creds.sh" --max-results 3 --total-videos 18 --detailed >> "$LOGS/claude_code_subtopics.log" 2>&1 && log "  ✅ Done" || log "  ❌ Failed"
 
-log "7/11 Claude Code New Subtopics..."
+log "7/16 Claude Code New Subtopics..."
 bash "$_DIR/run_claude_code_subtopics_with_creds.sh" --only "seedance,higgsfield,shopify" --max-results 5 --total-videos 15 --detailed >> "$LOGS/claude_code_new_subtopics.log" 2>&1 && log "  ✅ Done" || log "  ❌ Failed"
 
-log "8/11 Jacksons AI channel..."
+log "8/16 Jacksons AI channel..."
 bash "$_DIR/run_ai_trends_with_creds.sh" --topic "Jacksons AI" --channel "https://youtube.com/@Jacksons_ai" --max-results 3 --detailed >> "$LOGS/jacksons_ai.log" 2>&1 && log "  ✅ Done" || log "  ❌ Failed"
 
-log "9/11 Make Money Matt channel..."
+log "9/16 Make Money Matt channel..."
 bash "$_DIR/run_ai_trends_with_creds.sh" --topic "Make Money Matt" --channel "https://youtube.com/@makemoneymatt" --max-results 3 --detailed >> "$LOGS/make_money_matt.log" 2>&1 && log "  ✅ Done" || log "  ❌ Failed"
 
-log "10/11 Miss Luna Vega playlist..."
+log "10/16 Miss Luna Vega playlist..."
 bash "$_DIR/run_ai_trends_with_creds.sh" --topic "Miss Luna Vega" --channel "https://youtube.com/playlist?list=PLrpRRQWZ5EaEhot8F_6nJv3PA7Hk2eDe6" --max-results 3 --detailed >> "$LOGS/miss_luna_vega.log" 2>&1 && log "  ✅ Done" || log "  ❌ Failed"
 
-log "11/11 Daily Summary + GitHub Upload..."
+log "11/16 Finance Money Coach channel..."
+bash "$_DIR/run_ai_trends_with_creds.sh" --topic "Finance Money Coach" --channel "https://youtube.com/@THEMONEYCOACHTH" --max-results 3 --detailed >> "$LOGS/finance_money_coach.log" 2>&1 && log "  ✅ Done" || log "  ❌ Failed"
+
+log "12/16 Finance Money Buffalo channel..."
+bash "$_DIR/run_ai_trends_with_creds.sh" --topic "Finance Money Buffalo" --channel "https://www.youtube.com/c/MoneyBuffalo" --max-results 3 --detailed >> "$LOGS/finance_money_buffalo.log" 2>&1 && log "  ✅ Done" || log "  ❌ Failed"
+
+log "13/16 Finance A-Academy channel..."
+bash "$_DIR/run_ai_trends_with_creds.sh" --topic "Finance A-Academy" --channel "https://www.youtube.com/user/aacademychannel" --max-results 3 --detailed >> "$LOGS/finance_a_academy.log" 2>&1 && log "  ✅ Done" || log "  ❌ Failed"
+
+log "14/16 Finance Financial Diet channel..."
+bash "$_DIR/run_ai_trends_with_creds.sh" --topic "Finance Financial Diet" --channel "https://youtube.com/@thefinancialdiet" --max-results 3 --detailed >> "$LOGS/finance_financial_diet.log" 2>&1 && log "  ✅ Done" || log "  ❌ Failed"
+
+log "15/16 Finance Humphrey Yang channel..."
+bash "$_DIR/run_ai_trends_with_creds.sh" --topic "Finance Humphrey Yang" --channel "https://youtube.com/@humphrey" --max-results 3 --detailed >> "$LOGS/finance_humphrey_yang.log" 2>&1 && log "  ✅ Done" || log "  ❌ Failed"
+
+log "16/16 Daily Summary + GitHub Upload..."
 bash "$_DIR/run_daily_summary_cron.sh" >> "$LOGS/daily_summary.log" 2>&1 && log "  ✅ Done" || log "  ❌ Failed"
 
 log "=== Pipeline complete ==="

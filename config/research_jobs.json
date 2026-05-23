@@ -153,6 +153,76 @@
       "schedule_time": "07:35",
       "include_in_daily_summary": true,
       "notes": "Mirrors current production cron new Claude Code subtopic."
+    },
+    {
+      "id": "finance_money_coach",
+      "name": "Finance — THE MONEY COACH",
+      "enabled": true,
+      "source_type": "channel",
+      "topic": "Finance Money Coach",
+      "source_url": "https://youtube.com/@THEMONEYCOACHTH",
+      "max_videos": 3,
+      "detailed": true,
+      "report_folder": "finance_money_coach",
+      "schedule_time": "07:45",
+      "include_in_daily_summary": true,
+      "notes": "Finance/personal-finance channel added 2026-05-23 for practical daily-life Thai ATS summaries."
+    },
+    {
+      "id": "finance_money_buffalo",
+      "name": "Finance — Money Buffalo",
+      "enabled": true,
+      "source_type": "channel",
+      "topic": "Finance Money Buffalo",
+      "source_url": "https://www.youtube.com/c/MoneyBuffalo",
+      "max_videos": 3,
+      "detailed": true,
+      "report_folder": "finance_money_buffalo",
+      "schedule_time": "07:55",
+      "include_in_daily_summary": true,
+      "notes": "Finance/personal-finance channel added 2026-05-23 for practical daily-life Thai ATS summaries."
+    },
+    {
+      "id": "finance_a_academy",
+      "name": "Finance — A-Academy",
+      "enabled": true,
+      "source_type": "channel",
+      "topic": "Finance A-Academy",
+      "source_url": "https://www.youtube.com/user/aacademychannel",
+      "max_videos": 3,
+      "detailed": true,
+      "report_folder": "finance_a_academy",
+      "schedule_time": "08:05",
+      "include_in_daily_summary": true,
+      "notes": "Finance/personal-finance channel added 2026-05-23 for practical daily-life Thai ATS summaries."
+    },
+    {
+      "id": "finance_financial_diet",
+      "name": "Finance — The Financial Diet",
+      "enabled": true,
+      "source_type": "channel",
+      "topic": "Finance Financial Diet",
+      "source_url": "https://youtube.com/@thefinancialdiet",
+      "max_videos": 3,
+      "detailed": true,
+      "report_folder": "finance_financial_diet",
+      "schedule_time": "08:15",
+      "include_in_daily_summary": true,
+      "notes": "Finance/personal-finance channel added 2026-05-23 for practical daily-life Thai ATS summaries."
+    },
+    {
+      "id": "finance_humphrey_yang",
+      "name": "Finance — Humphrey Yang",
+      "enabled": true,
+      "source_type": "channel",
+      "topic": "Finance Humphrey Yang",
+      "source_url": "https://youtube.com/@humphrey",
+      "max_videos": 3,
+      "detailed": true,
+      "report_folder": "finance_humphrey_yang",
+      "schedule_time": "08:25",
+      "include_in_daily_summary": true,
+      "notes": "Finance/personal-finance channel added 2026-05-23 for practical daily-life Thai ATS summaries."
     }
   ]
 }

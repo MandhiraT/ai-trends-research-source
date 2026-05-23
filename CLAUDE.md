@@ -52,6 +52,11 @@ Automated daily AI trends research from YouTube. Scrapes videos → generates **
 | Joanna Wiebe | @joanna-wiebe channel | channel |
 | Claude Code base subtopics | YouTube search | search (obsidian, notebooklm, design, skills, remotion video, video) |
 | Claude Code new subtopics | YouTube search | search (seedance, higgsfield, shopify, hyperframe) |
+| Finance Money Coach | @THEMONEYCOACHTH channel | channel |
+| Finance Money Buffalo | /c/MoneyBuffalo channel | channel |
+| Finance A-Academy | /user/aacademychannel channel | channel |
+| Finance Financial Diet | @thefinancialdiet channel | channel |
+| Finance Humphrey Yang | @humphrey channel | channel |
 
 **Claude Code subtopics:** obsidian · notebooklm · design · skills · remotion video · video · seedance · higgsfield · shopify · hyperframe
 
@@ -73,9 +78,14 @@ Automated daily AI trends research from YouTube. Scrapes videos → generates **
 | 07:15 | 00:15 | Make Money Matt | `--max-results 3 --detailed` |
 | 07:25 | 00:25 | Miss Luna Vega | `--max-results 3 --detailed` |
 | 07:35 | 00:35 | Claude Code New Subtopics | `--only "seedance,higgsfield,shopify,hyperframe" --max-results 5 --total-videos 20 --detailed` |
-| 07:55 | 00:55 | Daily Summary + Audio + GitHub | — |
+| 07:45 | 00:45 | Finance Money Coach | `--channel @THEMONEYCOACHTH --max-results 3 --detailed` |
+| 07:55 | 00:55 | Finance Money Buffalo | `--channel /c/MoneyBuffalo --max-results 3 --detailed` |
+| 08:05 | 01:05 | Finance A-Academy | `--channel /user/aacademychannel --max-results 3 --detailed` |
+| 08:15 | 01:15 | Finance Financial Diet | `--channel @thefinancialdiet --max-results 3 --detailed` |
+| 08:25 | 01:25 | Finance Humphrey Yang | `--channel @humphrey --max-results 3 --detailed` |
+| 08:55 | 01:55 | Daily Summary + Audio + GitHub | moved later so finance reports can be included |
 
-**Reports + audio available on GitHub ~08:10–08:30 Bangkok every day.**
+**Reports + audio available on GitHub ~09:10–09:30 Bangkok every day after finance channels are added.**
 
 > To view/edit crontab: `crontab -l` / `crontab -e`
 
@@ -96,7 +106,7 @@ Save to ai_trends_reports/reports/{topic}/{YYYY-MM-DD}.md
   ↓
 upload_reports_to_github_fixed.py → git push → MandhiraT/ai-trends-research
   ↓
-Telegram notification (daily digest ~07:55 Bangkok)
+Telegram notification (daily digest ~08:55 Bangkok)
 ```
 
 ## Dashboard
