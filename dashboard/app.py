@@ -1434,15 +1434,18 @@ document.addEventListener('DOMContentLoaded',function(){{
         qs = parse_qs(urlparse(self.path).query)
         topic = qs.get("topic", [""])[0].strip()
         date  = qs.get("date",  [""])[0].strip()
+        video = qs.get("video", [""])[0].strip()
+        # Per-video jobs use date-vN key; full-report jobs use plain date
+        date_key = f"{date}-v{int(video)}" if video and video.isdigit() else date
         now = time.time()
         # purge stale entries (>600s = 10 min, covers longest generation job)
         stale = [k for k, v in DashboardHandler._status_store.items() if now - v[1] > 600]
         for k in stale:
             DashboardHandler._status_store.pop(k, None)
             DashboardHandler._gen_results.pop(k, None)
-        entry = DashboardHandler._status_store.get((topic, date))
+        entry = DashboardHandler._status_store.get((topic, date_key))
         if entry and now - entry[1] <= 600:
-            result = DashboardHandler._gen_results.get((topic, date), {})
+            result = DashboardHandler._gen_results.get((topic, date_key), {})
             self._send_json({"status": entry[0], "topic": topic, "date": date, **result})
         else:
             self._send_json({"status": "unknown", "topic": topic, "date": date})
@@ -1638,6 +1641,14 @@ document.addEventListener('DOMContentLoaded',function(){{
         topic = qs.get("topic", [""])[0] or None
         date = qs.get("date", [""])[0] or None
         mode = qs.get("mode", ["asset"])[0]
+        video_param = qs.get("video", [""])[0].strip()  # optional: single video number
+        single_video = None
+        if video_param:
+            try:
+                single_video = int(video_param)
+            except ValueError:
+                self._send_json({"error": "video must be a number"}, code=400)
+                return
 
         if not topic or not date:
             self._send_json({"error": "Both topic and date required"}, code=400)
@@ -1664,8 +1675,10 @@ document.addEventListener('DOMContentLoaded',function(){{
                             os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
 
         topic_slug = _slug(topic_folder or topic)
-        status_key = (topic_slug, date)
-        gen_key = (topic_slug, date)
+        # Per-video jobs use a distinct status key so they don't collide with full-report jobs
+        date_key = f"{date}-v{single_video}" if single_video else date
+        status_key = (topic_slug, date_key)
+        gen_key = (topic_slug, date_key)
 
         # AI modes (audio/social) take minutes — run in background thread so Cloudflare
         # tunnel doesn't time out (30s default). Return "started" immediately; JS polls
@@ -1683,6 +1696,7 @@ document.addEventListener('DOMContentLoaded',function(){{
                 _ai_module=ai_module,
                 _status_key=status_key,
                 _gen_key=gen_key,
+                _single_video=single_video,
             ):
                 try:
                     from generate_content_assets import (
@@ -1696,7 +1710,22 @@ document.addEventListener('DOMContentLoaded',function(){{
                     if not asset:
                         raise RuntimeError("Failed to parse report")
 
-                    enable_content_use(asset, audio=_with_audio, social=_with_social)
+                    if _single_video:
+                        # Enable only the requested video; leave others disabled
+                        for v in asset.get("videos", []):
+                            cu = v.setdefault("content_use", {})
+                            if int(v.get("video_no", 0)) == _single_video:
+                                if _with_audio:
+                                    cu["audio_full"] = True
+                                    cu["audio_short"] = True
+                                if _with_social:
+                                    cu["social_post"] = True
+                            else:
+                                cu["audio_full"] = False
+                                cu["audio_short"] = False
+                                cu["social_post"] = False
+                    else:
+                        enable_content_use(asset, audio=_with_audio, social=_with_social)
 
                     audio_paths = []
                     social_paths = []
@@ -1976,7 +2005,8 @@ document.addEventListener('DOMContentLoaded',function(){{
   <span class="vcard-dots">{_dot(has_fs)} Script &nbsp;{_dot(has_dds)} DD Script &nbsp;{_dot(has_fv)} Voice &nbsp;{_dot(has_ddv)} DD Voice</span>
 </div>
 <div class="vcard-actions">
-  <button class="btn-sm" onclick="openManageScript('{safe_topic}','{safe_date}',{vno},'full')" title="Open / edit full script">📝 {'Open' if has_fs else 'Create'} Script</button>
+  <button class="btn-sm" onclick="genScriptVideo('{safe_topic}','{safe_date}',{vno})" title="Generate full audio script for this video via AI">🤖 {'Regen' if has_fs else 'Gen'} Script</button>
+  <button class="btn-sm" onclick="openManageScript('{safe_topic}','{safe_date}',{vno},'full')" title="Open / edit full script">📝 {'Open' if has_fs else 'Edit'} Script</button>
   <button class="btn-sm" onclick="genDeepDive('{safe_topic}','{safe_date}',{vno})" title="Generate deep-dive script via AI">📖 {'Regen' if has_dds else 'Generate'} Deep-Dive</button>
   <button class="btn-sm" onclick="openManageScript('{safe_topic}','{safe_date}',{vno},'deep_dive')" title="Open / edit deep-dive script">{'📚 Open DD Script' if has_dds else '<span style=\"opacity:.45\">📚 No DD Script</span>'}</button>
   <button class="btn-sm{'' if has_fs else ' disabled-btn'}" onclick="genVoice('{safe_topic}','{safe_date}',{vno},'full')" title="Generate full voice from saved script" {'disabled' if not has_fs else ''}>🎙️ Full Voice</button>
@@ -2085,6 +2115,44 @@ function genVoiceFromEditor(){{
   var video=document.getElementById('meVideo').value;
   var type=document.getElementById('meType').value;
   genVoice(topic,date,video,type);
+}}
+
+function genScriptVideo(topic,date,video){{
+  var vstatus=document.getElementById('vstatus-'+video);
+  if(!confirm('Generate audio script for Video '+video+' via AI?\\nใช้เวลาประมาณ 1 นาที')) return;
+  if(vstatus) vstatus.textContent='⏳ กำลังส่งคำสั่ง...';
+  var params='?mode=audio&topic='+encodeURIComponent(topic)+'&date='+encodeURIComponent(date)+'&video='+encodeURIComponent(video);
+  fetch('/api/assets/generate-one'+params)
+    .then(function(r){{return r.json()}})
+    .then(function(data){{
+      if(data.error){{if(vstatus) vstatus.textContent='Error: '+data.error;alert('Error: '+data.error);return;}}
+      if(data.status==='started'){{
+        if(vstatus) vstatus.textContent='⏳ กำลังสร้าง script...';
+        var poll=setInterval(function(){{
+          fetch('/api/assets/gen-status?topic='+encodeURIComponent(topic)+'&date='+encodeURIComponent(date)+'&video='+encodeURIComponent(video))
+            .then(function(r){{return r.json()}})
+            .then(function(d){{
+              if(d.status==='done'){{
+                clearInterval(poll);
+                if(vstatus) vstatus.textContent='✅ Script พร้อมแล้ว — opening...';
+                openManageScript(topic,date,video,'full');
+                setTimeout(function(){{location.reload();}},3000);
+              }}else if(d.status==='error'){{
+                clearInterval(poll);
+                var errMsg=d.error||'Generation failed';
+                if(vstatus) vstatus.textContent='❌ '+errMsg;
+                alert('Error: '+errMsg);
+              }}
+            }})
+            .catch(function(){{}});
+        }},5000);
+        return;
+      }}
+      if(vstatus) vstatus.textContent='✅ Script พร้อมแล้ว';
+      openManageScript(topic,date,video,'full');
+      setTimeout(function(){{location.reload();}},3000);
+    }})
+    .catch(function(err){{if(vstatus) vstatus.textContent='Error: '+err;alert('Error: '+err);}});
 }}
 
 function genDeepDive(topic,date,video){{
