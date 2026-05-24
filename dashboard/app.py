@@ -393,6 +393,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self.api_assets_voice_status()
         elif parsed.path == "/api/audio/serve":
             self.api_audio_serve()
+        elif parsed.path == "/api/voice/serve":
+            self.api_voice_serve()
         elif parsed.path == "/api/social/view":
             self.api_social_view()
         else:
@@ -1829,6 +1831,41 @@ document.addEventListener('DOMContentLoaded',function(){{
         self.end_headers()
         self.wfile.write(data)
 
+    def api_voice_serve(self):
+        """Serve a voice WAV file from voice/ directory (per-video, canonical naming)."""
+        qs = parse_qs(urlparse(self.path).query)
+        topic = qs.get("topic", [""])[0].strip()
+        date  = qs.get("date",  [""])[0].strip()
+        video = qs.get("video", [""])[0].strip()
+        vtype = qs.get("type",  ["full"])[0].strip()
+        if not topic or not re.match(r"^\d{4}-\d{2}-\d{2}$", date) or not video or not video.isdigit():
+            self.send_error(400)
+            return
+        if vtype not in ("full", "deep_dive"):
+            self.send_error(400)
+            return
+
+        voice_base = PROJECT_ROOT / "ai_trends_reports" / "voice"
+        topic_slug = _slug(topic)
+        voice_dir  = _find_topic_dir(voice_base, topic, topic_slug)
+        if not voice_dir:
+            self.send_error(404)
+            return
+
+        fname = voice_filename(voice_dir.name, date, video_no=int(video), variant=vtype)
+        wav_path = voice_dir / fname
+        if not wav_path.exists():
+            self.send_error(404)
+            return
+
+        data = wav_path.read_bytes()
+        self.send_response(200)
+        self.send_header("Content-Type", "audio/wav")
+        self.send_header("Content-Length", str(len(data)))
+        self.send_header("Content-Disposition", f'attachment; filename="{fname}"')
+        self.end_headers()
+        self.wfile.write(data)
+
     def api_social_view(self):
         """Return social posts JSON for a topic+date."""
         qs = parse_qs(urlparse(self.path).query)
@@ -2011,6 +2048,8 @@ document.addEventListener('DOMContentLoaded',function(){{
   <button class="btn-sm" onclick="openManageScript('{safe_topic}','{safe_date}',{vno},'deep_dive')" title="Open / edit deep-dive script">{'📚 Open DD Script' if has_dds else '<span style=\"opacity:.45\">📚 No DD Script</span>'}</button>
   <button class="btn-sm{'' if has_fs else ' disabled-btn'}" onclick="genVoice('{safe_topic}','{safe_date}',{vno},'full')" title="Generate full voice from saved script" {'disabled' if not has_fs else ''}>🎙️ Full Voice</button>
   <button class="btn-sm{'' if has_dds else ' disabled-btn'}" onclick="genVoice('{safe_topic}','{safe_date}',{vno},'deep_dive')" title="Generate deep-dive voice from saved script" {'disabled' if not has_dds else ''}>🎧 DD Voice</button>
+  {"<a class='btn-sm' href='/api/voice/serve?topic="+safe_topic+"&date="+safe_date+"&video="+str(vno)+"&type=full' download title='Download full voice WAV'>⬇️ Full Voice</a>" if has_fv else ""}
+  {"<a class='btn-sm' href='/api/voice/serve?topic="+safe_topic+"&date="+safe_date+"&video="+str(vno)+"&type=deep_dive' download title='Download deep-dive voice WAV'>⬇️ DD Voice</a>" if has_ddv else ""}
   <span id="vstatus-{vno}" class="muted" style="font-size:12px"></span>
 </div>
 </div>'''
