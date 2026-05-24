@@ -31,7 +31,14 @@ if os.path.exists(_CRED_FILE):
 
 
 def _get_youtube_transcript(video_url: str) -> str:
-    """Extract transcript from YouTube video using yt-dlp."""
+    """Extract transcript from YouTube video using yt-dlp.
+
+    ATS summarizes videos into Thai, but the source transcript may be Thai,
+    English, or another YouTube caption track.  Thai finance channels often have
+    `th` captions while English auto-translation can fail with 429s; do not gate
+    summarization on English-only subtitles.
+    """
+    import glob as _glob
     import re as _re
     import uuid as _uuid
     import time as _time
@@ -51,48 +58,68 @@ def _get_youtube_transcript(video_url: str) -> str:
                     lines_clean.append(clean)
         return ' '.join(lines_clean)[:30000]
 
-    _YTDLP_BASE = [
+    # Prefer real/source Thai captions for Thai channels, then English, then any
+    # available caption track.  `en` auto-translated captions can 429 while `th`
+    # succeeds, which caused Thai videos to be reported as unsummarizable.
+    _LANGS = ['th', 'en', 'all']
+    _BASE = [
         'yt-dlp',
         '--js-runtimes', 'node:/usr/bin/node',
         '--skip-download',
-        '--sub-lang', 'en',
         '--sub-format', 'vtt',
     ]
-    _EXTS = ['.en.vtt', '.vtt']
 
-    # Two passes: auto-generated captions first, then manually-uploaded captions
+    # Two passes per language: auto-generated captions first, then manually-uploaded captions
     _PASSES = [
         ['--write-auto-sub'],
         ['--write-subs'],
     ]
 
-    for _pass_flags in _PASSES:
-        _tmp_prefix = f'/tmp/yt_transcript_{_uuid.uuid4().hex}'
-        try:
-            for _attempt in range(3):
-                result = subprocess.run(
-                    _YTDLP_BASE + _pass_flags + ['--output', _tmp_prefix, video_url],
-                    capture_output=True, text=True, timeout=60
-                )
-                for ext in _EXTS:
-                    path = f'{_tmp_prefix}{ext}'
-                    if os.path.exists(path):
+    for _lang in _LANGS:
+        for _pass_flags in _PASSES:
+            _tmp_prefix = f'/tmp/yt_transcript_{_uuid.uuid4().hex}'
+            try:
+                for _attempt in range(3):
+                    result = subprocess.run(
+                        _BASE + ['--sub-lang', _lang] + _pass_flags + ['--output', _tmp_prefix, video_url],
+                        capture_output=True, text=True, timeout=60
+                    )
+                    for path in sorted(_glob.glob(f'{_tmp_prefix}*.vtt')):
                         text = _parse_vtt(path)
                         if text:
                             return text
-                # File not created — rate limit or transient error; wait before retry
-                if _attempt < 2:
-                    _stderr_snippet = result.stderr[-300:] if result.stderr else ''
-                    print(f"[summarize_local] yt-dlp attempt {_attempt+1} failed for {video_url} — retrying in {10 * (_attempt+1)}s | {_stderr_snippet}", file=sys.stderr)
-                    _time.sleep(10 * (_attempt + 1))
-        except Exception as _e:
-            print(f"[summarize_local] yt-dlp exception: {_e}", file=sys.stderr)
-        finally:
-            for _ext in _EXTS + ['.en.srv1', '.srv1']:
-                _p = f'{_tmp_prefix}{_ext}'
-                if os.path.exists(_p):
-                    try: os.remove(_p)
-                    except: pass
+                    stderr_text = result.stderr or ''
+                    unrecoverable = any(
+                        marker in stderr_text.lower()
+                        for marker in (
+                            'members-only',
+                            'private video',
+                            'video unavailable',
+                            'sign in to confirm',
+                            'no subtitles',
+                            'no subtitle format found',
+                            'requested subtitles are not available',
+                        )
+                    )
+                    if unrecoverable:
+                        break
+                    # File not created — rate limit or transient error; wait before retry
+                    if _attempt < 2:
+                        _stderr_snippet = stderr_text[-300:]
+                        print(
+                            f"[summarize_local] yt-dlp attempt {_attempt+1} failed "
+                            f"for {video_url} (sub-lang={_lang}) — retrying in {10 * (_attempt+1)}s | "
+                            f"{_stderr_snippet}",
+                            file=sys.stderr,
+                        )
+                        _time.sleep(10 * (_attempt + 1))
+            except Exception as _e:
+                print(f"[summarize_local] yt-dlp exception (sub-lang={_lang}): {_e}", file=sys.stderr)
+            finally:
+                for _p in _glob.glob(f'{_tmp_prefix}*'):
+                    if os.path.exists(_p):
+                        try: os.remove(_p)
+                        except: pass
     return ''
 
 
@@ -189,12 +216,12 @@ def summarize_video(
 
     # Guard: no transcript → do NOT hallucinate
     if not transcript:
-        print(f"[summarize_local] No English transcript for {video_url} — skipping summarization", file=sys.stderr)
+        print(f"[summarize_local] No transcript for {video_url} — skipping summarization", file=sys.stderr)
         return (
             "# ไม่สามารถสรุปวิดีโอนี้ได้\n\n"
             f"**URL:** {video_url}\n\n"
-            "**เหตุผล:** วิดีโอนี้ไม่มี transcript ภาษาอังกฤษ "
-            "อาจเป็นวิดีโอภาษาอื่น หรือไม่มี subtitle อัตโนมัติที่ดาวน์โหลดได้\n\n"
+            "**เหตุผล:** วิดีโอนี้ไม่มี transcript ที่ดาวน์โหลดได้ "
+            "(ระบบลองทั้งภาษาไทย ภาษาอังกฤษ และ caption track อื่นแล้ว)\n\n"
             "_ระบบไม่สรุปเนื้อหาโดยอัตโนมัติเพื่อหลีกเลี่ยงข้อมูลที่ไม่ถูกต้อง_"
         )
 

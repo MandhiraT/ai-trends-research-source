@@ -2,7 +2,7 @@
 
 > Working document for team/agent collaboration. Update this file whenever features change, bugs are found, or new work is planned. Keep statuses current.
 
-**Last updated:** 2026-05-23 ICT
+**Last updated:** 2026-05-24 ICT
 **Maintained by:** Sati (primary agent) / Mandhira / Mali
 
 ---
@@ -17,7 +17,7 @@
 | GitHub upload | ✅ Working |
 | Dedup system | ✅ Working |
 | Telegram daily digest | ✅ Working (includes audio status) |
-| Hallucination guard | ✅ Fixed 2026-05-09 (non-English → transcript unavailable) |
+| Hallucination guard | ✅ Fixed 2026-05-24 (no downloadable captions → transcript unavailable; Thai captions are supported) |
 | Cron project path | ✅ Fixed 2026-05-12 (`Desktop/Projects`, not lowercase `projects`) |
 | Claude Code new subtopics | ✅ Working (Seedance, Higgsfield, Shopify, Hyperframe) |
 | Local dashboard | ✅ Working (`http://127.0.0.1:8092`) |
@@ -50,7 +50,7 @@
 | Manual pipeline runner | `run_all_today.sh` runs all 11 steps sequentially | `scripts/run_all_today.sh` |
 | Rate limit handling | Auto-retry with backoff on 429 errors | `summarize_local.py` |
 | Audio TTS generation | Gemini 2.5 Flash TTS, per-video mode, FFmpeg concat, daily Telegram status | `generate_audio_report.py` |
-| Hallucination guard | Non-English video → early return "transcript unavailable" (no AI hallucination) | `summarize_local.py` |
+| Hallucination guard | No downloadable captions → early return "transcript unavailable" (no AI hallucination); Thai/English/any caption tracks are attempted in order | `summarize_local.py` |
 | Local web dashboard | Add/edit research jobs, manual runs, report/log browser, read-only cron view | `dashboard/app.py` |
 || Searchable report index | JSONL/SQLite/Markdown mobile indexes + CLI search for report archive | `scripts/build_report_index.py`, `scripts/search_reports.py` |
 || Dashboard search | Search reports by query/topic/tag from Dashboard UI | `dashboard/app.py` `/search`, `/api/search` |
@@ -120,6 +120,7 @@
 | T-035 | **Add Dashboard deep-dive script generation** | 2026-05-17 | Added script-first `📖 Generate deep dive script` button and `POST /api/assets/generate-deep-dive-script`. The endpoint creates only `audio_scripts/{topic}/{date}-vN-deep-dive.md` with `## Deep Dive Script`; it does not create voice. Existing scripts are not overwritten unless `force=1`. Added deep-dive prompt based on the Full Episode Formula plus a quality retry guard for forbidden greetings/openings. Verification: new tests 5/5 for generator + Dashboard workflow, full test suite 9/9, py_compile passed, local `/assets` 200, Cloudflare Assets page shows 📖 controls with no console errors, real `jacksons_ai` deep-dive script generated (8,482 chars) and no WAV was created. |
 | T-036 | **Fix Dashboard asset duplicate rows + nested underscore topic generation** | 2026-05-17 | Root cause: legacy/display-name asset folders (`AI Agents/`, `Jacksons AI/`, `NATEHERK/`, `claude code design/`) coexisted with canonical slug folders, and `/api/assets/generate-one` could not resolve nested subtopic reports such as `reports/claude_code/claude_code_design/2026-05-17.md`, then falsely fell back to an unrelated date match (`NATEHERK`). Fixes: added slug-safe nested report resolver, fixed `find_reports()` for nested underscore topics, added Dashboard asset-row dedupe, added success validation so audio/social modes error if no output file is created, canonicalized all asset JSON files to slug folders, and removed legacy empty folders after backup. Verification: `15 passed`, py_compile passed, asset audit shows `duplicate_key_count=0`, `space_dir_count=0`, `noncanonical_count=0`; real `claude_code_design/2026-05-17` audio script generation created v1/v2/v3 markdown files and Dashboard 📝 status is green. |
 | T-040 | **Add finance/personal-finance channels to ATS daily cron** | 2026-05-23 | Added 5 channel jobs for practical daily-life finance summaries: Finance Money Coach (`@THEMONEYCOACHTH`), Finance Money Buffalo (`/c/MoneyBuffalo`), Finance A-Academy (`/user/aacademychannel`), Finance Financial Diet (`@thefinancialdiet`), Finance Humphrey Yang (`@humphrey`). Cron runs 07:45–08:25 ICT, max-results 3 each, `--detailed`; daily summary moved from 07:55 to 08:55 ICT so tomorrow's digest can include finance reports. Updated `config/research_jobs.json`, `scripts/ai_trends_daily_summary_thai.py`, and `scripts/run_all_today.sh`. |
+| T-041 | **Fix Thai transcript support for finance channel summaries** | 2026-05-24 | Root cause: `summarize_local.py` downloaded only `--sub-lang en`; Thai finance channels had usable `th` captions while English auto-translation could fail with 429, so reports incorrectly said “ไม่มี transcript ภาษาอังกฤษ”. Fixed transcript extraction to try Thai first, then English, then any caption track before returning unavailable. Updated unavailable reason text to no longer say English-only. Added regression tests for Thai-first extraction and English fallback. Verification: `python3 -m py_compile scripts/summarize_local.py` ✅, `pytest tests/test_summarize_local_transcripts.py tests/test_report_index.py -q` = 6 passed ✅, live no-AI transcript smoke tests found Thai transcripts for Finance Money Coach, Finance Money Buffalo, and Finance A-Academy first videos ✅. Full `pytest tests -q` is currently blocked by pre-existing `dashboard/app.py` SyntaxError at line 1906 (unrelated to this change). |
 | T-037 | **Fix Dashboard Assets page showing empty table (date filter defaulted to today)** | 2026-05-21 | Root causes: (1) `date_from`/`date_to` inputs defaulted to today's date, so `filterTable()` on DOMContentLoaded hid all historical rows; (2) no asset JSONs generated since 2026-05-18 (asset generation is manual). Fix: changed both date inputs to `value=""`. Verified: May 18 rows visible on fresh page load, "Today" and "Last 7 days" shortcuts still work. |
 | T-038 | **Add Hyperframe to Claude Code new subtopics** | 2026-05-21 | Added `hyperframe` to `--only` list, bumped `--total-videos` from 15 to 20. Updated `CLAUDE.md` and `docs/TASKS.md`. |
 | T-039 | **Implement Dashboard multi-video asset manage page** | 2026-05-21 | Full multi-video manage implementation in `dashboard/app.py`. New: `GET /assets/manage?topic=&date=` (per-video cards with status dots, explicit script/voice buttons, script editor, bulk voice with checkboxes + confirm, Regen All Scripts), `GET /api/assets/videos` JSON endpoint (per-video `full_script.exists`, `deep_dive_script.exists`, `full_voice.exists`, `deep_dive_voice.exists`). Main `/assets` page: Script/Voice column → Manage column (🎛️ link), aggregate count badges (📝📖🎙️🎧 in N/T green/yellow/gray format), script editor removed, old prompt-based `generateDeepDiveScript`/`generateVoice`/`openScript`/`saveScript` JS removed. No `window.prompt()` anywhere. Plan doc `DASHBOARD-ASSET-MANAGE-PAGE-PLAN.md` updated with 7 implementation gaps + open question answers. All 32 ISC + 3 anti-criteria verified. |
@@ -149,6 +150,7 @@
 | B-003 | Subtopic hash files saved inside reports/claude_code/ not ai_trends_reports/ | Low | Open | Inconsistent path: `ai_trends_reports/reports/claude_code/content_hashes_*.json` vs `ai_trends_reports/content_hashes_*.json` for other topics |
 | B-004 | AI Trends cron used lowercase `/Desktop/projects/...` path | High | ✅ Fixed 2026-05-12 | Root cause of missed 2026-05-12 daily summary; crontab now uses `/Desktop/Projects/...` |
 | B-005 | Dashboard Assets duplicate rows / false "เสร็จแล้ว" for nested underscore topics | High | ✅ Fixed 2026-05-17 | Caused by display-name asset JSON folders plus generate-one fallback resolving `claude_code_design` to unrelated `NATEHERK` report. Fixed in T-036. |
+| B-006 | Thai finance videos with Thai captions incorrectly marked “ไม่มี transcript ภาษาอังกฤษ” | High | ✅ Fixed 2026-05-24 | `summarize_local.py` was English-caption-only; now tries `th`, `en`, then `all` caption tracks before returning unavailable. |
 
 ---
 
