@@ -1330,6 +1330,31 @@ function _lockGenRow(topic,date,label){{
   if(gentd) gentd.innerHTML='<span style="color:#6366f1;font-size:13px">⏳ '+label+'...</span>';
 }}
 
+function _setGenRowDone(topic,date,lsKey){{
+  try{{localStorage.setItem(lsKey,JSON.stringify({{topic:topic,date:date,ts:Date.now(),status:'done'}}));}}catch(e){{try{{localStorage.removeItem(lsKey);}}catch(e2){{}}}}
+  var gentd=document.getElementById('gentd-'+topic+'-'+date);
+  if(gentd) gentd.innerHTML='<span style="color:#16a34a;font-size:13px">✅ เสร็จแล้ว — โหลดใหม่...</span>';
+  setTimeout(function(){{location.reload();}},3000);
+}}
+
+function _pollUntilDone(topic,date,lsKey){{
+  var poll=setInterval(function(){{
+    fetch('/api/assets/gen-status?topic='+encodeURIComponent(topic)+'&date='+encodeURIComponent(date))
+      .then(function(r){{return r.json()}})
+      .then(function(d){{
+        if(d.status==='done'){{clearInterval(poll);_setGenRowDone(topic,date,lsKey);}}
+        else if(d.status==='error'){{
+          clearInterval(poll);
+          try{{localStorage.removeItem(lsKey);}}catch(e){{}}
+          var errMsg=(d.error)?('Error: '+d.error):'Generation failed. Check server logs.';
+          alert(errMsg);
+          location.reload();
+        }}
+      }})
+      .catch(function(){{}});
+  }},5000);
+}}
+
 function generateOne(topic,date,mode){{
   if(!_confirmIfAI(mode,topic,date,date)) return;
   var lsKey=_genLsKey(topic,date);
@@ -1345,10 +1370,13 @@ function generateOne(topic,date,mode){{
         location.reload();
         return;
       }}
-      try{{localStorage.setItem(lsKey,JSON.stringify({{topic:topic,date:date,ts:Date.now(),status:'done'}}));}}catch(e){{try{{localStorage.removeItem(lsKey);}}catch(e2){{}}}}
-      var gentd=document.getElementById('gentd-'+topic+'-'+date);
-      if(gentd) gentd.innerHTML='<span style="color:#16a34a;font-size:13px">✅ เสร็จแล้ว — โหลดใหม่...</span>';
-      setTimeout(function(){{location.reload();}},3000);
+      if(data.status==='started'){{
+        // AI generation running in background — poll gen-status every 5s
+        _lockGenRow(topic,date,'กำลังสร้าง AI...');
+        _pollUntilDone(topic,date,lsKey);
+        return;
+      }}
+      _setGenRowDone(topic,date,lsKey);
     }})
     .catch(function(err){{
       try{{localStorage.removeItem(lsKey);}}catch(e){{}}
@@ -1397,6 +1425,7 @@ document.addEventListener('DOMContentLoaded',function(){{
     _gen_progress = {"current": 0, "total": 0, "status": "idle"}
     _generating_set: set = set()  # (topic_raw, date) while api_assets_generate_one runs
     _status_store: dict = {}      # (topic_slug, date) → ("generating"|"done"|"error", timestamp)
+    _gen_results: dict = {}       # (topic_slug, date) → result dict from completed background job
 
     def api_assets_progress(self):
         self._send_json(self._gen_progress)
@@ -1406,13 +1435,15 @@ document.addEventListener('DOMContentLoaded',function(){{
         topic = qs.get("topic", [""])[0].strip()
         date  = qs.get("date",  [""])[0].strip()
         now = time.time()
-        # purge stale entries (>120s)
-        stale = [k for k, v in DashboardHandler._status_store.items() if now - v[1] > 120]
+        # purge stale entries (>600s = 10 min, covers longest generation job)
+        stale = [k for k, v in DashboardHandler._status_store.items() if now - v[1] > 600]
         for k in stale:
             DashboardHandler._status_store.pop(k, None)
+            DashboardHandler._gen_results.pop(k, None)
         entry = DashboardHandler._status_store.get((topic, date))
-        if entry and now - entry[1] <= 120:
-            self._send_json({"status": entry[0], "topic": topic, "date": date})
+        if entry and now - entry[1] <= 600:
+            result = DashboardHandler._gen_results.get((topic, date), {})
+            self._send_json({"status": entry[0], "topic": topic, "date": date, **result})
         else:
             self._send_json({"status": "unknown", "topic": topic, "date": date})
 
@@ -1632,38 +1663,87 @@ document.addEventListener('DOMContentLoaded',function(){{
                             k, _, v = line.partition("=")
                             os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
 
-        ai_module = _get_ai_client() if (with_audio or with_social) else None
-
-        # Store UI status by canonical slug so gen-status matches rendered rows.
         topic_slug = _slug(topic_folder or topic)
         status_key = (topic_slug, date)
         gen_key = (topic_slug, date)
+
+        # AI modes (audio/social) take minutes — run in background thread so Cloudflare
+        # tunnel doesn't time out (30s default). Return "started" immediately; JS polls
+        # gen-status every 5s until "done" or "error".
+        if with_audio or with_social:
+            ai_module = _get_ai_client()
+
+            DashboardHandler._status_store[status_key] = ("generating", time.time())
+            DashboardHandler._generating_set.add(gen_key)
+
+            def _bg_generate(
+                _report_path=report_path,
+                _with_audio=with_audio,
+                _with_social=with_social,
+                _ai_module=ai_module,
+                _status_key=status_key,
+                _gen_key=gen_key,
+            ):
+                try:
+                    from generate_content_assets import (
+                        ASSETS_DIR, AUDIO_SCRIPTS_DIR, SOCIAL_DIR,
+                        build_asset_from_report, save_asset,
+                        generate_audio_scripts, generate_social_posts,
+                        save_audio_scripts, save_social_posts,
+                        enable_content_use,
+                    )
+                    asset = build_asset_from_report(_report_path, REPORTS_DIR)
+                    if not asset:
+                        raise RuntimeError("Failed to parse report")
+
+                    enable_content_use(asset, audio=_with_audio, social=_with_social)
+
+                    audio_paths = []
+                    social_paths = []
+                    audio_n = 0
+                    social_n = 0
+                    if _with_audio:
+                        r = generate_audio_scripts(asset, _ai_module)
+                        audio_n = r.get("audio_scripts_generated", 0)
+                        audio_paths = save_audio_scripts(asset, AUDIO_SCRIPTS_DIR)
+                    if _with_social:
+                        r = generate_social_posts(asset, _ai_module)
+                        social_n = r.get("social_posts_generated", 0)
+                        social_paths = save_social_posts(asset, SOCIAL_DIR)
+
+                    save_asset(asset, ASSETS_DIR)
+                    DashboardHandler._gen_results[_status_key] = {
+                        "audio_scripts_generated": audio_n,
+                        "social_posts_generated": social_n,
+                        "audio_paths": [str(p.relative_to(PROJECT_ROOT)) for p in audio_paths],
+                        "social_paths": [str(p.relative_to(PROJECT_ROOT)) for p in social_paths],
+                    }
+                    DashboardHandler._status_store[_status_key] = ("done", time.time())
+                except Exception as exc:
+                    DashboardHandler._gen_results[_status_key] = {"error": str(exc)}
+                    DashboardHandler._status_store[_status_key] = ("error", time.time())
+                finally:
+                    DashboardHandler._generating_set.discard(_gen_key)
+
+            import threading as _threading
+            _threading.Thread(target=_bg_generate, daemon=True).start()
+            self._send_json({"status": "started", "topic": topic_slug, "date": date})
+            return
+
+        # Asset-only mode is fast — run synchronously as before
         DashboardHandler._status_store[status_key] = ("generating", time.time())
         DashboardHandler._generating_set.add(gen_key)
         try:
+            from generate_content_assets import (
+                ASSETS_DIR, build_asset_from_report, save_asset, enable_content_use,
+            )
             asset = build_asset_from_report(report_path, REPORTS_DIR)
             if not asset:
                 DashboardHandler._status_store[status_key] = ("error", time.time())
                 self._send_json({"error": "Failed to parse report"}, code=500)
                 return
 
-            enable_content_use(asset, audio=with_audio, social=with_social)
-
-            audio_paths = []
-            social_paths = []
-            audio_result = {"audio_scripts_generated": 0}
-            social_result = {"social_posts_generated": 0}
-            if with_audio:
-                audio_result = generate_audio_scripts(asset, ai_module)
-                audio_paths = save_audio_scripts(asset, AUDIO_SCRIPTS_DIR)
-                if not audio_paths:
-                    raise RuntimeError("Audio script generation finished but no script file was created")
-            if with_social:
-                social_result = generate_social_posts(asset, ai_module)
-                social_paths = save_social_posts(asset, SOCIAL_DIR)
-                if not social_paths:
-                    raise RuntimeError("Social generation finished but no social file was created")
-
+            enable_content_use(asset)
             asset_path = save_asset(asset, ASSETS_DIR)
             DashboardHandler._status_store[status_key] = ("done", time.time())
         except Exception as exc:
@@ -1676,16 +1756,16 @@ document.addEventListener('DOMContentLoaded',function(){{
         self._send_json({
             "generated": 1,
             "total_videos": asset.get("total_videos", 0),
-            "with_audio": with_audio,
-            "with_social": with_social,
+            "with_audio": False,
+            "with_social": False,
             "topic": topic_slug,
             "date": date,
             "report_path": str(report_path.relative_to(REPORTS_DIR)),
             "asset_path": str(asset_path.relative_to(PROJECT_ROOT)),
-            "audio_scripts_generated": audio_result.get("audio_scripts_generated", 0),
-            "audio_paths": [str(p.relative_to(PROJECT_ROOT)) for p in audio_paths],
-            "social_posts_generated": social_result.get("social_posts_generated", 0),
-            "social_paths": [str(p.relative_to(PROJECT_ROOT)) for p in social_paths],
+            "audio_scripts_generated": 0,
+            "audio_paths": [],
+            "social_posts_generated": 0,
+            "social_paths": [],
         })
 
 
@@ -1938,6 +2018,7 @@ document.addEventListener('DOMContentLoaded',function(){{
         regen_html = f'''<section style="margin-top:16px">
   <button type="button" class="secondary" onclick="regenAllScripts('{safe_topic}','{safe_date}')">🔄 Regen All Scripts</button>
   <span class="muted" style="font-size:12px"> — regenerates full audio scripts for all {total_videos} video(s) using AI</span>
+  <span id="regenStatus" style="margin-left:12px;font-size:13px;color:#6366f1"></span>
 </section>'''
 
         # Inline JS for manage page
@@ -2024,15 +2105,54 @@ function genDeepDive(topic,date,video){{
 
 function regenAllScripts(topic,date){{
   if(!confirm('Regenerate ALL full audio scripts for '+topic+' '+date+'?\\nThis uses AI and overwrites existing scripts.')) return;
+  var regenBtn=document.querySelector('button[onclick*="regenAllScripts"]');
+  var regenSt=document.getElementById('regenStatus');
+  if(regenBtn) regenBtn.disabled=true;
+  if(regenSt) regenSt.textContent='⏳ กำลังส่งคำสั่ง...';
   var params='?mode=audio&topic='+encodeURIComponent(topic)+'&date='+encodeURIComponent(date);
   fetch('/api/assets/generate-one'+params)
     .then(function(r){{return r.json()}})
     .then(function(data){{
-      if(data.error){{alert('Error: '+data.error);return;}}
+      if(data.error){{
+        if(regenBtn) regenBtn.disabled=false;
+        if(regenSt) regenSt.textContent='';
+        alert('Error: '+data.error);
+        return;
+      }}
+      if(data.status==='started'){{
+        if(regenSt) regenSt.textContent='⏳ กำลังสร้าง script ด้วย AI... (อาจใช้เวลาหลายนาที)';
+        var poll=setInterval(function(){{
+          fetch('/api/assets/gen-status?topic='+encodeURIComponent(topic)+'&date='+encodeURIComponent(date))
+            .then(function(r){{return r.json()}})
+            .then(function(d){{
+              if(d.status==='done'){{
+                clearInterval(poll);
+                if(regenBtn) regenBtn.disabled=false;
+                if(regenSt) regenSt.textContent='';
+                alert('✅ Scripts regenerated: '+(d.audio_scripts_generated||0)+' script(s)');
+                location.reload();
+              }}else if(d.status==='error'){{
+                clearInterval(poll);
+                if(regenBtn) regenBtn.disabled=false;
+                if(regenSt) regenSt.textContent='';
+                alert('Error: '+(d.error||'Generation failed'));
+                location.reload();
+              }}
+            }})
+            .catch(function(){{}});
+        }},5000);
+        return;
+      }}
+      if(regenBtn) regenBtn.disabled=false;
+      if(regenSt) regenSt.textContent='';
       alert('✅ Scripts regenerated: '+data.audio_scripts_generated+' script(s)');
       location.reload();
     }})
-    .catch(function(err){{alert('Error: '+err);}});
+    .catch(function(err){{
+      if(regenBtn) regenBtn.disabled=false;
+      if(regenSt) regenSt.textContent='';
+      alert('Error: '+err);
+    }});
 }}
 
 /* Bulk voice */
