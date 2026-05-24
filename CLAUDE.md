@@ -57,6 +57,7 @@ Automated daily AI trends research from YouTube. Scrapes videos → generates **
 | Finance A-Academy | /user/aacademychannel channel | channel |
 | Finance Financial Diet | @thefinancialdiet channel | channel |
 | Finance Humphrey Yang | @humphrey channel | channel |
+| Boom BigNose | @BoomBigNose channel | channel |
 
 **Claude Code subtopics:** obsidian · notebooklm · design · skills · remotion video · video · seedance · higgsfield · shopify · hyperframe
 
@@ -83,9 +84,10 @@ Automated daily AI trends research from YouTube. Scrapes videos → generates **
 | 08:05 | 01:05 | Finance A-Academy | `--channel /user/aacademychannel --max-results 3 --detailed` |
 | 08:15 | 01:15 | Finance Financial Diet | `--channel @thefinancialdiet --max-results 3 --detailed` |
 | 08:25 | 01:25 | Finance Humphrey Yang | `--channel @humphrey --max-results 3 --detailed` |
+| 08:35 | 01:35 | Boom BigNose | `--channel @BoomBigNose --max-results 3 --detailed` |
 | 08:55 | 01:55 | Daily Summary + Audio + GitHub | moved later so finance reports can be included |
 
-**Reports + audio available on GitHub ~09:10–09:30 Bangkok every day after finance channels are added.**
+**Reports + audio available on GitHub ~09:10–09:30 Bangkok every day after finance/Thai AI channel jobs run.**
 
 > To view/edit crontab: `crontab -l` / `crontab -e`
 

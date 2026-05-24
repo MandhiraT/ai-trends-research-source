@@ -223,6 +223,20 @@
       "schedule_time": "08:25",
       "include_in_daily_summary": true,
       "notes": "Finance/personal-finance channel added 2026-05-23 for practical daily-life Thai ATS summaries."
+    },
+    {
+      "id": "boom_big_nose",
+      "name": "Boom BigNose",
+      "enabled": true,
+      "source_type": "channel",
+      "topic": "Boom BigNose",
+      "source_url": "https://youtube.com/@BoomBigNose",
+      "max_videos": 3,
+      "detailed": true,
+      "report_folder": "boom_big_nose",
+      "schedule_time": "08:35",
+      "include_in_daily_summary": true,
+      "notes": "Thai AI/automation channel added 2026-05-24 by Mandy request for ATS summaries."
     }
   ]
 }
