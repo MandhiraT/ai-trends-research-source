@@ -363,6 +363,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self.render_job_form(parse_qs(parsed.query).get("id", [""])[0])
         elif parsed.path == "/reports":
             self.render_files(REPORTS_DIR, ".md", "Reports")
+        elif parsed.path == "/report":
+            self.render_single_report()
         elif parsed.path == "/logs":
             self.render_files(LOGS_DIR, ".log", "Dashboard Logs")
         elif parsed.path == "/cron":
@@ -526,6 +528,22 @@ class DashboardHandler(BaseHTTPRequestHandler):
 {content}"""
         self.send_html(page(title, body))
 
+    def render_single_report(self):
+        qs = parse_qs(urlparse(self.path).query)
+        selected = qs.get("file", [""])[0]
+        if not selected:
+            self.send_html(page("Report", '<h1>Report</h1><p class="failed">No file specified.</p>'))
+            return
+        try:
+            path = (REPORTS_DIR / unquote(selected)).resolve()
+            if REPORTS_DIR.resolve() not in path.parents or not path.is_file():
+                self.send_html(page("Report", '<h1>Report</h1><p class="failed">File not found.</p>'))
+                return
+            body = f'<p><a href="/search">← Back to Search</a></p><h2>{h(selected)}</h2><pre>{h(read_text_file(path))}</pre>'
+            self.send_html(page(selected, body))
+        except OSError:
+            self.send_html(page("Report", '<h1>Report</h1><p class="failed">Could not read file.</p>'))
+
     def render_cron(self):
         result = subprocess.run(["crontab", "-l"], capture_output=True, text=True)
         cron = result.stdout if result.returncode == 0 else result.stderr
@@ -665,14 +683,16 @@ function doSearch(e){{
         el.innerHTML='<p class="muted">No results found.</p>';
         return;
       }}
-      var html='<p class="muted">Found '+data.results.length+' result(s)</p><table><thead><tr><th>Date</th><th>Topic</th><th>Video</th><th>Summary</th><th>Tags</th></tr></thead><tbody>';
+      var html='<p class="muted">Found '+data.results.length+' result(s)</p><table><thead><tr><th>Date</th><th>Topic</th><th>Video</th><th>Summary</th><th>Tags</th><th>Report</th></tr></thead><tbody>';
       data.results.forEach(function(r){{
         var tags=r.tags.map(function(t){{return'<span class="pill">'+t+'</span>'}}).join(' ');
         var yt=r.source_url?'<a href="'+r.source_url+'" target="_blank" style="font-size:12px">▶ YouTube</a>':'';
+        var rpt=r.report_path?'<a href="/report?file='+encodeURIComponent(r.report_path)+'" style="font-size:12px">📄 Report</a>':'';
         html+='<tr><td>'+r.date+'</td><td><span class="pill">'+r.topic+'</span></td>';
         html+='<td><strong>'+r.video_title+'</strong><br><span class="muted" style="font-size:13px">'+r.thai_title+'</span><br>'+yt+'</td>';
         html+='<td style="font-size:13px;max-width:360px">'+r.summary_short+'</td>';
-        html+='<td style="font-size:12px">'+tags+'</td></tr>';
+        html+='<td style="font-size:12px">'+tags+'</td>';
+        html+='<td>'+rpt+'</td></tr>';
       }});
       html+='</tbody></table>';
       el.innerHTML=html;
