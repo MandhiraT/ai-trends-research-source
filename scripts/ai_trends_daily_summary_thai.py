@@ -48,7 +48,7 @@ TOPICS = [
     ("Finance — A-Academy", "finance_a_academy", "finance_a_academy"),
     ("Finance — The Financial Diet", "finance_financial_diet", "finance_financial_diet"),
     ("Finance — Humphrey Yang", "finance_humphrey_yang", "finance_humphrey_yang"),
-    ("Boom BigNose",      "boom_big_nose",          "boom_big_nose"),
+    ("Boom BigNose",      "boom_bignose",           "boom_bignose"),
 ]
 
 
