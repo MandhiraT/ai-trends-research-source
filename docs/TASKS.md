@@ -2,7 +2,7 @@
 
 > Working document for team/agent collaboration. Update this file whenever features change, bugs are found, or new work is planned. Keep statuses current.
 
-**Last updated:** 2026-05-24 ICT
+**Last updated:** 2026-05-27 ICT
 **Maintained by:** Sati (primary agent) / Mandhira / Mali
 
 ---
@@ -30,7 +30,8 @@
 | Voice generation design / manual flow | ✅ Implemented for script-first workflow (`docs/VOICE-DESIGN.md`, Assets page) |
 | Dashboard multi-video asset manage | ✅ Working — `/assets/manage?topic=&date=` per-video cards, bulk voice, script editor, no window.prompt() |
 | Dashboard Assets date filter | ✅ Fixed 2026-05-21 (empty default — was defaulting to today, hiding all historical rows) |
-| Finance/personal-finance channels | ✅ Added 2026-05-23 (runs from tomorrow) — 5 practical daily-life finance channels at 07:45–08:25 ICT; daily summary moved to 08:55 ICT so finance reports can be included |
+| Finance/personal-finance channels | ✅ Added 2026-05-23 — 5 practical daily-life finance channels at 07:45–08:25 ICT |
+| Health topics/playlists | ✅ Added 2026-05-27 — `Health/อาหารบำรุงสุขภาพ` search + `Health/Top to Toe` playlist at 08:45/09:00 ICT; daily summary moved to 09:30 ICT |
 
 ---
 
@@ -121,6 +122,7 @@
 | T-036 | **Fix Dashboard asset duplicate rows + nested underscore topic generation** | 2026-05-17 | Root cause: legacy/display-name asset folders (`AI Agents/`, `Jacksons AI/`, `NATEHERK/`, `claude code design/`) coexisted with canonical slug folders, and `/api/assets/generate-one` could not resolve nested subtopic reports such as `reports/claude_code/claude_code_design/2026-05-17.md`, then falsely fell back to an unrelated date match (`NATEHERK`). Fixes: added slug-safe nested report resolver, fixed `find_reports()` for nested underscore topics, added Dashboard asset-row dedupe, added success validation so audio/social modes error if no output file is created, canonicalized all asset JSON files to slug folders, and removed legacy empty folders after backup. Verification: `15 passed`, py_compile passed, asset audit shows `duplicate_key_count=0`, `space_dir_count=0`, `noncanonical_count=0`; real `claude_code_design/2026-05-17` audio script generation created v1/v2/v3 markdown files and Dashboard 📝 status is green. |
 | T-040 | **Add finance/personal-finance channels to ATS daily cron** | 2026-05-23 | Added 5 channel jobs for practical daily-life finance summaries: Finance Money Coach (`@THEMONEYCOACHTH`), Finance Money Buffalo (`/c/MoneyBuffalo`), Finance A-Academy (`/user/aacademychannel`), Finance Financial Diet (`@thefinancialdiet`), Finance Humphrey Yang (`@humphrey`). Cron runs 07:45–08:25 ICT, max-results 3 each, `--detailed`; daily summary moved from 07:55 to 08:55 ICT so tomorrow's digest can include finance reports. Updated `config/research_jobs.json`, `scripts/ai_trends_daily_summary_thai.py`, and `scripts/run_all_today.sh`. |
 | T-042 | **Add Boom BigNose Thai AI channel to ATS daily cron** | 2026-05-24 | Added `Boom BigNose` (`@BoomBigNose`) as a production channel job at 08:35 ICT, max-results 3, `--detailed`. Updated `config/research_jobs.json`, `scripts/ai_trends_daily_summary_thai.py`, `scripts/run_all_today.sh`, `CLAUDE.md`, and installed crontab so tomorrow's 08:55 digest can include the report if new content is found. Verification: JSON load, py_compile, bash -n, crontab grep, and yt-dlp metadata probe. |
+| T-043 | **Add Health topics/playlists to ATS daily cron** | 2026-05-27 | Added two production jobs under `reports/health/`: `Health — อาหารบำรุงสุขภาพ` as YouTube search at 08:45 ICT (`--report-folder health/health_food_nutrition --max-results 5 --detailed`) and `Health — Top to Toe` playlist at 09:00 ICT (`--report-folder health/top_to_toe --channel playlist --max-results 5 --detailed`). Daily summary moved to 09:30 ICT so Health reports can be included. Updated installed crontab, `config/research_jobs.json`, `scripts/ai_trends_daily_summary_thai.py`, `scripts/run_all_today.sh`, and `CLAUDE.md`. |
 | T-041 | **Fix Thai transcript support for finance channel summaries** | 2026-05-24 | Root cause: `summarize_local.py` downloaded only `--sub-lang en`; Thai finance channels had usable `th` captions while English auto-translation could fail with 429, so reports incorrectly said “ไม่มี transcript ภาษาอังกฤษ”. Fixed transcript extraction to try Thai first, then English, then any caption track before returning unavailable. Updated unavailable reason text to no longer say English-only. Added regression tests for Thai-first extraction and English fallback. Verification: `python3 -m py_compile scripts/summarize_local.py` ✅, `pytest tests/test_summarize_local_transcripts.py tests/test_report_index.py -q` = 6 passed ✅, live no-AI transcript smoke tests found Thai transcripts for Finance Money Coach, Finance Money Buffalo, and Finance A-Academy first videos ✅. Full `pytest tests -q` is currently blocked by pre-existing `dashboard/app.py` SyntaxError at line 1906 (unrelated to this change). |
 | T-037 | **Fix Dashboard Assets page showing empty table (date filter defaulted to today)** | 2026-05-21 | Root causes: (1) `date_from`/`date_to` inputs defaulted to today's date, so `filterTable()` on DOMContentLoaded hid all historical rows; (2) no asset JSONs generated since 2026-05-18 (asset generation is manual). Fix: changed both date inputs to `value=""`. Verified: May 18 rows visible on fresh page load, "Today" and "Last 7 days" shortcuts still work. |
 | T-038 | **Add Hyperframe to Claude Code new subtopics** | 2026-05-21 | Added `hyperframe` to `--only` list, bumped `--total-videos` from 15 to 20. Updated `CLAUDE.md` and `docs/TASKS.md`. |
@@ -189,7 +191,11 @@
 | 07:15 | Make Money Matt (channel) | `--max-results 3 --detailed` |
 | 07:25 | Miss Luna Vega (playlist) | `--max-results 3 --detailed` |
 | 07:35 | Claude Code new subtopics | `--only "seedance,higgsfield,shopify,hyperframe" --max-results 5 --total-videos 20 --detailed` |
-| 07:55 | Daily Summary + GitHub Upload + Audio + Telegram | — |
+| 07:45–08:25 | Finance channels | 5 channel jobs, `--max-results 3 --detailed` |
+| 08:35 | Boom BigNose (channel) | `--max-results 3 --detailed` |
+| 08:45 | Health — อาหารบำรุงสุขภาพ (search) | `--report-folder health/health_food_nutrition --max-results 5 --detailed` |
+| 09:00 | Health — Top to Toe (playlist) | `--report-folder health/top_to_toe --channel playlist --max-results 5 --detailed` |
+| 09:30 | Daily Summary + GitHub Upload + Audio + Telegram | — |
 
 ---
 

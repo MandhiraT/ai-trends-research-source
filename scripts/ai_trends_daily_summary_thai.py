@@ -49,6 +49,8 @@ TOPICS = [
     ("Finance — The Financial Diet", "finance_financial_diet", "finance_financial_diet"),
     ("Finance — Humphrey Yang", "finance_humphrey_yang", "finance_humphrey_yang"),
     ("Boom BigNose",      "boom_bignose",           "boom_bignose"),
+    ("Health — อาหารบำรุงสุขภาพ", "health/health_food_nutrition", "health/health_food_nutrition"),
+    ("Health — Top to Toe", "health/top_to_toe", "health/top_to_toe"),
 ]
 
 

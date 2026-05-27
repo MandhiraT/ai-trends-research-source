@@ -237,6 +237,34 @@
       "schedule_time": "08:35",
       "include_in_daily_summary": true,
       "notes": "Thai AI/automation channel added 2026-05-24 by Mandy request for ATS summaries."
+    },
+    {
+      "id": "health_food_nutrition",
+      "name": "Health — อาหารบำรุงสุขภาพ",
+      "enabled": true,
+      "source_type": "topic",
+      "topic": "อาหารบำรุงสุขภาพ",
+      "source_url": "",
+      "max_videos": 5,
+      "detailed": true,
+      "report_folder": "health/health_food_nutrition",
+      "schedule_time": "08:45",
+      "include_in_daily_summary": true,
+      "notes": "Health topic added 2026-05-27 by Mandy request; reports stored under Health subfolder."
+    },
+    {
+      "id": "health_top_to_toe_playlist",
+      "name": "Health — Top to Toe playlist",
+      "enabled": true,
+      "source_type": "playlist",
+      "topic": "Top to Toe",
+      "source_url": "https://youtube.com/playlist?list=PLUaBTRNM7hIVi9p5t8-NtYgGN8zmi0X8N",
+      "max_videos": 5,
+      "detailed": true,
+      "report_folder": "health/top_to_toe",
+      "schedule_time": "09:00",
+      "include_in_daily_summary": true,
+      "notes": "Health playlist added 2026-05-27 by Mandy request; scans newest playlist items and stores reports under Health subfolder."
     }
   ]
 }

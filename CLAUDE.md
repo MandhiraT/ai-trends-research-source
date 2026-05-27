@@ -58,6 +58,8 @@ Automated daily AI trends research from YouTube. Scrapes videos → generates **
 | Finance Financial Diet | @thefinancialdiet channel | channel |
 | Finance Humphrey Yang | @humphrey channel | channel |
 | Boom BigNose | @BoomBigNose channel | channel |
+| Health — อาหารบำรุงสุขภาพ | YouTube search | search (reports/health/health_food_nutrition) |
+| Health — Top to Toe | Top to Toe playlist | playlist (reports/health/top_to_toe) |
 
 **Claude Code subtopics:** obsidian · notebooklm · design · skills · remotion video · video · seedance · higgsfield · shopify · hyperframe
 
@@ -85,9 +87,11 @@ Automated daily AI trends research from YouTube. Scrapes videos → generates **
 | 08:15 | 01:15 | Finance Financial Diet | `--channel @thefinancialdiet --max-results 3 --detailed` |
 | 08:25 | 01:25 | Finance Humphrey Yang | `--channel @humphrey --max-results 3 --detailed` |
 | 08:35 | 01:35 | Boom BigNose | `--channel @BoomBigNose --max-results 3 --detailed` |
-| 08:55 | 01:55 | Daily Summary + Audio + GitHub | moved later so finance reports can be included |
+| 08:45 | 01:45 | Health — อาหารบำรุงสุขภาพ | `--report-folder health/health_food_nutrition --max-results 5 --detailed` |
+| 09:00 | 02:00 | Health — Top to Toe | `--report-folder health/top_to_toe --channel playlist --max-results 5 --detailed` |
+| 09:30 | 02:30 | Daily Summary + Audio + GitHub | moved later so health reports can be included |
 
-**Reports + audio available on GitHub ~09:10–09:30 Bangkok every day after finance/Thai AI channel jobs run.**
+**Reports + audio available on GitHub ~09:40–10:00 Bangkok every day after finance/Thai AI/health jobs run.**
 
 > To view/edit crontab: `crontab -l` / `crontab -e`
 
@@ -108,7 +112,7 @@ Save to ai_trends_reports/reports/{topic}/{YYYY-MM-DD}.md
   ↓
 upload_reports_to_github_fixed.py → git push → MandhiraT/ai-trends-research
   ↓
-Telegram notification (daily digest ~08:55 Bangkok)
+Telegram notification (daily digest ~09:30 Bangkok)
 ```
 
 ## Dashboard
