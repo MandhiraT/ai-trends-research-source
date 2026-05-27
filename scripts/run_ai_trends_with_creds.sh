@@ -19,6 +19,7 @@ else
     exit 1
 fi
 
-# Run Python script with sourced environment
+# Run Python script with sourced environment.
+# Use system Python: google-genai / Vertex deps are installed there, not in Hermes venv.
 # All args are passed through to the Python script
-python3 $SCRIPTS_DIR/run_ai_trends_research_enhanced.py "$@"
+/usr/bin/python3 $SCRIPTS_DIR/run_ai_trends_research_enhanced.py "$@"

@@ -72,14 +72,44 @@ def _load_audio_config() -> dict:
 
 
 def _find_report(topic_key: str, date_str: str) -> str | None:
-    """Return path to {topic_key}/YYYY-MM-DD.md, or None if not found."""
+    """Return report path for topic_key/date, including dashboard job report folders."""
     direct = os.path.join(REPORTS_DIR, 'reports', topic_key, f'{date_str}.md')
     if os.path.exists(direct):
         return direct
+
     # Claude Code subtopics live under reports/claude_code/{topic_key}/
     nested = os.path.join(REPORTS_DIR, 'reports', 'claude_code', topic_key, f'{date_str}.md')
     if os.path.exists(nested):
         return nested
+
+    # Health jobs are grouped under reports/health/{leaf}/ but audio topic keys are flat.
+    # Example: topic_key=health_top_to_toe -> reports/health/top_to_toe/YYYY-MM-DD.md.
+    if topic_key.startswith('health_'):
+        leaf = topic_key.removeprefix('health_')
+        health_candidate = os.path.join(REPORTS_DIR, 'reports', 'health', leaf, f'{date_str}.md')
+        if os.path.exists(health_candidate):
+            return health_candidate
+
+    # Dashboard-managed jobs can use nested report_folder paths, e.g.
+    # job id health_top_to_toe_playlist -> reports/health/top_to_toe/YYYY-MM-DD.md.
+    # Accept both an exact job id and a matching normalized report-folder leaf.
+    jobs_file = os.path.join(PROJECT_ROOT, 'config', 'research_jobs.json')
+    try:
+        with open(jobs_file, encoding='utf-8') as f:
+            jobs = json.load(f).get('jobs', [])
+        for job in jobs:
+            folder = str(job.get('report_folder') or '').strip()
+            normalized_folder_key = folder.replace('/', '_')
+            if job.get('id') != topic_key and normalized_folder_key != topic_key:
+                continue
+            if not folder:
+                continue
+            candidate = os.path.join(REPORTS_DIR, 'reports', folder, f'{date_str}.md')
+            if os.path.exists(candidate):
+                return candidate
+    except Exception:
+        pass
+
     return None
 
 
