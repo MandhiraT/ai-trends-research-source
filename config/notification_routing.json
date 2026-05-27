@@ -1,0 +1,22 @@
+{
+  "defaults": {
+    "email_enabled": false,
+    "telegram_enabled": false,
+    "notification_mode": "per_topic",
+    "recipient_emails": [],
+    "telegram_chat_ids": []
+  },
+  "topics": {
+    "NATEHERK": {
+      "email_enabled": true,
+      "recipient_emails": [
+        "owllulla@gmail.com"
+      ],
+      "telegram_enabled": true,
+      "telegram_chat_ids": [
+        "1043709932"
+      ],
+      "notification_mode": "per_topic"
+    }
+  }
+}

@@ -26,6 +26,14 @@ try:
 except ImportError:
     _SEARCH_AVAILABLE = False
 
+try:
+    from notify_topic import TOPIC_MAP, load_routing_config, ROUTING_CONFIG_PATH
+    _NOTIFY_OK = True
+except ImportError:
+    _NOTIFY_OK = False
+    TOPIC_MAP = {}
+    ROUTING_CONFIG_PATH = None
+
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 CONFIG_FILE = PROJECT_ROOT / "config" / "research_jobs.json"
 REPORTS_DIR = PROJECT_ROOT / "ai_trends_reports" / "reports"
@@ -342,7 +350,7 @@ def page(title, body):
 <body>
   <header>
     <strong>AI Trends Dashboard</strong>
-    <nav><a href="/">Jobs</a><a href="/reports">Reports</a><a href="/search">Search</a><a href="/assets">Assets</a><a href="/logs">Logs</a><a href="/cron">Cron</a></nav>
+    <nav><a href="/">Jobs</a><a href="/reports">Reports</a><a href="/search">Search</a><a href="/assets">Assets</a><a href="/notifications">Notifications</a><a href="/logs">Logs</a><a href="/cron">Cron</a></nav>
   </header>
   <main>{body}</main>
 </body>
@@ -399,11 +407,30 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self.api_voice_serve()
         elif parsed.path == "/api/social/view":
             self.api_social_view()
+        elif parsed.path == "/notifications":
+            self.render_notifications()
+        elif parsed.path == "/api/notifications/config":
+            self.api_notifications_config_get()
+        elif parsed.path == "/download/report":
+            self.download_report()
         else:
             self.send_error(404)
 
     def do_POST(self):
         parsed = urlparse(self.path)
+        # Notifications API uses JSON body — handle before form-urlencoded parsing
+        if parsed.path in ("/api/notifications/config", "/api/notifications/test"):
+            length = int(self.headers.get("content-length", "0"))
+            raw = self.rfile.read(length).decode("utf-8", errors="replace")
+            try:
+                json_body = json.loads(raw) if raw.strip() else {}
+            except Exception:
+                json_body = {}
+            if parsed.path == "/api/notifications/config":
+                self.api_notifications_config_save(json_body)
+            else:
+                self.api_notifications_test(json_body)
+            return
         length = int(self.headers.get("content-length", "0"))
         data = parse_qs(self.rfile.read(length).decode())
         if parsed.path == "/job/save":
@@ -1912,6 +1939,35 @@ document.addEventListener('DOMContentLoaded',function(){{
         except Exception as exc:
             self._send_json({"error": str(exc)}, code=500)
 
+    def download_report(self):
+        """Serve a Markdown report file as a download attachment."""
+        qs = parse_qs(urlparse(self.path).query)
+        topic = qs.get("topic", [""])[0].strip()
+        date  = qs.get("date",  [""])[0].strip()
+        if not topic or not re.match(r"^\d{4}-\d{2}-\d{2}$", date):
+            self.send_error(400)
+            return
+
+        report_path, _ = _resolve_report_path(topic, date)
+        if not report_path:
+            self.send_error(404)
+            return
+
+        try:
+            data = report_path.read_bytes()
+        except OSError:
+            self.send_error(404)
+            return
+
+        fname = f"{_slug(topic)}-{date}.md"
+        self.send_response(200)
+        self.send_header("Content-Type", "text/markdown; charset=utf-8")
+        self.send_header("Content-Length", str(len(data)))
+        self.send_header("Content-Disposition", f'attachment; filename="{fname}"')
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(data)
+
     def api_assets_videos(self):
         """Return per-video status JSON for a topic+date."""
         qs = parse_qs(urlparse(self.path).query)
@@ -2343,6 +2399,180 @@ function runBulkVoice(){{
 {js}'''
 
         self.send_html(page(f"Manage — {topic_slug}/{date}", body))
+
+
+    # ── Notifications ──────────────────────────────────────────────────────
+
+    def render_notifications(self):
+        if not _NOTIFY_OK:
+            self.send_html(page("Notifications", "<p>notify_topic module not available.</p>"))
+            return
+
+        defaults, topics_cfg = load_routing_config()
+
+        rows_html = []
+        email_count = 0
+        tg_count = 0
+        for topic_key, (display_name, _folder, _github) in TOPIC_MAP.items():
+            cfg = {
+                "email_enabled": False,
+                "telegram_enabled": False,
+                "recipient_emails": [],
+                "telegram_chat_ids": [],
+            }
+            cfg.update(defaults)
+            cfg.update(topics_cfg.get(topic_key, {}))
+
+            if cfg["email_enabled"]:
+                email_count += 1
+            if cfg["telegram_enabled"]:
+                tg_count += 1
+
+            emails_str   = ", ".join(cfg.get("recipient_emails", []))
+            chat_ids_str = ", ".join(str(c) for c in cfg.get("telegram_chat_ids", []))
+            email_chk    = "checked" if cfg["email_enabled"] else ""
+            tg_chk       = "checked" if cfg["telegram_enabled"] else ""
+
+            rows_html.append(f"""<tr data-key="{h(topic_key)}">
+  <td><strong>{h(display_name)}</strong><br><span class="muted" style="font-size:12px">{h(topic_key)}</span></td>
+  <td style="text-align:center"><input type="checkbox" class="email-chk" {email_chk} data-key="{h(topic_key)}"></td>
+  <td><input class="email-input" type="text" value="{h(emails_str)}" placeholder="email1@x.com, email2@x.com" data-key="{h(topic_key)}" style="font-size:13px"></td>
+  <td style="text-align:center"><input type="checkbox" class="tg-chk" {tg_chk} data-key="{h(topic_key)}"></td>
+  <td><input class="tg-input" type="text" value="{h(chat_ids_str)}" placeholder="1043709932" data-key="{h(topic_key)}" style="font-size:13px"></td>
+  <td><button class="secondary" style="font-size:12px;padding:5px 10px" onclick="testSend('{h(topic_key)}')">▶ Test</button></td>
+</tr>""")
+
+        table_rows = "\n".join(rows_html)
+        total = len(TOPIC_MAP)
+
+        body = f"""<h1>🔔 Notification Routing</h1>
+<div class="grid" style="grid-template-columns:repeat(3,minmax(0,1fr));margin-bottom:16px">
+  <div class="metric"><span class="muted">Topics</span><strong>{total}</strong></div>
+  <div class="metric"><span class="muted">Email Active</span><strong>{email_count}</strong></div>
+  <div class="metric"><span class="muted">Telegram Active</span><strong>{tg_count}</strong></div>
+</div>
+<section style="margin-bottom:16px">
+  <p class="muted" style="margin:0 0 12px;font-size:14px">กำหนดได้ว่าแต่ละ topic จะส่ง email หรือ Telegram DM ไปยังใคร
+  บันทึกใน <code>config/notification_routing.json</code></p>
+  <button onclick="saveAll()">💾 Save All Changes</button>
+  <span id="saveStatus" style="margin-left:12px;font-size:13px"></span>
+</section>
+<table id="notifTable">
+  <thead><tr>
+    <th>Topic</th>
+    <th style="text-align:center">📧 Email</th>
+    <th>Recipient Emails (comma-separated)</th>
+    <th style="text-align:center">💬 Telegram</th>
+    <th>Chat IDs (comma-separated)</th>
+    <th>Test</th>
+  </tr></thead>
+  <tbody>{table_rows}</tbody>
+</table>
+<div id="testResult" style="margin-top:16px;display:none">
+  <section>
+    <h2 style="margin-top:0">Test Result</h2>
+    <pre id="testOutput" style="max-height:300px"></pre>
+  </section>
+</div>
+<script>
+function collectConfig() {{
+  var cfg = {{ defaults: {{ email_enabled: false, telegram_enabled: false, notification_mode: "per_topic", recipient_emails: [], telegram_chat_ids: [] }}, topics: {{}} }};
+  document.querySelectorAll('#notifTable tbody tr').forEach(function(row) {{
+    var key = row.dataset.key;
+    var emailEnabled = row.querySelector('.email-chk').checked;
+    var tgEnabled = row.querySelector('.tg-chk').checked;
+    var emailsRaw = row.querySelector('.email-input').value.trim();
+    var chatIdsRaw = row.querySelector('.tg-input').value.trim();
+    var emails = emailsRaw ? emailsRaw.split(',').map(function(s){{return s.trim();}}).filter(Boolean) : [];
+    var chatIds = chatIdsRaw ? chatIdsRaw.split(',').map(function(s){{return s.trim();}}).filter(Boolean) : [];
+    if (emailEnabled || tgEnabled || emails.length || chatIds.length) {{
+      cfg.topics[key] = {{ email_enabled: emailEnabled, telegram_enabled: tgEnabled, recipient_emails: emails, telegram_chat_ids: chatIds, notification_mode: "per_topic" }};
+    }}
+  }});
+  return cfg;
+}}
+function saveAll() {{
+  var st = document.getElementById('saveStatus');
+  st.textContent = 'Saving…';
+  fetch('/api/notifications/config', {{
+    method: 'POST',
+    headers: {{'Content-Type': 'application/json'}},
+    body: JSON.stringify(collectConfig())
+  }}).then(function(r){{return r.json();}})
+  .then(function(d){{
+    st.textContent = d.ok ? '✅ Saved' : ('❌ ' + (d.error||'error'));
+    setTimeout(function(){{st.textContent='';}}, 3000);
+  }}).catch(function(e){{st.textContent='❌ ' + e;}});
+}}
+function testSend(topicKey) {{
+  var panel = document.getElementById('testResult');
+  var out = document.getElementById('testOutput');
+  panel.style.display = 'block';
+  out.textContent = 'Sending test for ' + topicKey + '…';
+  fetch('/api/notifications/test', {{
+    method: 'POST',
+    headers: {{'Content-Type': 'application/json'}},
+    body: JSON.stringify({{ topic_key: topicKey, dry_run: false }})
+  }}).then(function(r){{return r.json();}})
+  .then(function(d){{
+    out.textContent = (d.stdout || '') + (d.stderr ? ('\\nSTDERR:\\n' + d.stderr) : '');
+  }}).catch(function(e){{out.textContent = 'Error: ' + e;}});
+}}
+</script>"""
+        self.send_html(page("Notifications", body))
+
+    def api_notifications_config_get(self):
+        if not _NOTIFY_OK:
+            self._send_json({"error": "notify_topic not available"}, code=500)
+            return
+        try:
+            defaults, topics = load_routing_config()
+            self._send_json({"defaults": defaults, "topics": topics})
+        except Exception as e:
+            self._send_json({"error": str(e)}, code=500)
+
+    def api_notifications_config_save(self, json_body):
+        if not _NOTIFY_OK or ROUTING_CONFIG_PATH is None:
+            self._send_json({"error": "notify_topic not available"}, code=500)
+            return
+        try:
+            # Validate minimal structure
+            if "defaults" not in json_body or "topics" not in json_body:
+                self._send_json({"error": "missing defaults or topics key"}, code=400)
+                return
+            with open(str(ROUTING_CONFIG_PATH), "w", encoding="utf-8") as f:
+                json.dump(json_body, f, ensure_ascii=False, indent=2)
+            self._send_json({"ok": True})
+        except Exception as e:
+            self._send_json({"error": str(e)}, code=500)
+
+    def api_notifications_test(self, json_body):
+        topic_key = (json_body.get("topic_key") or "").strip()
+        date_str  = json_body.get("date") or datetime.now().strftime("%Y-%m-%d")
+        dry_run   = bool(json_body.get("dry_run", False))
+        if not topic_key:
+            self._send_json({"error": "topic_key required"}, code=400)
+            return
+        script = PROJECT_ROOT / "scripts" / "notify_topic.py"
+        if not script.exists():
+            self._send_json({"error": "notify_topic.py not found"}, code=500)
+            return
+        cmd = [sys.executable, str(script), "--topic", topic_key, "--date", date_str]
+        if dry_run:
+            cmd.append("--dry-run")
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=60,
+                                    cwd=str(PROJECT_ROOT))
+            self._send_json({
+                "ok": result.returncode == 0,
+                "stdout": result.stdout,
+                "stderr": result.stderr,
+                "returncode": result.returncode,
+            })
+        except subprocess.TimeoutExpired:
+            self._send_json({"error": "timeout (60s)"}, code=500)
+        except Exception as e:
+            self._send_json({"error": str(e)}, code=500)
 
 
 def main():
