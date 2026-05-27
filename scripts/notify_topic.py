@@ -158,8 +158,8 @@ def build_urls(topic_key, local_folder, github_path, date_str):
         enabled = audio_cfg.get("enabled_topics", [])
         if local_folder in enabled or topic_key in enabled:
             wav_download = (
-                f"{DASHBOARD_HOST}/api/voice/serve?"
-                + urlencode({"topic": local_folder, "date": date_str, "video": "1"})
+                f"{DASHBOARD_HOST}/api/audio/serve?"
+                + urlencode({"topic": local_folder, "date": date_str})
             )
     except Exception as e:
         logging.warning(f"notify_topic: could not load audio config: {e}")
