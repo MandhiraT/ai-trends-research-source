@@ -43,34 +43,29 @@ REPORTS_BASE        = Path(REPORTS_DIR) / "reports"
 # ── Dashboard download base (Cloudflare Tunnel → localhost:8092) ─────────────
 DASHBOARD_HOST = "https://ai-trends.thequietself.com"
 
-# ── Topic map: key → (display_name, local_folder, github_path) ─────────────
-# Key = local_folder (matches TOPICS tuple[1] in ai_trends_daily_summary_thai.py)
-TOPIC_MAP = {
-    "ai_agents":                ("AI Agents",                     "ai_agents",                "ai_agents"),
-    "claude_code":              ("Claude Code",                   "claude_code",              "claude_code"),
-    "ai_viral_niche":           ("AI Viral Niche",                "ai_viral_niche",           "ai_viral_niche"),
-    "NATEHERK":                 ("NATEHERK",                      "NATEHERK",                 "NATEHERK"),
-    "joanna_wiebe":             ("Joanna Wiebe",                  "joanna_wiebe",             "joanna_wiebe"),
-    "jacksons_ai":              ("Jacksons AI",                   "jacksons_ai",              "jacksons_ai"),
-    "make_money_matt":          ("Make Money Matt",               "make_money_matt",          "make_money_matt"),
-    "miss_luna_vega":           ("Miss Luna Vega",                "miss_luna_vega",           "miss_luna_vega"),
-    "claude_code_obsidian":     ("CC Obsidian",                   "claude_code_obsidian",     "claude_code/claude_code_obsidian"),
-    "claude_code_notebooklm":   ("CC NotebookLM",                 "claude_code_notebooklm",   "claude_code/claude_code_notebooklm"),
-    "claude_code_design":       ("CC Design",                     "claude_code_design",       "claude_code/claude_code_design"),
-    "claude_code_skills":       ("CC Skills",                     "claude_code_skills",       "claude_code/claude_code_skills"),
-    "claude_code_remotion_video":("CC Remotion Video",            "claude_code_remotion_video","claude_code/claude_code_remotion_video"),
-    "claude_code_video":        ("CC Video",                      "claude_code_video",        "claude_code/claude_code_video"),
-    "claude_code_seedance":     ("CC Seedance",                   "claude_code_seedance",     "claude_code/claude_code_seedance"),
-    "claude_code_higgsfield":   ("CC Higgsfield",                 "claude_code_higgsfield",   "claude_code/claude_code_higgsfield"),
-    "claude_code_shopify":      ("CC Shopify",                    "claude_code_shopify",      "claude_code/claude_code_shopify"),
-    "claude_code_hyperframe":   ("CC Hyperframe",                 "claude_code_hyperframe",   "claude_code/claude_code_hyperframe"),
-    "finance_money_coach":      ("Finance — THE MONEY COACH",     "finance_money_coach",      "finance_money_coach"),
-    "finance_money_buffalo":    ("Finance — Money Buffalo",       "finance_money_buffalo",    "finance_money_buffalo"),
-    "finance_a_academy":        ("Finance — A-Academy",           "finance_a_academy",        "finance_a_academy"),
-    "finance_financial_diet":   ("Finance — The Financial Diet",  "finance_financial_diet",   "finance_financial_diet"),
-    "finance_humphrey_yang":    ("Finance — Humphrey Yang",       "finance_humphrey_yang",    "finance_humphrey_yang"),
-    "boom_bignose":             ("Boom BigNose",                  "boom_bignose",             "boom_bignose"),
-}
+# ── Topic map: loaded dynamically from research_jobs.json ────────────────────
+# key → (display_name, basename, report_folder)
+# Adding a job to research_jobs.json automatically appears here.
+def _load_topic_map():
+    try:
+        path = Path(PROJECT_ROOT) / "config" / "research_jobs.json"
+        data = json.loads(path.read_text(encoding="utf-8"))
+        jobs = data.get("jobs", []) if isinstance(data, dict) else data
+        result = {}
+        for job in jobs:
+            job_id = job.get("id", "").strip()
+            if not job_id:
+                continue
+            name          = job.get("name", job_id)
+            report_folder = job.get("report_folder", job_id).strip()
+            basename      = report_folder.split("/")[-1]
+            result[job_id] = (name, basename, report_folder)
+        return result
+    except Exception as e:
+        logging.warning(f"notify_topic: could not load topic map: {e}")
+        return {}
+
+TOPIC_MAP = _load_topic_map()
 
 THAI_MONTHS = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.",
                "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."]
@@ -115,12 +110,9 @@ def get_topic_config(topic_key, defaults, topics):
 
 # ── Report helpers ──────────────────────────────────────────────────────────
 
-def find_report_file(local_folder, date_str):
-    """Return Path to report .md if it exists, else None."""
-    if local_folder.startswith("claude_code_"):
-        path = REPORTS_BASE / "claude_code" / local_folder / f"{date_str}.md"
-    else:
-        path = REPORTS_BASE / local_folder / f"{date_str}.md"
+def find_report_file(report_folder, date_str):
+    """Return Path to report .md. report_folder is the full relative path (e.g. 'health/health_food_nutrition')."""
+    path = REPORTS_BASE / report_folder / f"{date_str}.md"
     return path if path.exists() else None
 
 
@@ -333,14 +325,14 @@ def notify_topic(topic_key, date_str, dry_run=False, email_only=False, telegram_
         print(f"  ⏭  {topic_key}: all channels disabled")
         return False
 
-    display_name, local_folder, github_path = TOPIC_MAP[topic_key]
-    report_path = find_report_file(local_folder, date_str)
+    display_name, local_folder, report_folder = TOPIC_MAP[topic_key]
+    report_path = find_report_file(report_folder, date_str)
     if report_path is None:
         print(f"  ⏭  {topic_key}: no report for {date_str}")
         return False
 
     intro, video_count = extract_summary(report_path)
-    md_download, wav_download = build_urls(topic_key, local_folder, github_path, date_str)
+    md_download, wav_download = build_urls(topic_key, local_folder, report_folder, date_str)
 
     vars_dict = {
         "topic_name":     display_name,
