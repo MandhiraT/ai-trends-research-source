@@ -34,6 +34,12 @@ except ImportError:
     TOPIC_MAP = {}
     ROUTING_CONFIG_PATH = None
 
+try:
+    import markdown as _md_lib
+    _MD_OK = True
+except ImportError:
+    _MD_OK = False
+
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 CONFIG_FILE = PROJECT_ROOT / "config" / "research_jobs.json"
 REPORTS_DIR = PROJECT_ROOT / "ai_trends_reports" / "reports"
@@ -413,6 +419,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self.api_notifications_config_get()
         elif parsed.path == "/download/report":
             self.download_report()
+        elif parsed.path == "/view/report":
+            self.view_report()
         else:
             self.send_error(404)
 
@@ -541,18 +549,69 @@ class DashboardHandler(BaseHTTPRequestHandler):
             try:
                 path = (base / unquote(selected)).resolve()
                 if base.resolve() in path.parents and path.is_file():
-                    content = f"<h2>{h(selected)}</h2><pre>{h(read_text_file(path))}</pre>"
+                    content = f'<section id="file-content"><h2>{h(selected)}</h2><pre style="white-space:pre-wrap;word-break:break-word">{h(read_text_file(path))}</pre></section>'
             except OSError:
                 content = "<p>Invalid file.</p>"
 
+        is_reports = (base.resolve() == REPORTS_DIR.resolve())
         rows = []
+        topics = set()
         for path in relative_files(base, suffix):
             rel = path.relative_to(base).as_posix()
             mtime = datetime.fromtimestamp(path.stat().st_mtime).strftime("%Y-%m-%d %H:%M")
-            rows.append(f'<tr><td><a href="{parsed.path}?file={quote(rel)}">{h(rel)}</a></td><td>{h(mtime)}</td><td>{h(path)}</td></tr>')
+            parts = rel.split("/")
+            topic = parts[0] if len(parts) > 1 else ""
+            date_part = parts[-1].replace(suffix, "") if is_reports else ""
+            if topic:
+                topics.add(topic)
+            data_attrs = f' data-topic="{h(topic)}" data-date="{h(date_part)}"' if is_reports else ""
+            selected_class = ' class="selected-row"' if rel == selected else ""
+            rows.append(f'<tr{data_attrs}{selected_class}><td><a href="{parsed.path}?file={quote(rel)}">{h(rel)}</a></td><td>{h(mtime)}</td></tr>')
+
+        filter_ui = ""
+        if is_reports:
+            topic_opts = "".join(f'<option value="{h(t)}">{h(t)}</option>' for t in sorted(topics))
+            filter_ui = f"""<div id="report-filters" style="margin-bottom:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+  <select id="filter-topic" style="padding:6px 10px;border-radius:4px;border:1px solid #ccc">
+    <option value="">All Topics</option>
+    {topic_opts}
+  </select>
+  <input id="filter-date" type="text" placeholder="Filter by date (e.g. 2026-05)" style="padding:6px 10px;border-radius:4px;border:1px solid #ccc;width:200px">
+  <button onclick="clearFilters()" style="padding:6px 12px;border-radius:4px;border:1px solid #ccc;cursor:pointer">Clear</button>
+  <span id="filter-count" style="color:#666;font-size:13px"></span>
+</div>
+<script>
+function applyFilters(){{
+  var topic=(document.getElementById('filter-topic').value||'').toLowerCase();
+  var date=(document.getElementById('filter-date').value||'').toLowerCase();
+  var rows=document.querySelectorAll('#file-table tbody tr[data-topic]');
+  var shown=0;
+  rows.forEach(function(r){{
+    var tm=(r.dataset.topic||'').toLowerCase();
+    var dt=(r.dataset.date||'').toLowerCase();
+    var ok=(!topic||tm===topic)&&(!date||dt.includes(date));
+    r.style.display=ok?'':'none';
+    if(ok)shown++;
+  }});
+  document.getElementById('filter-count').textContent=shown+' files';
+}}
+function clearFilters(){{
+  document.getElementById('filter-topic').value='';
+  document.getElementById('filter-date').value='';
+  applyFilters();
+}}
+document.getElementById('filter-topic').addEventListener('change',applyFilters);
+document.getElementById('filter-date').addEventListener('input',applyFilters);
+window.addEventListener('DOMContentLoaded',function(){{applyFilters();{"document.getElementById('file-content')&&document.getElementById('file-content').scrollIntoView({{behavior:'smooth',block:'start'}});" if selected else ""}}});
+</script>"""
+
+        scroll_link = '<p><a href="#file-content">↓ Jump to file content</a></p>' if content and is_reports else ""
         body = f"""<h1>{h(title)}</h1>
-<table><thead><tr><th>File</th><th>Modified</th><th>Path</th></tr></thead><tbody>{''.join(rows) if rows else '<tr><td colspan="3">No files found.</td></tr>'}</tbody></table>
-{content}"""
+{filter_ui}
+{scroll_link}
+<table id="file-table"><thead><tr><th>File</th><th>Modified</th></tr></thead><tbody>{''.join(rows) if rows else '<tr><td colspan="2">No files found.</td></tr>'}</tbody></table>
+{content}
+<style>#file-table tr.selected-row td{{background:#fffbe6}}</style>"""
         self.send_html(page(title, body))
 
     def render_single_report(self):
@@ -1964,6 +2023,60 @@ document.addEventListener('DOMContentLoaded',function(){{
         self.send_header("Content-Type", "text/markdown; charset=utf-8")
         self.send_header("Content-Length", str(len(data)))
         self.send_header("Content-Disposition", f'attachment; filename="{fname}"')
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(data)
+
+    def view_report(self):
+        """Render a Markdown report as HTML for in-browser reading (mobile-friendly)."""
+        qs = parse_qs(urlparse(self.path).query)
+        topic = qs.get("topic", [""])[0].strip()
+        date  = qs.get("date",  [""])[0].strip()
+        if not topic or not re.match(r"^\d{4}-\d{2}-\d{2}$", date):
+            self.send_error(400)
+            return
+
+        report_path, _ = _resolve_report_path(topic, date)
+        if not report_path:
+            self.send_error(404)
+            return
+
+        try:
+            text = report_path.read_text(encoding="utf-8")
+        except OSError:
+            self.send_error(404)
+            return
+
+        if _MD_OK:
+            body_html = _md_lib.markdown(text, extensions=["nl2br", "fenced_code"])
+        else:
+            body_html = f"<pre style='white-space:pre-wrap;word-break:break-word'>{h(text)}</pre>"
+
+        title = h(f"{topic} — {date}")
+        html_page = f"""<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{title}</title>
+<style>
+  body{{max-width:820px;margin:0 auto;padding:16px 18px;font-family:-apple-system,Arial,sans-serif;font-size:16px;line-height:1.7;color:#1a202c;background:#fff}}
+  h1,h2,h3{{color:#111827;line-height:1.3}}
+  h1{{font-size:1.5em}} h2{{font-size:1.25em;border-bottom:1px solid #e5e7eb;padding-bottom:4px}} h3{{font-size:1.1em}}
+  a{{color:#1d4ed8}} pre,code{{background:#f3f4f6;border-radius:4px;padding:2px 6px;font-size:14px;word-break:break-word;white-space:pre-wrap}}
+  pre{{padding:12px;overflow-x:auto}}
+  .nav{{margin-bottom:16px;font-size:14px;color:#6b7280}}
+</style>
+</head>
+<body>
+<p class="nav">📄 {title} &nbsp;·&nbsp; <a href="/download/report?topic={quote(topic)}&date={quote(date)}">⬇ Download .md</a></p>
+{body_html}
+</body>
+</html>"""
+        data = html_page.encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(data)))
         self.send_header("Cache-Control", "no-store")
         self.end_headers()
         self.wfile.write(data)

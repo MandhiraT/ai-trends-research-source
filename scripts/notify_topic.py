@@ -133,29 +133,45 @@ def extract_summary(report_path, max_chars=800):
 
 # ── URL builders ────────────────────────────────────────────────────────────
 
-def build_urls(topic_key, local_folder, github_path, date_str):
-    """Return (md_download_url, wav_download_url_or_None).
+def build_urls(topic_key, local_folder, report_folder, date_str):
+    """Return (md_download_url, wav_download_url_or_None, view_url).
 
-    Both URLs point to the ATS dashboard (ai-trends.thequietself.com) so they
-    work regardless of GitHub repo visibility and always trigger a file download.
+    All URLs point to the ATS dashboard (ai-trends.thequietself.com).
+    view_url renders the report as HTML — no app required on any device.
+
+    Use the full report_folder for report URLs so nested folders like
+    health/top_to_toe resolve correctly. For audio URLs, resolve the actual
+    audio topic key from config/audio_topics.json because the research job id
+    may differ from the audio folder key (e.g. health_top_to_toe_playlist job
+    publishes voice under health_top_to_toe).
     """
-    md_download = (
-        f"{DASHBOARD_HOST}/download/report?"
-        + urlencode({"topic": local_folder, "date": date_str})
-    )
+    report_params = urlencode({"topic": report_folder, "date": date_str})
+    md_download = f"{DASHBOARD_HOST}/download/report?" + report_params
+    view_url    = f"{DASHBOARD_HOST}/view/report?" + report_params
     wav_download = None
     try:
         with open(AUDIO_CONFIG_PATH, encoding="utf-8") as f:
             audio_cfg = json.load(f)
         enabled = audio_cfg.get("enabled_topics", [])
-        if local_folder in enabled or topic_key in enabled:
+        folder_map = audio_cfg.get("github_folder_map", {})
+        normalized_report_folder = str(report_folder or "").strip().replace("/", "_")
+        audio_topic = None
+        for candidate in enabled:
+            mapped_folder = str(folder_map.get(candidate, candidate)).strip()
+            if candidate == topic_key or candidate == local_folder or candidate == normalized_report_folder:
+                audio_topic = candidate
+                break
+            if mapped_folder == report_folder or mapped_folder.replace("/", "_") == normalized_report_folder:
+                audio_topic = candidate
+                break
+        if audio_topic:
             wav_download = (
                 f"{DASHBOARD_HOST}/api/audio/serve?"
-                + urlencode({"topic": local_folder, "date": date_str})
+                + urlencode({"topic": audio_topic, "date": date_str})
             )
     except Exception as e:
         logging.warning(f"notify_topic: could not load audio config: {e}")
-    return md_download, wav_download
+    return md_download, wav_download, view_url
 
 
 # ── Email ───────────────────────────────────────────────────────────────────
@@ -178,8 +194,10 @@ def render_plain_email(vars_dict):
         "",
         vars_dict["intro_summary"],
         "",
-        f"📄 Download Report (.md): {vars_dict['md_download_url']}",
     ]
+    if vars_dict.get("view_url"):
+        lines.append(f"👁 View Report (browser): {vars_dict['view_url']}")
+    lines.append(f"📄 Download Report (.md): {vars_dict['md_download_url']}")
     if vars_dict.get("wav_download_url"):
         lines.append(f"🎧 Download Audio (.wav): {vars_dict['wav_download_url']}")
     lines += ["", "—", "AI Trends Research System"]
@@ -255,6 +273,7 @@ def build_telegram_text(vars_dict):
     intro        = vars_dict["intro_summary"]
     md_download  = vars_dict["md_download_url"]
     wav_download = vars_dict.get("wav_download_url")
+    view_url     = vars_dict.get("view_url")
 
     if len(intro) > 400:
         intro = intro[:400].rsplit(" ", 1)[0] + "…"
@@ -266,8 +285,10 @@ def build_telegram_text(vars_dict):
         "",
         intro,
         "",
-        f'📄 <a href="{md_download}">Download Report (.md)</a>',
     ]
+    if view_url:
+        lines.append(f'👁 <a href="{view_url}">View Report (browser)</a>')
+    lines.append(f'📄 <a href="{md_download}">Download Report (.md)</a>')
     if wav_download:
         lines.append(f'🎧 <a href="{wav_download}">Download Audio (.wav)</a>')
     lines += ["", "—", "ATS Research System"]
@@ -332,7 +353,7 @@ def notify_topic(topic_key, date_str, dry_run=False, email_only=False, telegram_
         return False
 
     intro, video_count = extract_summary(report_path)
-    md_download, wav_download = build_urls(topic_key, local_folder, report_folder, date_str)
+    md_download, wav_download, view_url = build_urls(topic_key, local_folder, report_folder, date_str)
 
     vars_dict = {
         "topic_name":     display_name,
@@ -342,6 +363,7 @@ def notify_topic(topic_key, date_str, dry_run=False, email_only=False, telegram_
         "intro_summary":  intro,
         "md_download_url":  md_download,
         "wav_download_url": wav_download,
+        "view_url":         view_url,
     }
 
     sent = False

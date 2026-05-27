@@ -32,8 +32,12 @@
       <p class="intro">{{ intro_summary }}</p>
     </div>
     <div class="links">
-      <h2>ดาวน์โหลด</h2>
-      <a class="btn btn-primary" href="{{ md_download_url }}">📄 Download Report (.md)</a>
+      <h2>ดาวน์โหลด / อ่าน</h2>
+      {% if view_url %}
+      <a class="btn btn-primary" href="{{ view_url }}">👁 View Report (browser)</a>
+      <br>
+      {% endif %}
+      <a class="btn btn-secondary" href="{{ md_download_url }}">📄 Download Report (.md)</a>
       {% if wav_download_url %}
       <br>
       <a class="btn btn-primary" href="{{ wav_download_url }}">🎧 Download Audio (.wav)</a>

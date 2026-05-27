@@ -17,6 +17,7 @@
 | GitHub upload | ✅ Working |
 | Dedup system | ✅ Working |
 | Telegram daily digest | ✅ Working (includes audio status) |
+| Per-topic report/voice notifications | ✅ Added 2026-05-27 — `run_daily_summary_cron.sh` sends configured email/Telegram topic notifications after report upload + audio upload, before final daily digest |
 | Hallucination guard | ✅ Fixed 2026-05-24 (no downloadable captions → transcript unavailable; Thai captions are supported) |
 | Cron project path | ✅ Fixed 2026-05-12 (`Desktop/Projects`, not lowercase `projects`) |
 | Claude Code new subtopics | ✅ Working (Seedance, Higgsfield, Shopify, Hyperframe) |
@@ -46,9 +47,10 @@
 | Standard prompt | Slide-based summary (~500 words) | `prompts/thai_summary_prompt.txt` |
 | Detailed prompt | Section-based summary (2000-3000 words, 🎯📝🛠️📊💡 headers) | `prompts/thai_summary_prompt_detailed.txt` |
 | Claude Code subtopics | Base + new subtopics: obsidian, notebooklm, design, skills, remotion video, video, seedance, higgsfield, shopify, hyperframe | `run_claude_code_subtopics_enhanced.py` |
-| Daily Thai digest | Aggregates all topic reports + GitHub links | `ai_trends_daily_summary_thai.py` |
+| Daily Thai digest | Aggregates all topic reports + GitHub links + audio status | `ai_trends_daily_summary_thai.py` |
+| Per-topic notification | Sends configured report/voice links by email and/or Telegram after daily report/audio upload | `notify_topic.py`, `config/notification_routing.json` |
 | GitHub auto-upload | Clone reports repo → copy files → git push | `upload_reports_to_github_fixed.py` |
-| Manual pipeline runner | `run_all_today.sh` runs all 11 steps sequentially | `scripts/run_all_today.sh` |
+| Manual pipeline runner | `run_all_today.sh` runs all 19 steps sequentially | `scripts/run_all_today.sh` |
 | Rate limit handling | Auto-retry with backoff on 429 errors | `summarize_local.py` |
 | Audio TTS generation | Gemini 2.5 Flash TTS, per-video mode, FFmpeg concat, daily Telegram status | `generate_audio_report.py` |
 | Hallucination guard | No downloadable captions → early return "transcript unavailable" (no AI hallucination); Thai/English/any caption tracks are attempted in order | `summarize_local.py` |
@@ -123,6 +125,7 @@
 | T-040 | **Add finance/personal-finance channels to ATS daily cron** | 2026-05-23 | Added 5 channel jobs for practical daily-life finance summaries: Finance Money Coach (`@THEMONEYCOACHTH`), Finance Money Buffalo (`/c/MoneyBuffalo`), Finance A-Academy (`/user/aacademychannel`), Finance Financial Diet (`@thefinancialdiet`), Finance Humphrey Yang (`@humphrey`). Cron runs 07:45–08:25 ICT, max-results 3 each, `--detailed`; daily summary moved from 07:55 to 08:55 ICT so tomorrow's digest can include finance reports. Updated `config/research_jobs.json`, `scripts/ai_trends_daily_summary_thai.py`, and `scripts/run_all_today.sh`. |
 | T-042 | **Add Boom BigNose Thai AI channel to ATS daily cron** | 2026-05-24 | Added `Boom BigNose` (`@BoomBigNose`) as a production channel job at 08:35 ICT, max-results 3, `--detailed`. Updated `config/research_jobs.json`, `scripts/ai_trends_daily_summary_thai.py`, `scripts/run_all_today.sh`, `CLAUDE.md`, and installed crontab so tomorrow's 08:55 digest can include the report if new content is found. Verification: JSON load, py_compile, bash -n, crontab grep, and yt-dlp metadata probe. |
 | T-043 | **Add Health topics/playlists to ATS daily cron** | 2026-05-27 | Added two production jobs under `reports/health/`: `Health — อาหารบำรุงสุขภาพ` as YouTube search at 08:45 ICT (`--report-folder health/health_food_nutrition --max-results 5 --detailed`) and `Health — Top to Toe` playlist at 09:00 ICT (`--report-folder health/top_to_toe --channel playlist --max-results 5 --detailed`). Daily summary moved to 09:30 ICT so Health reports can be included. Updated installed crontab, `config/research_jobs.json`, `scripts/ai_trends_daily_summary_thai.py`, `scripts/run_all_today.sh`, and `CLAUDE.md`. |
+| T-044 | **Add per-topic report/voice notifications to end-of-day pipeline** | 2026-05-27 | `run_daily_summary_cron.sh` now runs in this order: upload Markdown reports → generate enabled audio → upload WAV/audio scripts → `notify_topic.py --all` email/Telegram per routing config → final Thai Telegram daily digest with audio status. Routing config currently enables `nateherk` email+Telegram, `health_food_nutrition` email, and keeps `joanna_wiebe` disabled. Fixed notification URL resolution so nested Health report folders and mapped audio folders resolve correctly. |
 | T-041 | **Fix Thai transcript support for finance channel summaries** | 2026-05-24 | Root cause: `summarize_local.py` downloaded only `--sub-lang en`; Thai finance channels had usable `th` captions while English auto-translation could fail with 429, so reports incorrectly said “ไม่มี transcript ภาษาอังกฤษ”. Fixed transcript extraction to try Thai first, then English, then any caption track before returning unavailable. Updated unavailable reason text to no longer say English-only. Added regression tests for Thai-first extraction and English fallback. Verification: `python3 -m py_compile scripts/summarize_local.py` ✅, `pytest tests/test_summarize_local_transcripts.py tests/test_report_index.py -q` = 6 passed ✅, live no-AI transcript smoke tests found Thai transcripts for Finance Money Coach, Finance Money Buffalo, and Finance A-Academy first videos ✅. Full `pytest tests -q` is currently blocked by pre-existing `dashboard/app.py` SyntaxError at line 1906 (unrelated to this change). |
 | T-037 | **Fix Dashboard Assets page showing empty table (date filter defaulted to today)** | 2026-05-21 | Root causes: (1) `date_from`/`date_to` inputs defaulted to today's date, so `filterTable()` on DOMContentLoaded hid all historical rows; (2) no asset JSONs generated since 2026-05-18 (asset generation is manual). Fix: changed both date inputs to `value=""`. Verified: May 18 rows visible on fresh page load, "Today" and "Last 7 days" shortcuts still work. |
 | T-038 | **Add Hyperframe to Claude Code new subtopics** | 2026-05-21 | Added `hyperframe` to `--only` list, bumped `--total-videos` from 15 to 20. Updated `CLAUDE.md` and `docs/TASKS.md`. |
@@ -177,7 +180,7 @@
 
 ## Cron Schedule (Current — Bangkok/ICT)
 
-> System crontab runs on Bangkok time on this machine. Reports are normally available around 08:00 Bangkok.
+> System crontab runs on Bangkok time on this machine. Research jobs run 05:00–09:00 ICT; final upload/audio/notification/digest pipeline starts at 09:30 ICT.
 
 | Bangkok Time | Topic | Args |
 |--------------|-------|------|
@@ -195,7 +198,7 @@
 | 08:35 | Boom BigNose (channel) | `--max-results 3 --detailed` |
 | 08:45 | Health — อาหารบำรุงสุขภาพ (search) | `--report-folder health/health_food_nutrition --max-results 5 --detailed` |
 | 09:00 | Health — Top to Toe (playlist) | `--report-folder health/top_to_toe --channel playlist --max-results 5 --detailed` |
-| 09:30 | Daily Summary + GitHub Upload + Audio + Telegram | — |
+| 09:30 | End-of-day pipeline | `run_daily_summary_cron.sh`: upload reports → generate enabled audio (NATEHERK, Joanna, Health Food, Health Top to Toe) → upload audio/scripts → per-topic notifications (`notify_topic.py --all`) → final Thai Telegram daily digest |
 
 ---
 
@@ -204,7 +207,7 @@
 ```bash
 cd /home/mandhira/Desktop/Projects/ai-trends-research-source
 
-# Full pipeline (all 11 steps, detailed summaries)
+# Full pipeline (all 19 steps, detailed summaries + end-of-day upload/audio/notifications)
 bash scripts/run_all_today.sh
 
 # Single topic
@@ -222,7 +225,7 @@ bash scripts/run_claude_code_subtopics_with_creds.sh --max-results 3 --total-vid
 # Claude Code new subtopics only
 bash scripts/run_claude_code_subtopics_with_creds.sh --only "seedance,higgsfield,shopify,hyperframe" --max-results 5 --total-videos 20 --detailed
 
-# Daily summary + GitHub upload only
+# End-of-day pipeline only: GitHub upload → audio → audio upload → per-topic notifications → daily digest
 bash scripts/run_daily_summary_cron.sh
 
 # Start local dashboard

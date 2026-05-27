@@ -7,15 +7,34 @@
     "telegram_chat_ids": []
   },
   "topics": {
-    "NATEHERK": {
+    "nateherk": {
       "email_enabled": true,
+      "telegram_enabled": true,
       "recipient_emails": [
         "owllulla@gmail.com"
       ],
-      "telegram_enabled": true,
       "telegram_chat_ids": [
         "1043709932"
       ],
+      "notification_mode": "per_topic"
+    },
+    "joanna_wiebe": {
+      "email_enabled": false,
+      "telegram_enabled": false,
+      "recipient_emails": [
+        "waewta.t@gmail.com"
+      ],
+      "telegram_chat_ids": [],
+      "notification_mode": "per_topic"
+    },
+    "health_food_nutrition": {
+      "email_enabled": true,
+      "telegram_enabled": false,
+      "recipient_emails": [
+        "owllulla@gmail.com",
+        "aorayuwat@gmail.com"
+      ],
+      "telegram_chat_ids": [],
       "notification_mode": "per_topic"
     }
   }
