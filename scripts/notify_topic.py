@@ -166,7 +166,7 @@ def build_urls(topic_key, local_folder, report_folder, date_str):
                 break
         if audio_topic:
             wav_download = (
-                f"{DASHBOARD_HOST}/api/audio/serve?"
+                f"{DASHBOARD_HOST}/view/audio?"
                 + urlencode({"topic": audio_topic, "date": date_str})
             )
     except Exception as e:
@@ -199,7 +199,7 @@ def render_plain_email(vars_dict):
         lines.append(f"👁 View Report (browser): {vars_dict['view_url']}")
     lines.append(f"📄 Download Report (.md): {vars_dict['md_download_url']}")
     if vars_dict.get("wav_download_url"):
-        lines.append(f"🎧 Download Audio (.wav): {vars_dict['wav_download_url']}")
+        lines.append(f"🎧 Listen to Audio (all videos): {vars_dict['wav_download_url']}")
     lines += ["", "—", "AI Trends Research System"]
     return "\n".join(lines)
 
@@ -290,7 +290,7 @@ def build_telegram_text(vars_dict):
         lines.append(f'👁 <a href="{view_url}">View Report (browser)</a>')
     lines.append(f'📄 <a href="{md_download}">Download Report (.md)</a>')
     if wav_download:
-        lines.append(f'🎧 <a href="{wav_download}">Download Audio (.wav)</a>')
+        lines.append(f'🎧 <a href="{wav_download}">Listen to Audio (all videos)</a>')
     lines += ["", "—", "ATS Research System"]
     return "\n".join(lines)
 

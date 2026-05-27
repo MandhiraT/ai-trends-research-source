@@ -421,6 +421,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self.download_report()
         elif parsed.path == "/view/report":
             self.view_report()
+        elif parsed.path == "/view/audio":
+            self.view_audio()
         else:
             self.send_error(404)
 
@@ -1907,10 +1909,11 @@ document.addEventListener('DOMContentLoaded',function(){{
 
 
     def api_audio_serve(self):
-        """Serve a WAV file for browser download. Matches {date}.wav or {date}-v*.wav."""
+        """Serve a WAV file for browser download. Optional video=N (1-based) selects specific file."""
         qs = parse_qs(urlparse(self.path).query)
         topic = qs.get("topic", [""])[0].strip()
         date  = qs.get("date",  [""])[0].strip()
+        video = qs.get("video", [""])[0].strip()
         if not topic or not re.match(r"^\d{4}-\d{2}-\d{2}$", date):
             self.send_error(400)
             return
@@ -1921,13 +1924,16 @@ document.addEventListener('DOMContentLoaded',function(){{
             self.send_error(404)
             return
 
-        # Prefer canonical topic-prefixed files first, then legacy date-only names
         candidates = find_voice_files(topic_dir, topic, date)
         if not candidates:
             self.send_error(404)
             return
 
-        wav_path = candidates[0]
+        if video and video.isdigit():
+            idx = int(video) - 1
+            wav_path = candidates[idx] if 0 <= idx < len(candidates) else candidates[0]
+        else:
+            wav_path = candidates[0]
         data = wav_path.read_bytes()
         fname = wav_path.name
         self.send_response(200)
@@ -2071,6 +2077,62 @@ document.addEventListener('DOMContentLoaded',function(){{
 <body>
 <p class="nav">📄 {title} &nbsp;·&nbsp; <a href="/download/report?topic={quote(topic)}&date={quote(date)}">⬇ Download .md</a></p>
 {body_html}
+</body>
+</html>"""
+        data = html_page.encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(data)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(data)
+
+    def view_audio(self):
+        """List all audio files for a topic+date with inline players and download links."""
+        qs = parse_qs(urlparse(self.path).query)
+        topic = qs.get("topic", [""])[0].strip()
+        date  = qs.get("date",  [""])[0].strip()
+        if not topic or not re.match(r"^\d{4}-\d{2}-\d{2}$", date):
+            self.send_error(400)
+            return
+
+        audio_base = PROJECT_ROOT / "ai_trends_reports" / "audio"
+        topic_dir  = _find_topic_dir(audio_base, topic, _slug(topic))
+        files = find_voice_files(topic_dir, topic, date) if topic_dir else []
+
+        title = h(f"Audio — {topic} · {date}")
+        if not files:
+            items_html = "<p>ไม่พบไฟล์เสียงสำหรับวันนี้</p>"
+        else:
+            items = []
+            for i, f in enumerate(files, 1):
+                serve_url = f"/api/audio/serve?topic={quote(topic)}&date={quote(date)}&video={i}"
+                items.append(f"""<div class="track">
+  <p class="label">Video {i} — {h(f.name)}</p>
+  <audio controls style="width:100%;margin-bottom:6px"><source src="{serve_url}" type="audio/wav"></audio>
+  <a class="dl" href="{serve_url}">⬇ Download {h(f.name)}</a>
+</div>""")
+            items_html = "\n".join(items)
+
+        html_page = f"""<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{title}</title>
+<style>
+  body{{max-width:720px;margin:0 auto;padding:16px 18px;font-family:-apple-system,Arial,sans-serif;font-size:16px;line-height:1.6;color:#1a202c;background:#fff}}
+  h1{{font-size:1.3em;color:#111827;margin-bottom:16px}}
+  .track{{background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:14px 16px;margin-bottom:14px}}
+  .label{{margin:0 0 8px;font-weight:600;font-size:14px;color:#374151}}
+  .dl{{font-size:13px;color:#1d4ed8;text-decoration:none}}
+  .nav{{margin-bottom:16px;font-size:14px;color:#6b7280}}
+</style>
+</head>
+<body>
+<p class="nav">🎧 {title}</p>
+<h1>Audio Reports — {h(topic)} · {h(date)}</h1>
+{items_html}
 </body>
 </html>"""
         data = html_page.encode("utf-8")
