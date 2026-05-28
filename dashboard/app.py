@@ -604,15 +604,15 @@ function clearFilters(){{
 }}
 document.getElementById('filter-topic').addEventListener('change',applyFilters);
 document.getElementById('filter-date').addEventListener('input',applyFilters);
-window.addEventListener('DOMContentLoaded',function(){{applyFilters();{"document.getElementById('file-content')&&document.getElementById('file-content').scrollIntoView({{behavior:'smooth',block:'start'}});" if selected else ""}}});
+window.addEventListener('DOMContentLoaded',applyFilters);
 </script>"""
 
-        scroll_link = '<p><a href="#file-content">↓ Jump to file content</a></p>' if content and is_reports else ""
+        back_link = f'<p style="margin-bottom:12px"><a href="{parsed.path}">← กลับไปรายการ</a></p>' if content and is_reports else ""
         body = f"""<h1>{h(title)}</h1>
-{filter_ui}
-{scroll_link}
-<table id="file-table"><thead><tr><th>File</th><th>Modified</th></tr></thead><tbody>{''.join(rows) if rows else '<tr><td colspan="2">No files found.</td></tr>'}</tbody></table>
 {content}
+{back_link}
+{filter_ui}
+<table id="file-table"><thead><tr><th>File</th><th>Modified</th></tr></thead><tbody>{''.join(rows) if rows else '<tr><td colspan="2">No files found.</td></tr>'}</tbody></table>
 <style>#file-table tr.selected-row td{{background:#fffbe6}}</style>"""
         self.send_html(page(title, body))
 
