@@ -2294,6 +2294,17 @@ document.addEventListener('DOMContentLoaded',function(){{
                 return '<span style="color:#16a34a">●</span>' if ok else '<span style="color:#d1d5db">●</span>'
 
             src_link = f' <a href="{c["source_url"]}" target="_blank" rel="noopener" style="font-size:12px;color:#6366f1">↗</a>' if c["source_url"] else ""
+            dd_button_label = "📚 Open DD Script" if has_dds else '<span style="opacity:.45">📚 No DD Script</span>'
+            full_voice_download = (
+                f"<a class='btn-sm' href='/api/voice/serve?topic={safe_topic}&date={safe_date}&video={vno}&type=full' "
+                "download title='Download full voice WAV'>⬇️ Full Voice</a>"
+                if has_fv else ""
+            )
+            dd_voice_download = (
+                f"<a class='btn-sm' href='/api/voice/serve?topic={safe_topic}&date={safe_date}&video={vno}&type=deep_dive' "
+                "download title='Download deep-dive voice WAV'>⬇️ DD Voice</a>"
+                if has_ddv else ""
+            )
 
             cards_html += f'''<div class="vcard" id="vcard-{vno}">
 <div class="vcard-header">
@@ -2305,11 +2316,11 @@ document.addEventListener('DOMContentLoaded',function(){{
   <button class="btn-sm" onclick="genScriptVideo('{safe_topic}','{safe_date}',{vno})" title="Generate full audio script for this video via AI">🤖 {'Regen' if has_fs else 'Gen'} Script</button>
   <button class="btn-sm" onclick="openManageScript('{safe_topic}','{safe_date}',{vno},'full')" title="Open / edit full script">📝 {'Open' if has_fs else 'Edit'} Script</button>
   <button class="btn-sm" onclick="genDeepDive('{safe_topic}','{safe_date}',{vno})" title="Generate deep-dive script via AI">📖 {'Regen' if has_dds else 'Generate'} Deep-Dive</button>
-  <button class="btn-sm" onclick="openManageScript('{safe_topic}','{safe_date}',{vno},'deep_dive')" title="Open / edit deep-dive script">{'📚 Open DD Script' if has_dds else '<span style=\"opacity:.45\">📚 No DD Script</span>'}</button>
+  <button class="btn-sm" onclick="openManageScript('{safe_topic}','{safe_date}',{vno},'deep_dive')" title="Open / edit deep-dive script">{dd_button_label}</button>
   <button class="btn-sm{'' if has_fs else ' disabled-btn'}" onclick="genVoice('{safe_topic}','{safe_date}',{vno},'full')" title="Generate full voice from saved script" {'disabled' if not has_fs else ''}>🎙️ Full Voice</button>
   <button class="btn-sm{'' if has_dds else ' disabled-btn'}" onclick="genVoice('{safe_topic}','{safe_date}',{vno},'deep_dive')" title="Generate deep-dive voice from saved script" {'disabled' if not has_dds else ''}>🎧 DD Voice</button>
-  {"<a class='btn-sm' href='/api/voice/serve?topic="+safe_topic+"&date="+safe_date+"&video="+str(vno)+"&type=full' download title='Download full voice WAV'>⬇️ Full Voice</a>" if has_fv else ""}
-  {"<a class='btn-sm' href='/api/voice/serve?topic="+safe_topic+"&date="+safe_date+"&video="+str(vno)+"&type=deep_dive' download title='Download deep-dive voice WAV'>⬇️ DD Voice</a>" if has_ddv else ""}
+  {full_voice_download}
+  {dd_voice_download}
   <span id="vstatus-{vno}" class="muted" style="font-size:12px"></span>
 </div>
 </div>'''
@@ -2468,6 +2479,11 @@ function genDeepDive(topic,date,video){{
       setTimeout(function(){{location.reload();}},3000);
     }})
     .catch(function(err){{if(vstatus) vstatus.textContent='Error: '+err;alert('Error: '+err);}});
+}}
+
+function generateDeepDiveScript(topic,date,video){{
+  // Backward-compatible alias for older dashboard tests/buttons: Generate deep dive script.
+  return genDeepDive(topic,date,video);
 }}
 
 function regenAllScripts(topic,date){{
