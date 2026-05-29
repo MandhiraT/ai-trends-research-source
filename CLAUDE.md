@@ -62,14 +62,19 @@ Automated daily AI trends research from YouTube. Scrapes videos → generates **
 | Health — Top to Toe | Top to Toe playlist | playlist (reports/health/top_to_toe) |
 | Self Help/Psychology — Therapy in a Nutshell | @TherapyinaNutshell channel | channel (reports/self_help/psychology/therapy_in_a_nutshell) |
 | Self Help/Psychology — HealthyGamerGG | @HealthyGamerGG channel | channel (reports/self_help/psychology/healthygamergg) |
+| Self Help/Psychology — Psych2Go | @Psych2go channel | channel (reports/self_help/psychology/psych2go) |
 | Self Help/Psychology — The School of Life | @theschooloflifetv channel | channel (reports/self_help/psychology/school_of_life) |
 | Self Help/Psychology — Dr. Tracey Marks | @DrTraceyMarks channel | channel (reports/self_help/psychology/dr_tracey_marks) |
 | Self Help/Habits — Ali Abdaal | @aliabdaal channel | channel (reports/self_help/habits/ali_abdaal) |
 | Self Help/Habits — James Clear | @jamesclear channel | channel (reports/self_help/habits/james_clear) |
 | Self Help/Habits — Better Ideas | @betterideas channel | channel (reports/self_help/habits/better_ideas) |
 | Self Help/Habits — Struthless | @struthless channel | channel (reports/self_help/habits/struthless) |
+| Self Help/Habits — Clark Kegley | @clarkkegley channel | channel (reports/self_help/habits/clark_kegley) |
 | Self Help/Modern Dharma — Doug's Dharma | @DougsDharma channel | channel (reports/self_help/modern_dharma/dougs_dharma) |
 | Self Help/Modern Dharma — Einzelgänger | @einzelganger channel | channel (reports/self_help/modern_dharma/einzelganger) |
+| Self Help/Modern Dharma — Pursuit of Wonder | @PursuitofWonder channel | channel (reports/self_help/modern_dharma/pursuit_of_wonder) |
+| Self Help/Modern Dharma — The Mindful Movement | @TheMindfulMovement channel | channel (reports/self_help/modern_dharma/mindful_movement) |
+| Self Help/Modern Dharma — Acharya Prashant | @AcharyaPrashant channel | channel (reports/self_help/modern_dharma/acharya_prashant) |
 
 **Claude Code subtopics:** obsidian · notebooklm · design · skills · remotion video · video · seedance · higgsfield · shopify · hyperframe
 
@@ -109,9 +114,14 @@ Automated daily AI trends research from YouTube. Scrapes videos → generates **
 | 10:30 | 03:30 | Self Help/Habits — Struthless | `--report-folder self_help/habits/struthless --channel @struthless --max-results 3 --detailed` |
 | 10:40 | 03:40 | Self Help/Modern Dharma — Doug's Dharma | `--report-folder self_help/modern_dharma/dougs_dharma --channel @DougsDharma --max-results 3 --detailed` |
 | 10:50 | 03:50 | Self Help/Modern Dharma — Einzelgänger | `--report-folder self_help/modern_dharma/einzelganger --channel @einzelganger --max-results 3 --detailed` |
-| 11:10 | 04:10 | Daily Summary + Audio + GitHub | moved later so self-help reports can be included |
+| 11:00 | 04:00 | Self Help/Psychology — Psych2Go | `--report-folder self_help/psychology/psych2go --channel @Psych2go --max-results 3 --detailed` |
+| 11:10 | 04:10 | Self Help/Habits — Clark Kegley | `--report-folder self_help/habits/clark_kegley --channel @clarkkegley --max-results 3 --detailed` |
+| 11:20 | 04:20 | Self Help/Modern Dharma — Pursuit of Wonder | `--report-folder self_help/modern_dharma/pursuit_of_wonder --channel @PursuitofWonder --max-results 3 --detailed` |
+| 11:30 | 04:30 | Self Help/Modern Dharma — The Mindful Movement | `--report-folder self_help/modern_dharma/mindful_movement --channel @TheMindfulMovement --max-results 3 --detailed` |
+| 11:40 | 04:40 | Self Help/Modern Dharma — Acharya Prashant | `--report-folder self_help/modern_dharma/acharya_prashant --channel @AcharyaPrashant --max-results 3 --detailed` |
+| 12:10 | 05:10 | Daily Summary + Audio + GitHub | moved later so full self-help Phase 1 reports can be included |
 
-**Reports + audio available on GitHub ~11:20–11:45 Bangkok every day after finance/Thai AI/health/self-help jobs run.**
+**Reports + audio available on GitHub ~12:20–12:45 Bangkok every day after finance/Thai AI/health/self-help jobs run.**
 
 > To view/edit crontab: `crontab -l` / `crontab -e`
 
@@ -132,7 +142,7 @@ Save to ai_trends_reports/reports/{topic}/{YYYY-MM-DD}.md
   ↓
 upload_reports_to_github_fixed.py → git push → MandhiraT/ai-trends-research
   ↓
-Telegram notification (daily digest ~11:10 Bangkok)
+Telegram notification (daily digest ~12:10 Bangkok)
 ```
 
 ## Dashboard

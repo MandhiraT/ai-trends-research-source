@@ -237,9 +237,11 @@ Ali Abdaal เวอร์ชัน Feel-Good Productivity, James Clear, Matt D�
 
 # Recommended ATS Prioritization
 
-## Phase 1 — เริ่มจาก 10 ช่องที่คุ้มสุด
+## Phase 1 — เริ่มจาก 11 ช่องที่คุ้มสุด
 
 เหมาะเพิ่มเป็น watchlist/ทดลอง ATS ก่อน เพราะมีเนื้อหาชัด คุณภาพสูง และตรงกับ The Quiet Self
+
+> Update 2026-05-29: เพิ่ม **Psych2Go** เข้า Phase 1 ตาม feedback ของพี่ Mandy เพราะเหมาะเป็น mass-reach psychology + animation/packaging reference แม้ต้องมี guardrail เรื่องเนื้อหา simplified/diagnostic checklist
 
 1. Therapy in a Nutshell
 2. HealthyGamerGG
@@ -251,6 +253,11 @@ Ali Abdaal เวอร์ชัน Feel-Good Productivity, James Clear, Matt D�
 8. Struthless
 9. Doug’s Dharma
 10. Einzelgänger
+11. Psych2Go — mass-reach psychology + animation packaging reference; ใช้เป็น inspiration พร้อม guardrail เรื่องความ simplified
+12. Clark Kegley — grounded mindset/habits/identity work; คัดคลิปที่ practical มากกว่า manifestation-heavy
+13. Pursuit of Wonder — philosophical storytelling / reflective life lessons
+14. The Mindful Movement — guided mindfulness / nervous-system reset; คัดคลิปที่มีสาระอธิบาย ไม่ใช่ meditation-loop ล้วน
+15. Acharya Prashant — modern dharma/philosophy; คัดเฉพาะ practical non-dogmatic lessons
 
 ## Phase 2 — เพิ่มช่องไทยเพื่อ localization
 
@@ -314,7 +321,7 @@ Ali Abdaal เวอร์ชัน Feel-Good Productivity, James Clear, Matt D�
 
 ถ้าพี่ Mandy ต้องการเอาไปใช้กับ ATS จริง มะลิแนะนำให้เริ่มแบบไม่ใหญ่เกิน:
 
-1. **ทำ watchlist 10 ช่องแรกก่อน** เพื่อดูคุณภาพ transcript และความเหมาะกับสรุปไทย
+1. **ทำ watchlist Phase 1 จำนวน 15 ช่องแรกก่อน** เพื่อดูคุณภาพ transcript และความเหมาะกับสรุปไทย โดยชุด production 2026-05-29 อัปเดตให้ครอบคลุมช่องจากเอกสาร Self Help Channel.docx แล้ว
 2. **แยก folder/report topic เป็น `self_help/psychology`, `self_help/habits`, `self_help/modern_dharma`** เพื่อไม่ให้ทุกอย่างปนกัน
 3. **ยังไม่ใส่ manifestation-heavy channels เป็น daily cron ทันที** ให้เป็น manual/trend watch ก่อน
 4. **ใช้ช่องไทยเป็น reference ภาษากับบริบท** มากกว่าจะพึ่งเป็น source หลักทั้งหมด

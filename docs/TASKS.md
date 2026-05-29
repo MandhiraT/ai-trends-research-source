@@ -131,6 +131,8 @@
 | T-038 | **Add Hyperframe to Claude Code new subtopics** | 2026-05-21 | Added `hyperframe` to `--only` list, bumped `--total-videos` from 15 to 20. Updated `CLAUDE.md` and `docs/TASKS.md`. |
 | T-039 | **Implement Dashboard multi-video asset manage page** | 2026-05-21 | Full multi-video manage implementation in `dashboard/app.py`. New: `GET /assets/manage?topic=&date=` (per-video cards with status dots, explicit script/voice buttons, script editor, bulk voice with checkboxes + confirm, Regen All Scripts), `GET /api/assets/videos` JSON endpoint (per-video `full_script.exists`, `deep_dive_script.exists`, `full_voice.exists`, `deep_dive_voice.exists`). Main `/assets` page: Script/Voice column → Manage column (🎛️ link), aggregate count badges (📝📖🎙️🎧 in N/T green/yellow/gray format), script editor removed, old prompt-based `generateDeepDiveScript`/`generateVoice`/`openScript`/`saveScript` JS removed. No `window.prompt()` anywhere. Plan doc `DASHBOARD-ASSET-MANAGE-PAGE-PLAN.md` updated with 7 implementation gaps + open question answers. All 32 ISC + 3 anti-criteria verified. |
 | T-040 | **Add explicit transcript language routing to production jobs** | 2026-05-29 | Added `--transcript-langs` CLI support so each production job controls caption order explicitly instead of guessing from topic names. English/international jobs use `en,th,all`; Thai jobs use `th,en,all`. Updated installed crontab, `config/research_jobs.json`, `scripts/run_all_today.sh`, `dashboard/app.py`, `run_ai_trends_research_enhanced.py`, and `summarize_local.py`. Added regression tests for parser, summarize propagation, and explicit English-first extraction. |
+| T-041 | **Add Psych2Go to Self-help Phase 1 psychology batch** | 2026-05-29 | Added `Self Help/Psychology — Psych2Go` (`@Psych2go`) under `self_help/psychology/psych2go`, English-first transcript routing, production cron at 11:00 ICT. Rationale: was present in the research matrix as a mass-reach psychology/animation reference but omitted from first top-10 production batch due simplified-content caution; Mandy requested it in Phase 1. |
+| T-042 | **Reconcile Self Help Channel DOCX and expand Phase 1 to 15 channels** | 2026-05-29 | Extracted Mandy's `Self Help Channel.docx` into `docs/SELF-HELP-CHANNEL-DOCX-EXTRACTED.md`, added reconciliation note `docs/SELF-HELP-PHASE1-DOCX-RECONCILIATION.md`, and expanded production self-help Phase 1 with the four remaining DOCX gaps: Clark Kegley, Pursuit of Wonder, The Mindful Movement, and Acharya Prashant. Daily summary moved to 12:10 ICT so the 11:40 job can finish. |
 
 ### Backlog
 
@@ -181,7 +183,7 @@
 
 ## Cron Schedule (Current — Bangkok/ICT)
 
-> System crontab runs on Bangkok time on this machine. Research jobs run 05:00–10:50 ICT; final upload/audio/notification/digest pipeline starts at 11:10 ICT.
+> System crontab runs on Bangkok time on this machine. Research jobs run 05:00–11:40 ICT; final upload/audio/notification/digest pipeline starts at 12:10 ICT.
 
 | Bangkok Time | Topic | Args |
 |--------------|-------|------|
@@ -199,7 +201,8 @@
 | 08:35 | Boom BigNose (channel) | `--max-results 3 --detailed` |
 | 08:45 | Health — อาหารบำรุงสุขภาพ (search) | `--report-folder health/health_food_nutrition --max-results 5 --detailed` |
 | 09:00 | Health — Top to Toe (playlist) | `--report-folder health/top_to_toe --channel playlist --max-results 5 --detailed` |
-| 09:30 | End-of-day pipeline | `run_daily_summary_cron.sh`: upload reports → generate enabled audio (NATEHERK, Joanna, Health Food, Health Top to Toe) → upload audio/scripts → per-topic notifications (`notify_topic.py --all`) → final Thai Telegram daily digest |
+| 09:20–11:40 | Self-help Phase 1 | 15 channel jobs under `self_help/{psychology,habits,modern_dharma}`, `--max-results 3 --transcript-langs en,th,all --detailed` |
+| 12:10 | End-of-day pipeline | `run_daily_summary_cron.sh`: upload reports → generate enabled audio (NATEHERK, Joanna, Health Food, Health Top to Toe) → upload audio/scripts → per-topic notifications (`notify_topic.py --all`) → final Thai Telegram daily digest |
 
 ---
 
@@ -208,7 +211,7 @@
 ```bash
 cd /home/mandhira/Desktop/Projects/ai-trends-research-source
 
-# Full pipeline (all 19 steps, detailed summaries + end-of-day upload/audio/notifications)
+# Full pipeline (all 34 steps, detailed summaries + end-of-day upload/audio/notifications)
 bash scripts/run_all_today.sh
 
 # Single topic

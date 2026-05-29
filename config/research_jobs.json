@@ -527,7 +527,7 @@
       "source_type": "channel",
       "topic": "Self Help Therapy in a Nutshell",
       "source_url": "https://youtube.com/@TherapyinaNutshell",
-      "max_videos": 3,
+      "max_videos": 5,
       "detailed": true,
       "report_folder": "self_help/psychology/therapy_in_a_nutshell",
       "schedule_time": "09:20",
@@ -553,6 +553,26 @@
       "schedule_time": "09:30",
       "include_in_daily_summary": true,
       "notes": "Self-help Phase 1 channel added 2026-05-29 from docs/SELF-HELP-YOUTUBE-CHANNEL-RESEARCH-ANALYSIS.md; grouped under self_help/{psychology,habits,modern_dharma}.",
+      "source_language": "en",
+      "transcript_langs": [
+        "en",
+        "th",
+        "all"
+      ]
+    },
+    {
+      "id": "self_help_psych2go",
+      "name": "Self Help/Psychology — Psych2Go",
+      "enabled": true,
+      "source_type": "channel",
+      "topic": "Self Help Psych2Go",
+      "source_url": "https://youtube.com/@Psych2go",
+      "max_videos": 3,
+      "detailed": true,
+      "report_folder": "self_help/psychology/psych2go",
+      "schedule_time": "11:00",
+      "include_in_daily_summary": true,
+      "notes": "Self-help Phase 1 channel added 2026-05-29 by Mandy request; included for mass-reach psychology packaging/animation reference, with caution for simplified diagnostic content.",
       "source_language": "en",
       "transcript_langs": [
         "en",
@@ -681,6 +701,26 @@
       ]
     },
     {
+      "id": "self_help_clark_kegley",
+      "name": "Self Help/Habits — Clark Kegley",
+      "source_type": "channel",
+      "topic": "Self Help Clark Kegley",
+      "source_url": "https://youtube.com/@clarkkegley",
+      "report_folder": "self_help/habits/clark_kegley",
+      "schedule_time": "11:10",
+      "notes": "Self-help Phase 1 channel from Mandy's Self Help Channel.docx; grounded mindset/habits/identity work. Guardrail: avoid overly manifestation-heavy takes; summarize practical behavior change.",
+      "source_language": "en",
+      "enabled": true,
+      "max_videos": 3,
+      "detailed": true,
+      "include_in_daily_summary": true,
+      "transcript_langs": [
+        "en",
+        "th",
+        "all"
+      ]
+    },
+    {
       "id": "self_help_dougs_dharma",
       "name": "Self Help/Modern Dharma — Doug's Dharma",
       "enabled": true,
@@ -714,6 +754,66 @@
       "include_in_daily_summary": true,
       "notes": "Self-help Phase 1 channel added 2026-05-29 from docs/SELF-HELP-YOUTUBE-CHANNEL-RESEARCH-ANALYSIS.md; grouped under self_help/{psychology,habits,modern_dharma}.",
       "source_language": "en",
+      "transcript_langs": [
+        "en",
+        "th",
+        "all"
+      ]
+    },
+    {
+      "id": "self_help_pursuit_of_wonder",
+      "name": "Self Help/Modern Dharma — Pursuit of Wonder",
+      "source_type": "channel",
+      "topic": "Self Help Pursuit of Wonder",
+      "source_url": "https://youtube.com/@PursuitofWonder",
+      "report_folder": "self_help/modern_dharma/pursuit_of_wonder",
+      "schedule_time": "11:20",
+      "notes": "Self-help Phase 1 channel from Mandy's Self Help Channel.docx; philosophical storytelling and reflective life lessons suitable for The Quiet Self framing.",
+      "source_language": "en",
+      "enabled": true,
+      "max_videos": 3,
+      "detailed": true,
+      "include_in_daily_summary": true,
+      "transcript_langs": [
+        "en",
+        "th",
+        "all"
+      ]
+    },
+    {
+      "id": "self_help_mindful_movement",
+      "name": "Self Help/Modern Dharma — The Mindful Movement",
+      "source_type": "channel",
+      "topic": "Self Help The Mindful Movement",
+      "source_url": "https://youtube.com/@TheMindfulMovement",
+      "report_folder": "self_help/modern_dharma/mindful_movement",
+      "schedule_time": "11:30",
+      "notes": "Self-help Phase 1 channel from Mandy's Self Help Channel.docx; guided mindfulness, nervous-system reset, sleep/stress practices. Guardrail: skip pure meditation-audio videos if transcript is too repetitive.",
+      "source_language": "en",
+      "enabled": true,
+      "max_videos": 3,
+      "detailed": true,
+      "include_in_daily_summary": true,
+      "transcript_langs": [
+        "en",
+        "th",
+        "all"
+      ]
+    },
+    {
+      "id": "self_help_acharya_prashant",
+      "name": "Self Help/Modern Dharma — Acharya Prashant",
+      "source_type": "channel",
+      "topic": "Self Help Acharya Prashant",
+      "source_url": "https://youtube.com/@AcharyaPrashant",
+      "report_folder": "self_help/modern_dharma/acharya_prashant",
+      "schedule_time": "11:40",
+      "notes": "Self-help Phase 1 channel from Mandy's Self Help Channel.docx; modern dharma/philosophy reference. Guardrail: keep only practical, non-dogmatic lessons and avoid culture-specific preaching tone.",
+      "source_language": "en",
+      "enabled": true,
+      "max_videos": 3,
+      "detailed": true,
+      "include_in_daily_summary": true,
       "transcript_langs": [
         "en",
         "th",
