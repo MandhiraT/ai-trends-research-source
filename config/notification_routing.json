@@ -9,7 +9,7 @@
   "topics": {
     "nateherk": {
       "email_enabled": true,
-      "telegram_enabled": true,
+      "telegram_enabled": false,
       "recipient_emails": [
         "owllulla@gmail.com"
       ],
@@ -19,10 +19,10 @@
       "notification_mode": "per_topic"
     },
     "joanna_wiebe": {
-      "email_enabled": false,
+      "email_enabled": true,
       "telegram_enabled": false,
       "recipient_emails": [
-        "waewta.t@gmail.com"
+        "owllulla@gmail.com"
       ],
       "telegram_chat_ids": [],
       "notification_mode": "per_topic"
@@ -31,8 +31,7 @@
       "email_enabled": true,
       "telegram_enabled": false,
       "recipient_emails": [
-        "owllulla@gmail.com",
-        "aorayuwat@gmail.com"
+        "owllulla@gmail.com"
       ],
       "telegram_chat_ids": [],
       "notification_mode": "per_topic"

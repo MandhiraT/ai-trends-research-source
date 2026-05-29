@@ -51,6 +51,16 @@ TOPICS = [
     ("Boom BigNose",      "boom_bignose",           "boom_bignose"),
     ("Health — อาหารบำรุงสุขภาพ", "health/health_food_nutrition", "health/health_food_nutrition"),
     ("Health — Top to Toe", "health/top_to_toe", "health/top_to_toe"),
+    ("Self Help/Psychology — Therapy in a Nutshell", "self_help/psychology/therapy_in_a_nutshell", "self_help/psychology/therapy_in_a_nutshell"),
+    ("Self Help/Psychology — HealthyGamerGG", "self_help/psychology/healthygamergg", "self_help/psychology/healthygamergg"),
+    ("Self Help/Psychology — The School of Life", "self_help/psychology/school_of_life", "self_help/psychology/school_of_life"),
+    ("Self Help/Psychology — Dr. Tracey Marks", "self_help/psychology/dr_tracey_marks", "self_help/psychology/dr_tracey_marks"),
+    ("Self Help/Habits — Ali Abdaal", "self_help/habits/ali_abdaal", "self_help/habits/ali_abdaal"),
+    ("Self Help/Habits — James Clear", "self_help/habits/james_clear", "self_help/habits/james_clear"),
+    ("Self Help/Habits — Better Ideas", "self_help/habits/better_ideas", "self_help/habits/better_ideas"),
+    ("Self Help/Habits — Struthless", "self_help/habits/struthless", "self_help/habits/struthless"),
+    ("Self Help/Modern Dharma — Doug's Dharma", "self_help/modern_dharma/dougs_dharma", "self_help/modern_dharma/dougs_dharma"),
+    ("Self Help/Modern Dharma — Einzelgänger", "self_help/modern_dharma/einzelganger", "self_help/modern_dharma/einzelganger"),
 ]
 
 

@@ -28,7 +28,7 @@ Automated daily AI trends research from YouTube. Scrapes videos → generates **
 | `scripts/upload_reports_to_github_fixed.py` | Clones reports repo → copies files → git push |
 | `scripts/run_ai_trends_with_creds.sh` | Bash wrapper — sources credentials.env, calls Python |
 | `scripts/run_claude_code_subtopics_with_creds.sh` | Same wrapper for subtopics script |
-| `scripts/run_all_today.sh` | Runs full 11-step pipeline manually (same as cron) |
+| `scripts/run_all_today.sh` | Runs full 29-step pipeline manually (same as cron) |
 | `scripts/run_daily_summary_cron.sh` | Daily summary + GitHub upload + audio + Telegram step |
 | `config/paths.py` | All path constants + `load_credentials()` — import at top of every script |
 | `config/research_jobs.json` | Dashboard-managed research job config |
@@ -60,6 +60,16 @@ Automated daily AI trends research from YouTube. Scrapes videos → generates **
 | Boom BigNose | @BoomBigNose channel | channel |
 | Health — อาหารบำรุงสุขภาพ | YouTube search | search (reports/health/health_food_nutrition) |
 | Health — Top to Toe | Top to Toe playlist | playlist (reports/health/top_to_toe) |
+| Self Help/Psychology — Therapy in a Nutshell | @TherapyinaNutshell channel | channel (reports/self_help/psychology/therapy_in_a_nutshell) |
+| Self Help/Psychology — HealthyGamerGG | @HealthyGamerGG channel | channel (reports/self_help/psychology/healthygamergg) |
+| Self Help/Psychology — The School of Life | @theschooloflifetv channel | channel (reports/self_help/psychology/school_of_life) |
+| Self Help/Psychology — Dr. Tracey Marks | @DrTraceyMarks channel | channel (reports/self_help/psychology/dr_tracey_marks) |
+| Self Help/Habits — Ali Abdaal | @aliabdaal channel | channel (reports/self_help/habits/ali_abdaal) |
+| Self Help/Habits — James Clear | @jamesclear channel | channel (reports/self_help/habits/james_clear) |
+| Self Help/Habits — Better Ideas | @betterideas channel | channel (reports/self_help/habits/better_ideas) |
+| Self Help/Habits — Struthless | @struthless channel | channel (reports/self_help/habits/struthless) |
+| Self Help/Modern Dharma — Doug's Dharma | @DougsDharma channel | channel (reports/self_help/modern_dharma/dougs_dharma) |
+| Self Help/Modern Dharma — Einzelgänger | @einzelganger channel | channel (reports/self_help/modern_dharma/einzelganger) |
 
 **Claude Code subtopics:** obsidian · notebooklm · design · skills · remotion video · video · seedance · higgsfield · shopify · hyperframe
 
@@ -89,9 +99,19 @@ Automated daily AI trends research from YouTube. Scrapes videos → generates **
 | 08:35 | 01:35 | Boom BigNose | `--channel @BoomBigNose --max-results 3 --detailed` |
 | 08:45 | 01:45 | Health — อาหารบำรุงสุขภาพ | `--report-folder health/health_food_nutrition --max-results 5 --detailed` |
 | 09:00 | 02:00 | Health — Top to Toe | `--report-folder health/top_to_toe --channel playlist --max-results 5 --detailed` |
-| 09:30 | 02:30 | Daily Summary + Audio + GitHub | moved later so health reports can be included |
+| 09:20 | 02:20 | Self Help/Psychology — Therapy in a Nutshell | `--report-folder self_help/psychology/therapy_in_a_nutshell --channel @TherapyinaNutshell --max-results 3 --detailed` |
+| 09:30 | 02:30 | Self Help/Psychology — HealthyGamerGG | `--report-folder self_help/psychology/healthygamergg --channel @HealthyGamerGG --max-results 3 --detailed` |
+| 09:40 | 02:40 | Self Help/Psychology — The School of Life | `--report-folder self_help/psychology/school_of_life --channel @theschooloflifetv --max-results 3 --detailed` |
+| 09:50 | 02:50 | Self Help/Psychology — Dr. Tracey Marks | `--report-folder self_help/psychology/dr_tracey_marks --channel @DrTraceyMarks --max-results 3 --detailed` |
+| 10:00 | 03:00 | Self Help/Habits — Ali Abdaal | `--report-folder self_help/habits/ali_abdaal --channel @aliabdaal --max-results 3 --detailed` |
+| 10:10 | 03:10 | Self Help/Habits — James Clear | `--report-folder self_help/habits/james_clear --channel @jamesclear --max-results 3 --detailed` |
+| 10:20 | 03:20 | Self Help/Habits — Better Ideas | `--report-folder self_help/habits/better_ideas --channel @betterideas --max-results 3 --detailed` |
+| 10:30 | 03:30 | Self Help/Habits — Struthless | `--report-folder self_help/habits/struthless --channel @struthless --max-results 3 --detailed` |
+| 10:40 | 03:40 | Self Help/Modern Dharma — Doug's Dharma | `--report-folder self_help/modern_dharma/dougs_dharma --channel @DougsDharma --max-results 3 --detailed` |
+| 10:50 | 03:50 | Self Help/Modern Dharma — Einzelgänger | `--report-folder self_help/modern_dharma/einzelganger --channel @einzelganger --max-results 3 --detailed` |
+| 11:10 | 04:10 | Daily Summary + Audio + GitHub | moved later so self-help reports can be included |
 
-**Reports + audio available on GitHub ~09:40–10:00 Bangkok every day after finance/Thai AI/health jobs run.**
+**Reports + audio available on GitHub ~11:20–11:45 Bangkok every day after finance/Thai AI/health/self-help jobs run.**
 
 > To view/edit crontab: `crontab -l` / `crontab -e`
 
@@ -112,7 +132,7 @@ Save to ai_trends_reports/reports/{topic}/{YYYY-MM-DD}.md
   ↓
 upload_reports_to_github_fixed.py → git push → MandhiraT/ai-trends-research
   ↓
-Telegram notification (daily digest ~09:30 Bangkok)
+Telegram notification (daily digest ~11:10 Bangkok)
 ```
 
 ## Dashboard

@@ -30,13 +30,15 @@ if os.path.exists(_CRED_FILE):
                 os.environ.setdefault(_k.strip(), _v.strip())
 
 
-def _get_youtube_transcript(video_url: str) -> str:
+def _get_youtube_transcript(video_url: str, preferred_langs=None) -> str:
     """Extract transcript from YouTube video using yt-dlp.
 
     ATS summarizes videos into Thai, but the source transcript may be Thai,
     English, or another YouTube caption track.  Thai finance channels often have
-    `th` captions while English auto-translation can fail with 429s; do not gate
-    summarization on English-only subtitles.
+    `th` captions while English auto-translation can fail with 429s; English
+    source channels can conversely 429 on Thai auto-translation while `en`
+    succeeds.  Callers may pass a preferred language order; always keep fallback
+    tracks so summarization is not gated on one caption language.
     """
     import glob as _glob
     import re as _re
@@ -58,13 +60,14 @@ def _get_youtube_transcript(video_url: str) -> str:
                     lines_clean.append(clean)
         return ' '.join(lines_clean)[:30000]
 
-    # Prefer real/source Thai captions for Thai channels, then English, then any
-    # available caption track.  `en` auto-translated captions can 429 while `th`
-    # succeeds, which caused Thai videos to be reported as unsummarizable.
-    _LANGS = ['th', 'en', 'all']
+    # Prefer the caller's source-language order, then any caption track.  `en`
+    # and `th` auto-translated captions can independently hit YouTube 429s, so
+    # avoid spending retries on the wrong auto-translation language first.
+    _LANGS = preferred_langs or ['th', 'en', 'all']
     _BASE = [
         'yt-dlp',
         '--js-runtimes', 'node:/usr/bin/node',
+        '--extractor-args', 'youtube:player_client=android',
         '--skip-download',
         '--sub-format', 'vtt',
     ]
@@ -206,13 +209,16 @@ def summarize_video(
     prompt_file: Optional[str] = None,
     language: str = 'th',
     topic: str = '',
+    transcript_langs=None,
 ) -> str:
     """
     Summarize a YouTube video using AI providers.
     Returns markdown summary string.
     """
-    # Get transcript
-    transcript = _get_youtube_transcript(video_url)
+    # Get transcript using the production job's explicit language preference.
+    # Default remains Thai-first for legacy Thai-channel support when no job
+    # preference is provided.
+    transcript = _get_youtube_transcript(video_url, preferred_langs=transcript_langs)
 
     # Guard: no transcript → do NOT hallucinate
     if not transcript:

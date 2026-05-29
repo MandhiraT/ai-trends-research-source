@@ -12,7 +12,13 @@
       "report_folder": "ai_agents",
       "schedule_time": "05:00",
       "include_in_daily_summary": true,
-      "notes": "Mirrors current production cron topic job."
+      "notes": "Mirrors current production cron topic job.",
+      "source_language": "en",
+      "transcript_langs": [
+        "en",
+        "th",
+        "all"
+      ]
     },
     {
       "id": "claude_code",
@@ -26,7 +32,13 @@
       "report_folder": "claude_code",
       "schedule_time": "05:20",
       "include_in_daily_summary": true,
-      "notes": "Mirrors current production cron topic job."
+      "notes": "Mirrors current production cron topic job.",
+      "source_language": "en",
+      "transcript_langs": [
+        "en",
+        "th",
+        "all"
+      ]
     },
     {
       "id": "ai_viral_niche",
@@ -40,7 +52,13 @@
       "report_folder": "ai_viral_niche",
       "schedule_time": "05:40",
       "include_in_daily_summary": true,
-      "notes": "Mirrors current production cron topic job."
+      "notes": "Mirrors current production cron topic job.",
+      "source_language": "en",
+      "transcript_langs": [
+        "en",
+        "th",
+        "all"
+      ]
     },
     {
       "id": "nateherk",
@@ -54,7 +72,13 @@
       "report_folder": "NATEHERK",
       "schedule_time": "06:00",
       "include_in_daily_summary": true,
-      "notes": "Mirrors current production cron channel job."
+      "notes": "Mirrors current production cron channel job.",
+      "source_language": "en",
+      "transcript_langs": [
+        "en",
+        "th",
+        "all"
+      ]
     },
     {
       "id": "joanna_wiebe",
@@ -68,7 +92,13 @@
       "report_folder": "joanna_wiebe",
       "schedule_time": "06:25",
       "include_in_daily_summary": true,
-      "notes": "Mirrors current production cron channel job."
+      "notes": "Mirrors current production cron channel job.",
+      "source_language": "en",
+      "transcript_langs": [
+        "en",
+        "th",
+        "all"
+      ]
     },
     {
       "id": "jacksons_ai",
@@ -82,7 +112,13 @@
       "report_folder": "jacksons_ai",
       "schedule_time": "07:05",
       "include_in_daily_summary": true,
-      "notes": "Mirrors current production cron channel job."
+      "notes": "Mirrors current production cron channel job.",
+      "source_language": "en",
+      "transcript_langs": [
+        "en",
+        "th",
+        "all"
+      ]
     },
     {
       "id": "make_money_matt",
@@ -96,7 +132,13 @@
       "report_folder": "make_money_matt",
       "schedule_time": "07:15",
       "include_in_daily_summary": true,
-      "notes": "Mirrors current production cron channel job."
+      "notes": "Mirrors current production cron channel job.",
+      "source_language": "en",
+      "transcript_langs": [
+        "en",
+        "th",
+        "all"
+      ]
     },
     {
       "id": "miss_luna_vega",
@@ -110,7 +152,13 @@
       "report_folder": "miss_luna_vega",
       "schedule_time": "07:25",
       "include_in_daily_summary": true,
-      "notes": "Mirrors current production cron playlist job."
+      "notes": "Mirrors current production cron playlist job.",
+      "source_language": "en",
+      "transcript_langs": [
+        "en",
+        "th",
+        "all"
+      ]
     },
     {
       "id": "claude_code_seedance",
@@ -124,7 +172,13 @@
       "report_folder": "claude_code/claude_code_seedance",
       "schedule_time": "07:35",
       "include_in_daily_summary": true,
-      "notes": "Mirrors current production cron new Claude Code subtopic."
+      "notes": "Mirrors current production cron new Claude Code subtopic.",
+      "source_language": "en",
+      "transcript_langs": [
+        "en",
+        "th",
+        "all"
+      ]
     },
     {
       "id": "claude_code_higgsfield",
@@ -138,7 +192,13 @@
       "report_folder": "claude_code/claude_code_higgsfield",
       "schedule_time": "07:35",
       "include_in_daily_summary": true,
-      "notes": "Mirrors current production cron new Claude Code subtopic."
+      "notes": "Mirrors current production cron new Claude Code subtopic.",
+      "source_language": "en",
+      "transcript_langs": [
+        "en",
+        "th",
+        "all"
+      ]
     },
     {
       "id": "claude_code_shopify",
@@ -152,7 +212,13 @@
       "report_folder": "claude_code/claude_code_shopify",
       "schedule_time": "07:35",
       "include_in_daily_summary": true,
-      "notes": "Mirrors current production cron new Claude Code subtopic."
+      "notes": "Mirrors current production cron new Claude Code subtopic.",
+      "source_language": "en",
+      "transcript_langs": [
+        "en",
+        "th",
+        "all"
+      ]
     },
     {
       "id": "claude_code_design",
@@ -166,7 +232,13 @@
       "report_folder": "claude_code/claude_code_design",
       "schedule_time": "07:35",
       "include_in_daily_summary": true,
-      "notes": "Mirrors current production cron new Claude Code subtopic."
+      "notes": "Mirrors current production cron new Claude Code subtopic.",
+      "source_language": "en",
+      "transcript_langs": [
+        "en",
+        "th",
+        "all"
+      ]
     },
     {
       "id": "claude_code_hyperframe",
@@ -180,7 +252,13 @@
       "report_folder": "claude_code/claude_code_hyperframe",
       "schedule_time": "07:35",
       "include_in_daily_summary": true,
-      "notes": "Mirrors current production cron new Claude Code subtopic."
+      "notes": "Mirrors current production cron new Claude Code subtopic.",
+      "source_language": "en",
+      "transcript_langs": [
+        "en",
+        "th",
+        "all"
+      ]
     },
     {
       "id": "claude_code_notebooklm",
@@ -194,12 +272,18 @@
       "report_folder": "claude_code/claude_code_notebooklm",
       "schedule_time": "07:35",
       "include_in_daily_summary": true,
-      "notes": "Mirrors current production cron new Claude Code subtopic."
+      "notes": "Mirrors current production cron new Claude Code subtopic.",
+      "source_language": "en",
+      "transcript_langs": [
+        "en",
+        "th",
+        "all"
+      ]
     },
     {
       "id": "claude_code_obsidian",
       "name": "Claude Code Obsidian",
-      "enabled": true,
+      "enabled": false,
       "source_type": "claude_code_subtopic",
       "topic": "obsidian",
       "source_url": "",
@@ -208,7 +292,13 @@
       "report_folder": "claude_code/claude_code_obsidian",
       "schedule_time": "07:35",
       "include_in_daily_summary": true,
-      "notes": "Mirrors current production cron new Claude Code subtopic."
+      "notes": "Mirrors current production cron new Claude Code subtopic.",
+      "source_language": "en",
+      "transcript_langs": [
+        "en",
+        "th",
+        "all"
+      ]
     },
     {
       "id": "claude_code_remotion_video",
@@ -217,12 +307,18 @@
       "source_type": "claude_code_subtopic",
       "topic": "remotion_video",
       "source_url": "",
-      "max_videos": 5,
+      "max_videos": 3,
       "detailed": true,
       "report_folder": "claude_code/claude_code_remotion_video",
       "schedule_time": "07:35",
       "include_in_daily_summary": true,
-      "notes": "Mirrors current production cron new Claude Code subtopic."
+      "notes": "Mirrors current production cron new Claude Code subtopic.",
+      "source_language": "en",
+      "transcript_langs": [
+        "en",
+        "th",
+        "all"
+      ]
     },
     {
       "id": "claude_code_skills",
@@ -236,12 +332,18 @@
       "report_folder": "claude_code/claude_code_skills",
       "schedule_time": "07:35",
       "include_in_daily_summary": true,
-      "notes": "Mirrors current production cron new Claude Code subtopic."
+      "notes": "Mirrors current production cron new Claude Code subtopic.",
+      "source_language": "en",
+      "transcript_langs": [
+        "en",
+        "th",
+        "all"
+      ]
     },
     {
       "id": "claude_code_video",
       "name": "Claude Code Video",
-      "enabled": true,
+      "enabled": false,
       "source_type": "claude_code_subtopic",
       "topic": "video",
       "source_url": "",
@@ -250,7 +352,13 @@
       "report_folder": "claude_code/claude_code_video",
       "schedule_time": "07:35",
       "include_in_daily_summary": true,
-      "notes": "Mirrors current production cron new Claude Code subtopic."
+      "notes": "Mirrors current production cron new Claude Code subtopic.",
+      "source_language": "en",
+      "transcript_langs": [
+        "en",
+        "th",
+        "all"
+      ]
     },
     {
       "id": "finance_money_coach",
@@ -264,7 +372,13 @@
       "report_folder": "finance_money_coach",
       "schedule_time": "07:45",
       "include_in_daily_summary": true,
-      "notes": "Finance/personal-finance channel added 2026-05-23 for practical daily-life Thai ATS summaries."
+      "notes": "Finance/personal-finance channel added 2026-05-23 for practical daily-life Thai ATS summaries.",
+      "source_language": "th",
+      "transcript_langs": [
+        "th",
+        "en",
+        "all"
+      ]
     },
     {
       "id": "finance_money_buffalo",
@@ -278,7 +392,13 @@
       "report_folder": "finance_money_buffalo",
       "schedule_time": "07:55",
       "include_in_daily_summary": true,
-      "notes": "Finance/personal-finance channel added 2026-05-23 for practical daily-life Thai ATS summaries."
+      "notes": "Finance/personal-finance channel added 2026-05-23 for practical daily-life Thai ATS summaries.",
+      "source_language": "th",
+      "transcript_langs": [
+        "th",
+        "en",
+        "all"
+      ]
     },
     {
       "id": "finance_a_academy",
@@ -292,7 +412,13 @@
       "report_folder": "finance_a_academy",
       "schedule_time": "08:05",
       "include_in_daily_summary": true,
-      "notes": "Finance/personal-finance channel added 2026-05-23 for practical daily-life Thai ATS summaries."
+      "notes": "Finance/personal-finance channel added 2026-05-23 for practical daily-life Thai ATS summaries.",
+      "source_language": "th",
+      "transcript_langs": [
+        "th",
+        "en",
+        "all"
+      ]
     },
     {
       "id": "finance_financial_diet",
@@ -306,7 +432,13 @@
       "report_folder": "finance_financial_diet",
       "schedule_time": "08:15",
       "include_in_daily_summary": true,
-      "notes": "Finance/personal-finance channel added 2026-05-23 for practical daily-life Thai ATS summaries."
+      "notes": "Finance/personal-finance channel added 2026-05-23 for practical daily-life Thai ATS summaries.",
+      "source_language": "en",
+      "transcript_langs": [
+        "en",
+        "th",
+        "all"
+      ]
     },
     {
       "id": "finance_humphrey_yang",
@@ -320,7 +452,13 @@
       "report_folder": "finance_humphrey_yang",
       "schedule_time": "08:25",
       "include_in_daily_summary": true,
-      "notes": "Finance/personal-finance channel added 2026-05-23 for practical daily-life Thai ATS summaries."
+      "notes": "Finance/personal-finance channel added 2026-05-23 for practical daily-life Thai ATS summaries.",
+      "source_language": "en",
+      "transcript_langs": [
+        "en",
+        "th",
+        "all"
+      ]
     },
     {
       "id": "boom_big_nose",
@@ -334,7 +472,13 @@
       "report_folder": "boom_bignose",
       "schedule_time": "08:35",
       "include_in_daily_summary": true,
-      "notes": "Thai AI/automation channel added 2026-05-24 by Mandy request for ATS summaries."
+      "notes": "Thai AI/automation channel added 2026-05-24 by Mandy request for ATS summaries.",
+      "source_language": "th",
+      "transcript_langs": [
+        "th",
+        "en",
+        "all"
+      ]
     },
     {
       "id": "health_food_nutrition",
@@ -348,7 +492,13 @@
       "report_folder": "health/health_food_nutrition",
       "schedule_time": "08:45",
       "include_in_daily_summary": true,
-      "notes": "Health topic added 2026-05-27 by Mandy request; reports stored under Health subfolder."
+      "notes": "Health topic added 2026-05-27 by Mandy request; reports stored under Health subfolder.",
+      "source_language": "th",
+      "transcript_langs": [
+        "th",
+        "en",
+        "all"
+      ]
     },
     {
       "id": "health_top_to_toe_playlist",
@@ -362,7 +512,13 @@
       "report_folder": "health/top_to_toe",
       "schedule_time": "09:00",
       "include_in_daily_summary": true,
-      "notes": "Health playlist added 2026-05-27 by Mandy request; scans newest playlist items and stores reports under Health subfolder."
+      "notes": "Health playlist added 2026-05-27 by Mandy request; scans newest playlist items and stores reports under Health subfolder.",
+      "source_language": "th",
+      "transcript_langs": [
+        "th",
+        "en",
+        "all"
+      ]
     },
     {
       "id": "self_help_therapy_in_a_nutshell",
@@ -376,7 +532,13 @@
       "report_folder": "self_help/psychology/therapy_in_a_nutshell",
       "schedule_time": "09:20",
       "include_in_daily_summary": true,
-      "notes": "Self-help Phase 1 channel added 2026-05-29 from docs/SELF-HELP-YOUTUBE-CHANNEL-RESEARCH-ANALYSIS.md; grouped under self_help/{psychology,habits,modern_dharma}."
+      "notes": "Self-help Phase 1 channel added 2026-05-29 from docs/SELF-HELP-YOUTUBE-CHANNEL-RESEARCH-ANALYSIS.md; grouped under self_help/{psychology,habits,modern_dharma}.",
+      "source_language": "en",
+      "transcript_langs": [
+        "en",
+        "th",
+        "all"
+      ]
     },
     {
       "id": "self_help_healthygamergg",
@@ -390,7 +552,13 @@
       "report_folder": "self_help/psychology/healthygamergg",
       "schedule_time": "09:30",
       "include_in_daily_summary": true,
-      "notes": "Self-help Phase 1 channel added 2026-05-29 from docs/SELF-HELP-YOUTUBE-CHANNEL-RESEARCH-ANALYSIS.md; grouped under self_help/{psychology,habits,modern_dharma}."
+      "notes": "Self-help Phase 1 channel added 2026-05-29 from docs/SELF-HELP-YOUTUBE-CHANNEL-RESEARCH-ANALYSIS.md; grouped under self_help/{psychology,habits,modern_dharma}.",
+      "source_language": "en",
+      "transcript_langs": [
+        "en",
+        "th",
+        "all"
+      ]
     },
     {
       "id": "self_help_school_of_life",
@@ -404,7 +572,13 @@
       "report_folder": "self_help/psychology/school_of_life",
       "schedule_time": "09:40",
       "include_in_daily_summary": true,
-      "notes": "Self-help Phase 1 channel added 2026-05-29 from docs/SELF-HELP-YOUTUBE-CHANNEL-RESEARCH-ANALYSIS.md; grouped under self_help/{psychology,habits,modern_dharma}."
+      "notes": "Self-help Phase 1 channel added 2026-05-29 from docs/SELF-HELP-YOUTUBE-CHANNEL-RESEARCH-ANALYSIS.md; grouped under self_help/{psychology,habits,modern_dharma}.",
+      "source_language": "en",
+      "transcript_langs": [
+        "en",
+        "th",
+        "all"
+      ]
     },
     {
       "id": "self_help_dr_tracey_marks",
@@ -418,7 +592,13 @@
       "report_folder": "self_help/psychology/dr_tracey_marks",
       "schedule_time": "09:50",
       "include_in_daily_summary": true,
-      "notes": "Self-help Phase 1 channel added 2026-05-29 from docs/SELF-HELP-YOUTUBE-CHANNEL-RESEARCH-ANALYSIS.md; grouped under self_help/{psychology,habits,modern_dharma}."
+      "notes": "Self-help Phase 1 channel added 2026-05-29 from docs/SELF-HELP-YOUTUBE-CHANNEL-RESEARCH-ANALYSIS.md; grouped under self_help/{psychology,habits,modern_dharma}.",
+      "source_language": "en",
+      "transcript_langs": [
+        "en",
+        "th",
+        "all"
+      ]
     },
     {
       "id": "self_help_ali_abdaal",
@@ -432,7 +612,13 @@
       "report_folder": "self_help/habits/ali_abdaal",
       "schedule_time": "10:00",
       "include_in_daily_summary": true,
-      "notes": "Self-help Phase 1 channel added 2026-05-29 from docs/SELF-HELP-YOUTUBE-CHANNEL-RESEARCH-ANALYSIS.md; grouped under self_help/{psychology,habits,modern_dharma}."
+      "notes": "Self-help Phase 1 channel added 2026-05-29 from docs/SELF-HELP-YOUTUBE-CHANNEL-RESEARCH-ANALYSIS.md; grouped under self_help/{psychology,habits,modern_dharma}.",
+      "source_language": "en",
+      "transcript_langs": [
+        "en",
+        "th",
+        "all"
+      ]
     },
     {
       "id": "self_help_james_clear",
@@ -446,7 +632,13 @@
       "report_folder": "self_help/habits/james_clear",
       "schedule_time": "10:10",
       "include_in_daily_summary": true,
-      "notes": "Self-help Phase 1 channel added 2026-05-29 from docs/SELF-HELP-YOUTUBE-CHANNEL-RESEARCH-ANALYSIS.md; grouped under self_help/{psychology,habits,modern_dharma}."
+      "notes": "Self-help Phase 1 channel added 2026-05-29 from docs/SELF-HELP-YOUTUBE-CHANNEL-RESEARCH-ANALYSIS.md; grouped under self_help/{psychology,habits,modern_dharma}.",
+      "source_language": "en",
+      "transcript_langs": [
+        "en",
+        "th",
+        "all"
+      ]
     },
     {
       "id": "self_help_better_ideas",
@@ -460,7 +652,13 @@
       "report_folder": "self_help/habits/better_ideas",
       "schedule_time": "10:20",
       "include_in_daily_summary": true,
-      "notes": "Self-help Phase 1 channel added 2026-05-29 from docs/SELF-HELP-YOUTUBE-CHANNEL-RESEARCH-ANALYSIS.md; grouped under self_help/{psychology,habits,modern_dharma}."
+      "notes": "Self-help Phase 1 channel added 2026-05-29 from docs/SELF-HELP-YOUTUBE-CHANNEL-RESEARCH-ANALYSIS.md; grouped under self_help/{psychology,habits,modern_dharma}.",
+      "source_language": "en",
+      "transcript_langs": [
+        "en",
+        "th",
+        "all"
+      ]
     },
     {
       "id": "self_help_struthless",
@@ -474,7 +672,13 @@
       "report_folder": "self_help/habits/struthless",
       "schedule_time": "10:30",
       "include_in_daily_summary": true,
-      "notes": "Self-help Phase 1 channel added 2026-05-29 from docs/SELF-HELP-YOUTUBE-CHANNEL-RESEARCH-ANALYSIS.md; grouped under self_help/{psychology,habits,modern_dharma}."
+      "notes": "Self-help Phase 1 channel added 2026-05-29 from docs/SELF-HELP-YOUTUBE-CHANNEL-RESEARCH-ANALYSIS.md; grouped under self_help/{psychology,habits,modern_dharma}.",
+      "source_language": "en",
+      "transcript_langs": [
+        "en",
+        "th",
+        "all"
+      ]
     },
     {
       "id": "self_help_dougs_dharma",
@@ -488,7 +692,13 @@
       "report_folder": "self_help/modern_dharma/dougs_dharma",
       "schedule_time": "10:40",
       "include_in_daily_summary": true,
-      "notes": "Self-help Phase 1 channel added 2026-05-29 from docs/SELF-HELP-YOUTUBE-CHANNEL-RESEARCH-ANALYSIS.md; grouped under self_help/{psychology,habits,modern_dharma}."
+      "notes": "Self-help Phase 1 channel added 2026-05-29 from docs/SELF-HELP-YOUTUBE-CHANNEL-RESEARCH-ANALYSIS.md; grouped under self_help/{psychology,habits,modern_dharma}.",
+      "source_language": "en",
+      "transcript_langs": [
+        "en",
+        "th",
+        "all"
+      ]
     },
     {
       "id": "self_help_einzelganger",
@@ -502,7 +712,13 @@
       "report_folder": "self_help/modern_dharma/einzelganger",
       "schedule_time": "10:50",
       "include_in_daily_summary": true,
-      "notes": "Self-help Phase 1 channel added 2026-05-29 from docs/SELF-HELP-YOUTUBE-CHANNEL-RESEARCH-ANALYSIS.md; grouped under self_help/{psychology,habits,modern_dharma}."
+      "notes": "Self-help Phase 1 channel added 2026-05-29 from docs/SELF-HELP-YOUTUBE-CHANNEL-RESEARCH-ANALYSIS.md; grouped under self_help/{psychology,habits,modern_dharma}.",
+      "source_language": "en",
+      "transcript_langs": [
+        "en",
+        "th",
+        "all"
+      ]
     }
   ]
 }

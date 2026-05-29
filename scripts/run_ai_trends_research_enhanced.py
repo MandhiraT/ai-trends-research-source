@@ -25,6 +25,7 @@ Features:
 import argparse
 import glob
 import hashlib
+import importlib.util
 import json
 import os
 import re
@@ -186,7 +187,27 @@ def create_content_hash(title, description="", duration=0):
     content_string = f"{title}|{description}|{duration}"
     return hashlib.md5(content_string.encode()).hexdigest()
 
-def process_video_with_summarize(video_url, topic, video_title="Unknown", detailed=False):
+def parse_transcript_langs(value):
+    """Parse comma-separated transcript language preference.
+
+    Returns None when unset so summarize_local can use its safe default. Always
+    appends `all` as the final fallback for production resilience.
+    """
+    if not value:
+        return None
+    langs = []
+    for raw in str(value).split(','):
+        lang = raw.strip().lower()
+        if lang and lang not in langs:
+            langs.append(lang)
+    if not langs:
+        return None
+    if 'all' not in langs:
+        langs.append('all')
+    return langs
+
+
+def process_video_with_summarize(video_url, topic, video_title="Unknown", detailed=False, transcript_langs=None):
     """Process single video using summarize skill"""
     print(f"Processing with summarize: {video_title}")
     
@@ -200,14 +221,19 @@ def process_video_with_summarize(video_url, topic, video_title="Unknown", detail
     
     # Use summarize_local.py — AI provider (Qwen/GLM) instead of summarize CLI
     try:
-        import importlib.util, sys as _sys
         _spec = importlib.util.spec_from_file_location(
             "summarize_local",
             os.path.join(os.path.dirname(os.path.abspath(__file__)), "summarize_local.py")
         )
         _mod = importlib.util.module_from_spec(_spec)
         _spec.loader.exec_module(_mod)
-        _summary_text = _mod.summarize_video(video_url, prompt_file=prompt_file, language="th", topic=topic)
+        _summary_text = _mod.summarize_video(
+            video_url,
+            prompt_file=prompt_file,
+            language="th",
+            topic=topic,
+            transcript_langs=transcript_langs,
+        )
         result = type('R', (), {'returncode': 0, 'stdout': _summary_text, 'stderr': ''})()
     except Exception as _e:
         print(f"summarize_local error: {_e}")
@@ -267,9 +293,14 @@ def main():
     parser.add_argument("--video-url", help="Specific YouTube video URL to summarize")
     parser.add_argument("--report-folder", help="Optional report folder under ai_trends_reports/reports")
     parser.add_argument("--config-job-id", help="Optional dashboard job id to include in report metadata")
+    parser.add_argument(
+        "--transcript-langs",
+        help="Comma-separated caption language preference, e.g. en,th,all or th,en,all",
+    )
     args = parser.parse_args()
 
     topic = args.topic
+    transcript_langs = parse_transcript_langs(args.transcript_langs)
     dirs = get_dirs(topic, args.report_folder)
 
     # Create directories
@@ -344,7 +375,13 @@ def main():
         print(f"Processing: {video_title}")
         
         # Process video using summarize skill
-        video_data = process_video_with_summarize(video_url, topic, video_title, args.detailed)
+        video_data = process_video_with_summarize(
+            video_url,
+            topic,
+            video_title,
+            args.detailed,
+            transcript_langs=transcript_langs,
+        )
         
         if video_data:
             all_video_data.append(video_data)

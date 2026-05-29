@@ -264,6 +264,12 @@ def build_command(job):
         else:
             cmd.extend(["--max-results", max_videos])
 
+        transcript_langs = job.get("transcript_langs")
+        if isinstance(transcript_langs, list):
+            transcript_langs = ",".join(str(x).strip() for x in transcript_langs if str(x).strip())
+        if transcript_langs:
+            cmd.extend(["--transcript-langs", str(transcript_langs)])
+
     if job.get("detailed", True):
         cmd.append("--detailed")
     return cmd

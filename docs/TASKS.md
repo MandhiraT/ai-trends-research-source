@@ -2,7 +2,7 @@
 
 > Working document for team/agent collaboration. Update this file whenever features change, bugs are found, or new work is planned. Keep statuses current.
 
-**Last updated:** 2026-05-27 ICT
+**Last updated:** 2026-05-29 ICT
 **Maintained by:** Sati (primary agent) / Mandhira / Mali
 
 ---
@@ -18,7 +18,7 @@
 | Dedup system | ✅ Working |
 | Telegram daily digest | ✅ Working (includes audio status) |
 | Per-topic report/voice notifications | ✅ Added 2026-05-27 — `run_daily_summary_cron.sh` sends configured email/Telegram topic notifications after report upload + audio upload, before final daily digest |
-| Hallucination guard | ✅ Fixed 2026-05-24 (no downloadable captions → transcript unavailable; Thai captions are supported) |
+| Hallucination guard | ✅ Fixed 2026-05-24 (no downloadable captions → transcript unavailable; Thai captions are supported; production jobs now pass explicit transcript language order) |
 | Cron project path | ✅ Fixed 2026-05-12 (`Desktop/Projects`, not lowercase `projects`) |
 | Claude Code new subtopics | ✅ Working (Seedance, Higgsfield, Shopify, Hyperframe) |
 | Local dashboard | ✅ Working (`http://127.0.0.1:8092`) |
@@ -50,10 +50,10 @@
 | Daily Thai digest | Aggregates all topic reports + GitHub links + audio status | `ai_trends_daily_summary_thai.py` |
 | Per-topic notification | Sends configured report/voice links by email and/or Telegram after daily report/audio upload | `notify_topic.py`, `config/notification_routing.json` |
 | GitHub auto-upload | Clone reports repo → copy files → git push | `upload_reports_to_github_fixed.py` |
-| Manual pipeline runner | `run_all_today.sh` runs all 19 steps sequentially | `scripts/run_all_today.sh` |
+| Manual pipeline runner | `run_all_today.sh` runs all 29 steps sequentially | `scripts/run_all_today.sh` |
 | Rate limit handling | Auto-retry with backoff on 429 errors | `summarize_local.py` |
 | Audio TTS generation | Gemini 2.5 Flash TTS, per-video mode, FFmpeg concat, daily Telegram status | `generate_audio_report.py` |
-| Hallucination guard | No downloadable captions → early return "transcript unavailable" (no AI hallucination); Thai/English/any caption tracks are attempted in order | `summarize_local.py` |
+| Hallucination guard | No downloadable captions → early return "transcript unavailable" (no AI hallucination); Thai/English/any caption tracks are attempted in job-specific order via `--transcript-langs` | `summarize_local.py` |
 | Local web dashboard | Add/edit research jobs, manual runs, report/log browser, read-only cron view | `dashboard/app.py` |
 || Searchable report index | JSONL/SQLite/Markdown mobile indexes + CLI search for report archive | `scripts/build_report_index.py`, `scripts/search_reports.py` |
 || Dashboard search | Search reports by query/topic/tag from Dashboard UI | `dashboard/app.py` `/search`, `/api/search` |
@@ -130,6 +130,7 @@
 | T-037 | **Fix Dashboard Assets page showing empty table (date filter defaulted to today)** | 2026-05-21 | Root causes: (1) `date_from`/`date_to` inputs defaulted to today's date, so `filterTable()` on DOMContentLoaded hid all historical rows; (2) no asset JSONs generated since 2026-05-18 (asset generation is manual). Fix: changed both date inputs to `value=""`. Verified: May 18 rows visible on fresh page load, "Today" and "Last 7 days" shortcuts still work. |
 | T-038 | **Add Hyperframe to Claude Code new subtopics** | 2026-05-21 | Added `hyperframe` to `--only` list, bumped `--total-videos` from 15 to 20. Updated `CLAUDE.md` and `docs/TASKS.md`. |
 | T-039 | **Implement Dashboard multi-video asset manage page** | 2026-05-21 | Full multi-video manage implementation in `dashboard/app.py`. New: `GET /assets/manage?topic=&date=` (per-video cards with status dots, explicit script/voice buttons, script editor, bulk voice with checkboxes + confirm, Regen All Scripts), `GET /api/assets/videos` JSON endpoint (per-video `full_script.exists`, `deep_dive_script.exists`, `full_voice.exists`, `deep_dive_voice.exists`). Main `/assets` page: Script/Voice column → Manage column (🎛️ link), aggregate count badges (📝📖🎙️🎧 in N/T green/yellow/gray format), script editor removed, old prompt-based `generateDeepDiveScript`/`generateVoice`/`openScript`/`saveScript` JS removed. No `window.prompt()` anywhere. Plan doc `DASHBOARD-ASSET-MANAGE-PAGE-PLAN.md` updated with 7 implementation gaps + open question answers. All 32 ISC + 3 anti-criteria verified. |
+| T-040 | **Add explicit transcript language routing to production jobs** | 2026-05-29 | Added `--transcript-langs` CLI support so each production job controls caption order explicitly instead of guessing from topic names. English/international jobs use `en,th,all`; Thai jobs use `th,en,all`. Updated installed crontab, `config/research_jobs.json`, `scripts/run_all_today.sh`, `dashboard/app.py`, `run_ai_trends_research_enhanced.py`, and `summarize_local.py`. Added regression tests for parser, summarize propagation, and explicit English-first extraction. |
 
 ### Backlog
 
@@ -180,7 +181,7 @@
 
 ## Cron Schedule (Current — Bangkok/ICT)
 
-> System crontab runs on Bangkok time on this machine. Research jobs run 05:00–09:00 ICT; final upload/audio/notification/digest pipeline starts at 09:30 ICT.
+> System crontab runs on Bangkok time on this machine. Research jobs run 05:00–10:50 ICT; final upload/audio/notification/digest pipeline starts at 11:10 ICT.
 
 | Bangkok Time | Topic | Args |
 |--------------|-------|------|
