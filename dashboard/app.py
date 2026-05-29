@@ -479,13 +479,15 @@ class DashboardHandler(BaseHTTPRequestHandler):
         for job in jobs:
             st = status.get(job["id"], {})
             state = st.get("state", "not run")
+            is_enabled = job.get("enabled", True)
+            enabled_badge = '<span style="color:#16a34a;font-weight:600;font-size:12px">● Enabled</span>' if is_enabled else '<span style="color:#dc2626;font-weight:600;font-size:12px">○ Disabled</span>'
             rows.append(f"""<tr>
   <td><strong>{h(job.get('name'))}</strong><br><span class="muted">{h(job.get('id'))}</span></td>
   <td><span class="pill">{h(job.get('source_type'))}</span><br>{h(job.get('topic'))}</td>
   <td>{h(job.get('source_url'))}</td>
   <td>{h(job.get('max_videos'))}</td>
   <td>{h(job.get('report_folder'))}</td>
-  <td><span class="{h(state)}">{h(state)}</span><br><span class="muted">{h(st.get('last_finished_at') or st.get('last_started_at'))}</span></td>
+  <td>{enabled_badge}<br><span class="{h(state)}" style="font-size:12px">{h(state)}</span><br><span class="muted" style="font-size:11px">{h(st.get('last_finished_at') or st.get('last_started_at') or '')}</span></td>
   <td class="actions">
     <a class="button secondary" href="/job?id={quote(job['id'])}">Edit</a>
     <form class="inline" method="post" action="/job/run"><input type="hidden" name="id" value="{h(job['id'])}"><button type="submit">Run</button></form>
