@@ -27,12 +27,13 @@ except ImportError:
     _SEARCH_AVAILABLE = False
 
 try:
-    from notify_topic import TOPIC_MAP, load_routing_config, ROUTING_CONFIG_PATH
+    from notify_topic import TOPIC_MAP, load_routing_config, ROUTING_CONFIG_PATH, _load_topic_map
     _NOTIFY_OK = True
 except ImportError:
     _NOTIFY_OK = False
     TOPIC_MAP = {}
     ROUTING_CONFIG_PATH = None
+    def _load_topic_map(): return {}
 
 try:
     import markdown as _md_lib
@@ -2586,11 +2587,15 @@ function runBulkVoice(){{
             return
 
         defaults, topics_cfg = load_routing_config()
+        live_topic_map = _load_topic_map()  # fresh read — picks up newly added jobs
+
+        # Build enabled-status lookup from research_jobs.json
+        job_enabled = {j.get("id"): j.get("enabled", True) for j in load_jobs()}
 
         rows_html = []
         email_count = 0
         tg_count = 0
-        for topic_key, (display_name, _folder, _github) in TOPIC_MAP.items():
+        for topic_key, (display_name, _folder, _github) in live_topic_map.items():
             cfg = {
                 "email_enabled": False,
                 "telegram_enabled": False,
@@ -2609,9 +2614,11 @@ function runBulkVoice(){{
             chat_ids_str = ", ".join(str(c) for c in cfg.get("telegram_chat_ids", []))
             email_chk    = "checked" if cfg["email_enabled"] else ""
             tg_chk       = "checked" if cfg["telegram_enabled"] else ""
+            job_en = job_enabled.get(topic_key, True)
+            job_badge = '<span style="color:#16a34a;font-size:11px;font-weight:600">● Job ON</span>' if job_en else '<span style="color:#dc2626;font-size:11px;font-weight:600">○ Job OFF</span>'
 
             rows_html.append(f"""<tr data-key="{h(topic_key)}">
-  <td><strong>{h(display_name)}</strong><br><span class="muted" style="font-size:12px">{h(topic_key)}</span></td>
+  <td>{job_badge}<br><strong>{h(display_name)}</strong><br><span class="muted" style="font-size:12px">{h(topic_key)}</span></td>
   <td style="text-align:center"><input type="checkbox" class="email-chk" {email_chk} data-key="{h(topic_key)}"></td>
   <td><input class="email-input" type="text" value="{h(emails_str)}" placeholder="email1@x.com, email2@x.com" data-key="{h(topic_key)}" style="font-size:13px"></td>
   <td style="text-align:center"><input type="checkbox" class="tg-chk" {tg_chk} data-key="{h(topic_key)}"></td>
@@ -2620,7 +2627,7 @@ function runBulkVoice(){{
 </tr>""")
 
         table_rows = "\n".join(rows_html)
-        total = len(TOPIC_MAP)
+        total = len(live_topic_map)
 
         body = f"""<h1>🔔 Notification Routing</h1>
 <div class="grid" style="grid-template-columns:repeat(3,minmax(0,1fr));margin-bottom:16px">
