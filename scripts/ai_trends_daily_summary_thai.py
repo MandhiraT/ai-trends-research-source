@@ -18,6 +18,7 @@ and sends to Telegram via Bot API.
 import os
 import json
 import requests
+import argparse
 from datetime import datetime
 from pathlib import Path
 from voice_filenames import find_voice_files
@@ -51,21 +52,19 @@ TOPICS = [
     ("Boom BigNose",      "boom_bignose",           "boom_bignose"),
     ("Health — อาหารบำรุงสุขภาพ", "health/health_food_nutrition", "health/health_food_nutrition"),
     ("Health — Top to Toe", "health/top_to_toe", "health/top_to_toe"),
-    ("Self Help/Psychology — Therapy in a Nutshell", "self_help/psychology/therapy_in_a_nutshell", "self_help/psychology/therapy_in_a_nutshell"),
     ("Self Help/Psychology — HealthyGamerGG", "self_help/psychology/healthygamergg", "self_help/psychology/healthygamergg"),
-    ("Self Help/Psychology — Psych2Go", "self_help/psychology/psych2go", "self_help/psychology/psych2go"),
     ("Self Help/Psychology — The School of Life", "self_help/psychology/school_of_life", "self_help/psychology/school_of_life"),
     ("Self Help/Psychology — Dr. Tracey Marks", "self_help/psychology/dr_tracey_marks", "self_help/psychology/dr_tracey_marks"),
     ("Self Help/Habits — Ali Abdaal", "self_help/habits/ali_abdaal", "self_help/habits/ali_abdaal"),
-    ("Self Help/Habits — James Clear", "self_help/habits/james_clear", "self_help/habits/james_clear"),
-    ("Self Help/Habits — Better Ideas", "self_help/habits/better_ideas", "self_help/habits/better_ideas"),
+    ("Self Help/Habits — The Diary Of A CEO", "self_help/habits/the_diary_of_a_ceo", "self_help/habits/the_diary_of_a_ceo"),
     ("Self Help/Habits — Struthless", "self_help/habits/struthless", "self_help/habits/struthless"),
+    ("Self Help/Psychology — Psych2Go", "self_help/psychology/psych2go", "self_help/psychology/psych2go"),
     ("Self Help/Habits — Clark Kegley", "self_help/habits/clark_kegley", "self_help/habits/clark_kegley"),
-    ("Self Help/Modern Dharma — Doug's Dharma", "self_help/modern_dharma/dougs_dharma", "self_help/modern_dharma/dougs_dharma"),
-    ("Self Help/Modern Dharma — Einzelgänger", "self_help/modern_dharma/einzelganger", "self_help/modern_dharma/einzelganger"),
-    ("Self Help/Modern Dharma — Pursuit of Wonder", "self_help/modern_dharma/pursuit_of_wonder", "self_help/modern_dharma/pursuit_of_wonder"),
-    ("Self Help/Modern Dharma — The Mindful Movement", "self_help/modern_dharma/mindful_movement", "self_help/modern_dharma/mindful_movement"),
-    ("Self Help/Modern Dharma — Acharya Prashant", "self_help/modern_dharma/acharya_prashant", "self_help/modern_dharma/acharya_prashant"),
+    ("Self Help/Thai Mindfulness — Roundfinger", "self_help/thai/mindfulness/roundfinger", "self_help/thai/mindfulness/roundfinger"),
+    ("Self Help/Thai Mindfulness — Mission To The Moon", "self_help/thai/mindfulness/mission_to_the_moon", "self_help/thai/mindfulness/mission_to_the_moon"),
+    ("Self Help/Thai Habits — The Library", "self_help/thai/habits/the_library", "self_help/thai/habits/the_library"),
+    ("Self Help/Thai Dharma — Oui Buddhabless", "self_help/thai/dharma/oui_buddhabless", "self_help/thai/dharma/oui_buddhabless"),
+    ("Self Help/Thai Dharma — Khunkhao", "self_help/thai/dharma/khunkhao", "self_help/thai/dharma/khunkhao"),
 ]
 
 
@@ -78,16 +77,34 @@ def count_videos_in_report(report_path):
         return 0
 
 
-def build_status(date_str):
+def select_topics(group):
+    """Return topics for morning/non-self-help or self-help split summaries."""
+    if group == "self_help":
+        return [t for t in TOPICS if t[0].startswith("Self Help/")]
+    if group == "morning":
+        return [t for t in TOPICS if not t[0].startswith("Self Help/")]
+    return TOPICS
+
+
+def group_title(group):
+    if group == "self_help":
+        return "ATS Self Help Research"
+    if group == "morning":
+        return "AI Trends Research — Morning"
+    return "AI Trends Research"
+
+
+def build_status(date_str, topics=None):
     # REPORTS_DIR = .../ai_trends_reports — reports are one level deeper in /reports/
     reports_base = os.path.join(REPORTS_DIR, "reports")
+    topics = topics or TOPICS
 
     lines = []
     total_videos = 0
     found = 0
     not_found = []
 
-    for label, folder, github_path in TOPICS:
+    for label, folder, github_path in topics:
         if folder.startswith("claude_code_"):
             report_file = os.path.join(reports_base, "claude_code", folder, f"{date_str}.md")
         else:
@@ -170,17 +187,18 @@ def send_telegram(text, bot_token, chat_id):
     return resp.json()
 
 
-def generate_daily_summary():
+def generate_daily_summary(group="all"):
     date_str = datetime.now().strftime('%Y-%m-%d')
     time_str = datetime.now().strftime('%H:%M ICT')
+    topics = select_topics(group)
 
-    lines, total_videos, found, not_found = build_status(date_str)
+    lines, total_videos, found, not_found = build_status(date_str, topics)
 
     # Plain text for stdout / log
     report_lines = [
-        f"# AI Trends Research Status — {date_str}",
+        f"# {group_title(group)} Status — {date_str}",
         f"Generated: {time_str}",
-        f"Topics with new content: {found}/{len(TOPICS)} | Total videos: {total_videos}",
+        f"Topics with new content: {found}/{len(topics)} | Total videos: {total_videos}",
         "",
     ] + lines + [
         "",
@@ -189,11 +207,12 @@ def generate_daily_summary():
     return "\n".join(report_lines), date_str, time_str, lines, total_videos, found
 
 
-def build_telegram_message(date_str, time_str, lines, total_videos, found, audio_status=None):
+def build_telegram_message(date_str, time_str, lines, total_videos, found, audio_status=None, group="all"):
+    topics = select_topics(group)
     msg = (
-        f"📊 <b>AI Trends Research — {date_str}</b>\n"
+        f"📊 <b>{group_title(group)} — {date_str}</b>\n"
         f"เวลา: {time_str}\n"
-        f"Topics: {found}/{len(TOPICS)} | Videos: {total_videos} รายการ\n\n"
+        f"Topics: {found}/{len(topics)} | Videos: {total_videos} รายการ\n\n"
     )
     for line in lines:
         # Shorten for Telegram — show only label + video count (first line)
@@ -223,10 +242,17 @@ def build_telegram_message(date_str, time_str, lines, total_videos, found, audio
 
 
 if __name__ == "__main__":
-    summary, date_str, time_str, lines, total_videos, found = generate_daily_summary()
+    parser = argparse.ArgumentParser(description="Send ATS daily Telegram summary")
+    parser.add_argument("--group", choices=["all", "morning", "self_help"], default="all",
+                        help="Topic group to include in this summary")
+    parser.add_argument("--no-audio-status", action="store_true",
+                        help="Skip audio status section in Telegram summary")
+    args = parser.parse_args()
+
+    summary, date_str, time_str, lines, total_videos, found = generate_daily_summary(args.group)
     print(summary)
 
-    audio_status = build_audio_status(date_str)
+    audio_status = [] if args.no_audio_status else build_audio_status(date_str)
     if audio_status:
         print("\nAudio status:")
         for status, topic, gh_folder, size_mb, url in audio_status:
@@ -237,7 +263,7 @@ if __name__ == "__main__":
     bot_token, chat_id = get_telegram_creds()
     if bot_token and chat_id:
         try:
-            msg = build_telegram_message(date_str, time_str, lines, total_videos, found, audio_status)
+            msg = build_telegram_message(date_str, time_str, lines, total_videos, found, audio_status, args.group)
             send_telegram(msg, bot_token, chat_id)
             print(f"✅ Telegram notification sent to {chat_id}")
         except Exception as e:

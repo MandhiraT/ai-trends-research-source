@@ -183,7 +183,7 @@
 
 ## Cron Schedule (Current — Bangkok/ICT)
 
-> System crontab runs on Bangkok time on this machine. Research jobs run 05:00–11:40 ICT; final upload/audio/notification/digest pipeline starts at 12:10 ICT.
+> System crontab runs on Bangkok time on this machine. Research jobs now run in two reporting rounds: morning jobs 05:00–09:00 with morning upload/audio/digest at 09:30 ICT, then self-help jobs 09:40–11:40 with self-help upload/digest at 12:10 ICT.
 
 | Bangkok Time | Topic | Args |
 |--------------|-------|------|
@@ -201,8 +201,9 @@
 | 08:35 | Boom BigNose (channel) | `--max-results 3 --detailed` |
 | 08:45 | Health — อาหารบำรุงสุขภาพ (search) | `--report-folder health/health_food_nutrition --max-results 5 --detailed` |
 | 09:00 | Health — Top to Toe (playlist) | `--report-folder health/top_to_toe --channel playlist --max-results 5 --detailed` |
-| 09:20–11:40 | Self-help Phase 1 | 15 channel jobs under `self_help/{psychology,habits,modern_dharma}`, `--max-results 3 --transcript-langs en,th,all --detailed` |
-| 12:10 | End-of-day pipeline | `run_daily_summary_cron.sh`: upload reports → generate enabled audio (NATEHERK, Joanna, Health Food, Health Top to Toe) → upload audio/scripts → per-topic notifications (`notify_topic.py --all`) → final Thai Telegram daily digest |
+| 09:40–11:40 | Self-help reviewed set | 13 channel jobs under `self_help/{psychology,habits,thai}`; English jobs use `en,th,all`, Thai jobs use `th,en,all` |
+| 09:30 | Morning pipeline | `run_daily_summary_cron.sh --group morning`: upload reports → generate enabled audio → upload audio/scripts → per-topic notifications (`notify_topic.py --all`) → morning Telegram digest excluding self-help |
+| 12:10 | Self-help pipeline | `run_daily_summary_cron.sh --group self_help`: upload reports → self-help-only Telegram digest |
 
 ---
 
