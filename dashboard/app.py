@@ -625,8 +625,10 @@ function setActiveBtn(mode){{
 function setQuickDate(mode){{
   _quickMode=mode;
   setActiveBtn(mode);
-  document.getElementById('filter-date').value='';
   document.getElementById('filter-month').value='';
+  if(mode==='today'){{document.getElementById('filter-date').value=todayStr();}}
+  else if(mode==='yesterday'){{document.getElementById('filter-date').value=yesterdayStr();}}
+  else{{document.getElementById('filter-date').value='';}}
   applyFilters();
 }}
 function applyFilters(){{
