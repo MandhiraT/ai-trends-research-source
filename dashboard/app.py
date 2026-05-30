@@ -566,22 +566,27 @@ class DashboardHandler(BaseHTTPRequestHandler):
 
         is_reports = (base.resolve() == REPORTS_DIR.resolve())
         rows = []
-        topics = set()
         for path in relative_files(base, suffix):
             rel = path.relative_to(base).as_posix()
             mtime = datetime.fromtimestamp(path.stat().st_mtime).strftime("%Y-%m-%d %H:%M")
             parts = rel.split("/")
-            topic = parts[0] if len(parts) > 1 else ""
+            # Use full folder path (all parts except filename) as topic key
+            topic = "/".join(parts[:-1]) if len(parts) > 1 else ""
             date_part = parts[-1].replace(suffix, "") if is_reports else ""
-            if topic:
-                topics.add(topic)
             data_attrs = f' data-topic="{h(topic)}" data-date="{h(date_part)}"' if is_reports else ""
             selected_class = ' class="selected-row"' if rel == selected else ""
             rows.append(f'<tr{data_attrs}{selected_class}><td><a href="{parsed.path}?file={quote(rel)}">{h(rel)}</a></td><td>{h(mtime)}</td></tr>')
 
         filter_ui = ""
         if is_reports:
-            topic_opts = "".join(f'<option value="{h(t)}">{h(t)}</option>' for t in sorted(topics))
+            # Build topic list from research_jobs.json report_folder values — canonical source
+            jobs = load_jobs()
+            job_topics = sorted({
+                j.get("report_folder", "").strip()
+                for j in jobs
+                if j.get("report_folder", "").strip()
+            })
+            topic_opts = "".join(f'<option value="{h(t)}">{h(t)}</option>' for t in job_topics)
             filter_ui = f"""<div id="report-filters" style="margin-bottom:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
   <select id="filter-topic" style="padding:6px 10px;border-radius:4px;border:1px solid #ccc">
     <option value="">All Topics</option>
@@ -600,7 +605,7 @@ function applyFilters(){{
   rows.forEach(function(r){{
     var tm=(r.dataset.topic||'').toLowerCase();
     var dt=(r.dataset.date||'').toLowerCase();
-    var ok=(!topic||tm===topic)&&(!date||dt.includes(date));
+    var ok=(!topic||(tm===topic||tm.startsWith(topic+'/')))&&(!date||dt.includes(date));
     r.style.display=ok?'':'none';
     if(ok)shown++;
   }});
