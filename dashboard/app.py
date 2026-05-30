@@ -225,7 +225,7 @@ def relative_files(base, suffix):
         return []
     files = [p for p in base.rglob(f"*{suffix}") if p.is_file()]
     files.sort(key=lambda p: p.stat().st_mtime, reverse=True)
-    return files[:30]
+    return files
 
 
 def build_command(job):
