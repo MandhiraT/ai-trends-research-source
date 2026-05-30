@@ -616,33 +616,40 @@ function weekDates(){{
   for(var i=0;i<7;i++){{dates.push(fmtDate(d));d.setDate(d.getDate()-1);}}
   return dates;
 }}
-function setQuickDate(mode){{
-  _quickMode=mode;
+function setActiveBtn(mode){{
   ['today','yesterday','week','all'].forEach(function(m){{
     var b=document.getElementById('btn-'+m);
     if(b){{b.style.background=m===mode?'#0d63ce':'#f5f5f5';b.style.color=m===mode?'#fff':'';b.style.borderColor=m===mode?'#0d63ce':'#ccc';}}
   }});
-  if(mode==='today'){{document.getElementById('filter-date').value=todayStr();document.getElementById('filter-month').value='';}}
-  else if(mode==='yesterday'){{document.getElementById('filter-date').value=yesterdayStr();document.getElementById('filter-month').value='';}}
-  else if(mode==='week'){{document.getElementById('filter-date').value='';document.getElementById('filter-month').value='';}}
-  else{{document.getElementById('filter-date').value='';document.getElementById('filter-month').value='';}}
+}}
+function setQuickDate(mode){{
+  _quickMode=mode;
+  setActiveBtn(mode);
+  document.getElementById('filter-date').value='';
+  document.getElementById('filter-month').value='';
   applyFilters();
 }}
 function applyFilters(){{
   var topic=(document.getElementById('filter-topic').value||'').toLowerCase();
-  var date=(document.getElementById('filter-date').value||'').toLowerCase();
-  var month=(document.getElementById('filter-month').value||'').toLowerCase();
-  var wdates=_quickMode==='week'?weekDates():null;
   var rows=document.querySelectorAll('#file-table tbody tr[data-topic]');
   var shown=0;
+  var wdates=_quickMode==='week'?weekDates():null;
   rows.forEach(function(r){{
     var tm=(r.dataset.topic||'').toLowerCase();
-    var dt=(r.dataset.date||'').toLowerCase();
+    var dt=r.dataset.date||'';
     var topicOk=(!topic||(tm===topic||tm.startsWith(topic+'/')));
     var dateOk=true;
-    if(wdates){{dateOk=wdates.indexOf(dt)!==-1;}}
-    else if(date){{dateOk=dt===date;}}
-    else if(month){{dateOk=dt.startsWith(month);}}
+    if(_quickMode==='today'){{dateOk=dt===todayStr();}}
+    else if(_quickMode==='yesterday'){{dateOk=dt===yesterdayStr();}}
+    else if(_quickMode==='week'){{dateOk=wdates.indexOf(dt)!==-1;}}
+    else if(_quickMode==='month'){{
+      var mv=document.getElementById('filter-month').value;
+      dateOk=mv?dt.startsWith(mv):true;
+    }}
+    else if(_quickMode==='date'){{
+      var dv=document.getElementById('filter-date').value;
+      dateOk=dv?dt===dv:true;
+    }}
     var ok=topicOk&&dateOk;
     r.style.display=ok?'':'none';
     if(ok)shown++;
@@ -664,9 +671,14 @@ function buildMonthDropdown(){{
   }});
 }}
 document.getElementById('filter-topic').addEventListener('change',applyFilters);
-document.getElementById('filter-date').addEventListener('change',function(){{_quickMode='custom';applyFilters();}});
+document.getElementById('filter-date').addEventListener('change',function(){{
+  if(this.value){{_quickMode='date';setActiveBtn('');document.getElementById('filter-month').value='';}}
+  else{{_quickMode='all';setActiveBtn('all');}}
+  applyFilters();
+}});
 document.getElementById('filter-month').addEventListener('change',function(){{
-  if(this.value){{document.getElementById('filter-date').value='';_quickMode='custom';}}
+  if(this.value){{_quickMode='month';setActiveBtn('');document.getElementById('filter-date').value='';}}
+  else{{_quickMode='all';setActiveBtn('all');}}
   applyFilters();
 }});
 window.addEventListener('DOMContentLoaded',function(){{buildMonthDropdown();setQuickDate('today');}});
