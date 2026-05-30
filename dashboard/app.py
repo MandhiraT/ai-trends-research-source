@@ -587,38 +587,89 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 if j.get("report_folder", "").strip()
             })
             topic_opts = "".join(f'<option value="{h(t)}">{h(t)}</option>' for t in job_topics)
-            filter_ui = f"""<div id="report-filters" style="margin-bottom:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-  <select id="filter-topic" style="padding:6px 10px;border-radius:4px;border:1px solid #ccc">
-    <option value="">All Topics</option>
-    {topic_opts}
-  </select>
-  <input id="filter-date" type="text" placeholder="Filter by date (e.g. 2026-05)" style="padding:6px 10px;border-radius:4px;border:1px solid #ccc;width:200px">
-  <button onclick="clearFilters()" style="padding:6px 12px;border-radius:4px;border:1px solid #ccc;cursor:pointer">Clear</button>
-  <span id="filter-count" style="color:#666;font-size:13px"></span>
+            filter_ui = f"""<div id="report-filters" style="margin-bottom:16px">
+  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
+    <select id="filter-topic" style="padding:7px 10px;border-radius:6px;border:1px solid #ccc;font-size:14px;min-width:180px">
+      <option value="">All Topics</option>
+      {topic_opts}
+    </select>
+    <input id="filter-date" type="date" style="padding:7px 10px;border-radius:6px;border:1px solid #ccc;font-size:14px">
+    <select id="filter-month" style="padding:7px 10px;border-radius:6px;border:1px solid #ccc;font-size:14px">
+      <option value="">All Months</option>
+    </select>
+  </div>
+  <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+    <button onclick="setQuickDate('today')" id="btn-today" style="padding:5px 14px;border-radius:20px;border:1px solid #0d63ce;background:#0d63ce;color:#fff;cursor:pointer;font-size:13px">Today</button>
+    <button onclick="setQuickDate('yesterday')" id="btn-yesterday" style="padding:5px 14px;border-radius:20px;border:1px solid #ccc;background:#f5f5f5;cursor:pointer;font-size:13px">Yesterday</button>
+    <button onclick="setQuickDate('week')" id="btn-week" style="padding:5px 14px;border-radius:20px;border:1px solid #ccc;background:#f5f5f5;cursor:pointer;font-size:13px">7 Days</button>
+    <button onclick="setQuickDate('all')" id="btn-all" style="padding:5px 14px;border-radius:20px;border:1px solid #ccc;background:#f5f5f5;cursor:pointer;font-size:13px">All</button>
+    <span id="filter-count" style="color:#888;font-size:13px;margin-left:4px"></span>
+  </div>
 </div>
 <script>
+var _quickMode='today';
+function fmtDate(d){{return d.toISOString().slice(0,10);}}
+function todayStr(){{return fmtDate(new Date());}}
+function yesterdayStr(){{var d=new Date();d.setDate(d.getDate()-1);return fmtDate(d);}}
+function weekDates(){{
+  var dates=[]; var d=new Date();
+  for(var i=0;i<7;i++){{dates.push(fmtDate(d));d.setDate(d.getDate()-1);}}
+  return dates;
+}}
+function setQuickDate(mode){{
+  _quickMode=mode;
+  ['today','yesterday','week','all'].forEach(function(m){{
+    var b=document.getElementById('btn-'+m);
+    if(b){{b.style.background=m===mode?'#0d63ce':'#f5f5f5';b.style.color=m===mode?'#fff':'';b.style.borderColor=m===mode?'#0d63ce':'#ccc';}}
+  }});
+  if(mode==='today'){{document.getElementById('filter-date').value=todayStr();document.getElementById('filter-month').value='';}}
+  else if(mode==='yesterday'){{document.getElementById('filter-date').value=yesterdayStr();document.getElementById('filter-month').value='';}}
+  else if(mode==='week'){{document.getElementById('filter-date').value='';document.getElementById('filter-month').value='';}}
+  else{{document.getElementById('filter-date').value='';document.getElementById('filter-month').value='';}}
+  applyFilters();
+}}
 function applyFilters(){{
   var topic=(document.getElementById('filter-topic').value||'').toLowerCase();
   var date=(document.getElementById('filter-date').value||'').toLowerCase();
+  var month=(document.getElementById('filter-month').value||'').toLowerCase();
+  var wdates=_quickMode==='week'?weekDates():null;
   var rows=document.querySelectorAll('#file-table tbody tr[data-topic]');
   var shown=0;
   rows.forEach(function(r){{
     var tm=(r.dataset.topic||'').toLowerCase();
     var dt=(r.dataset.date||'').toLowerCase();
-    var ok=(!topic||(tm===topic||tm.startsWith(topic+'/')))&&(!date||dt.includes(date));
+    var topicOk=(!topic||(tm===topic||tm.startsWith(topic+'/')));
+    var dateOk=true;
+    if(wdates){{dateOk=wdates.indexOf(dt)!==-1;}}
+    else if(date){{dateOk=dt===date;}}
+    else if(month){{dateOk=dt.startsWith(month);}}
+    var ok=topicOk&&dateOk;
     r.style.display=ok?'':'none';
     if(ok)shown++;
   }});
-  document.getElementById('filter-count').textContent=shown+' files';
+  document.getElementById('filter-count').textContent=shown+' reports';
 }}
-function clearFilters(){{
-  document.getElementById('filter-topic').value='';
-  document.getElementById('filter-date').value='';
-  applyFilters();
+function buildMonthDropdown(){{
+  var months={{}};
+  document.querySelectorAll('#file-table tbody tr[data-date]').forEach(function(r){{
+    var d=r.dataset.date||'';
+    if(d.length>=7){{var m=d.slice(0,7);months[m]=1;}}
+  }});
+  var sel=document.getElementById('filter-month');
+  Object.keys(months).sort().reverse().forEach(function(m){{
+    var opt=document.createElement('option');opt.value=m;
+    var parts=m.split('-');var yr=parts[0];var mo=parseInt(parts[1]);
+    var names=['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    opt.textContent=names[mo]+' '+yr;sel.appendChild(opt);
+  }});
 }}
 document.getElementById('filter-topic').addEventListener('change',applyFilters);
-document.getElementById('filter-date').addEventListener('input',applyFilters);
-window.addEventListener('DOMContentLoaded',applyFilters);
+document.getElementById('filter-date').addEventListener('change',function(){{_quickMode='custom';applyFilters();}});
+document.getElementById('filter-month').addEventListener('change',function(){{
+  if(this.value){{document.getElementById('filter-date').value='';_quickMode='custom';}}
+  applyFilters();
+}});
+window.addEventListener('DOMContentLoaded',function(){{buildMonthDropdown();setQuickDate('today');}});
 </script>"""
 
         back_link = f'<p style="margin-bottom:12px"><a href="{parsed.path}">← กลับไปรายการ</a></p>' if content and is_reports else ""
