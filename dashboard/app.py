@@ -49,6 +49,7 @@ STATUS_FILE = DASHBOARD_DIR / "job_status.json"
 LOGS_DIR = PROJECT_ROOT / "logs" / "dashboard"
 RUN_TOPIC = PROJECT_ROOT / "scripts" / "run_ai_trends_with_creds.sh"
 RUN_SUBTOPICS = PROJECT_ROOT / "scripts" / "run_claude_code_subtopics_with_creds.sh"
+SYNC_CRON = PROJECT_ROOT / "scripts" / "sync_dashboard_cron.py"
 
 SOURCE_TYPES = ("topic", "channel", "playlist", "video", "claude_code_subtopic")
 RUN_LOCK = threading.Lock()
@@ -188,6 +189,19 @@ def save_status(status):
         f.write("\n")
 
 
+def sync_dashboard_cron():
+    """Apply Dashboard daily-cron settings to the user's crontab."""
+    result = subprocess.run(
+        ["/usr/bin/python3", str(SYNC_CRON), "--apply"],
+        cwd=PROJECT_ROOT,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(result.stderr or result.stdout or "cron sync failed")
+    return result.stdout
+
+
 def now_text():
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -199,6 +213,35 @@ def slugify(value):
     return value[:80] or "research_job"
 
 
+def job_daily_cron_enabled(job):
+    if "daily_cron_enabled" in job:
+        return bool(job.get("daily_cron_enabled"))
+    return bool((job.get("schedule_time") or "").strip())
+
+
+def schedule_time_conflicts(jobs, schedule_time, current_job_id=None):
+    schedule_time = (schedule_time or "").strip()
+    if not schedule_time:
+        return []
+    return [
+        job for job in jobs
+        if job.get("id") != current_job_id
+        and job.get("enabled", True)
+        and job_daily_cron_enabled(job)
+        and (job.get("schedule_time") or "").strip() == schedule_time
+    ]
+
+
+def duplicate_schedule_groups(jobs):
+    groups = {}
+    for job in jobs:
+        schedule_time = (job.get("schedule_time") or "").strip()
+        if not job.get("enabled", True) or not job_daily_cron_enabled(job) or not schedule_time:
+            continue
+        groups.setdefault(schedule_time, []).append(job)
+    return {time_: group for time_, group in sorted(groups.items()) if len(group) > 1}
+
+
 def clean_report_folder(value, fallback):
     parts = []
     for raw in value.replace("\\", "/").split("/"):
@@ -206,6 +249,20 @@ def clean_report_folder(value, fallback):
         if part and part not in {".", ".."}:
             parts.append(part)
     return "/".join(parts) if parts else fallback
+
+
+def unique_job_id(base, jobs, current_id=""):
+    """Create a stable unique job id for new Dashboard jobs."""
+    base_id = slugify(base or "research_job")
+    existing_ids = {j.get("id") for j in jobs if j.get("id") and j.get("id") != current_id}
+    if base_id not in existing_ids:
+        return base_id
+    for i in range(2, 1000):
+        candidate = f"{base_id}_{i}"
+        if candidate not in existing_ids:
+            return candidate
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    return f"{base_id}_{timestamp}"
 
 
 def h(value):
@@ -497,10 +554,22 @@ class DashboardHandler(BaseHTTPRequestHandler):
   <td>{enabled_badge}<br><span class="{h(state)}" style="font-size:12px">{h(state)}</span><br><span class="muted" style="font-size:11px">{h(st.get('last_finished_at') or st.get('last_started_at') or '')}</span></td>
   <td class="actions">
     <a class="button secondary" href="/job?id={quote(job['id'])}">Edit</a>
-    <form class="inline" method="post" action="/job/run"><input type="hidden" name="id" value="{h(job['id'])}"><button type="submit">Run</button></form>
+    {'<form class="inline" method="post" action="/job/run"><input type="hidden" name="id" value="' + h(job['id']) + '"><button type="submit">Run</button></form>' if is_enabled else '<button type="button" class="secondary" disabled title="Job is disabled">Run disabled</button>'}
   </td>
 </tr>""")
 
+        duplicate_groups = duplicate_schedule_groups(jobs)
+        duplicate_warning = ""
+        if duplicate_groups:
+            items = []
+            for schedule_time, group in duplicate_groups.items():
+                names = ", ".join(h(j.get("name") or j.get("id")) for j in group)
+                items.append(f"<li><strong>{h(schedule_time)}</strong>: {names}</li>")
+            duplicate_warning = f"""<section style="border-color:#f59e0b;background:#fff7ed">
+  <h2>⚠️ Duplicate Daily Cron Times</h2>
+  <p class="muted">เวลานี้มีหลาย jobs ที่เปิด Add to Daily Cron อยู่ ระบบยังรันได้ แต่จะเริ่มพร้อมกัน อาจกิน quota/CPU พร้อมกันค่ะ</p>
+  <ul>{''.join(items)}</ul>
+</section>"""
         enabled = sum(1 for j in jobs if j.get("enabled"))
         running = sum(1 for s in status.values() if s.get("state") == "running")
         body = f"""<h1>Research Jobs</h1>
@@ -511,6 +580,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
   <div class="metric"><span class="muted">Config</span><strong>JSON</strong></div>
 </div>
 <p><a class="button" href="/job">Add Job</a> <a class="button secondary" href="/reports">View Reports</a></p>
+{duplicate_warning}
 <table>
   <thead><tr><th>Name</th><th>Source</th><th>URL</th><th>Videos</th><th>Folder</th><th>Status</th><th>Actions</th></tr></thead>
   <tbody>{''.join(rows) if rows else '<tr><td colspan="7">No jobs configured.</td></tr>'}</tbody>
@@ -525,24 +595,42 @@ class DashboardHandler(BaseHTTPRequestHandler):
             f'<option value="{h(t)}" {"selected" if job.get("source_type", "topic") == t else ""}>{h(t)}</option>'
             for t in SOURCE_TYPES
         )
+        job_id_field = (
+            '<input type="hidden" name="id" value="">'
+            '<div><label>Job ID</label><div class="muted" style="padding:9px 0">Auto-generated after Save</div></div>'
+            if is_new else
+            f'<div><label>Job ID</label><input name="id" value="{h(job.get("id"))}" readonly></div>'
+        )
+        enabled_default = job.get('enabled', True)
+        daily_cron_default = job.get('daily_cron_enabled', bool(job.get('schedule_time'))) if not is_new else False
+        conflicts = schedule_time_conflicts(jobs, job.get('schedule_time'), current_job_id=job.get('id')) if daily_cron_default else []
+        conflict_warning = ""
+        if conflicts:
+            names = ", ".join(h(j.get("name") or j.get("id")) for j in conflicts)
+            conflict_warning = f"""<section style="border-color:#f59e0b;background:#fff7ed">
+  <strong>⚠️ Schedule Time ซ้ำ</strong>
+  <p class="muted">เวลา {h(job.get('schedule_time'))} มี job อื่นเปิด daily cron อยู่แล้ว: {names}</p>
+</section>"""
         body = f"""<h1>{'Add Job' if is_new else 'Edit Job'}</h1>
+{conflict_warning}
 <section>
 <form method="post" action="/job/save">
   <div class="form-grid">
-    <div><label>Job ID</label><input name="id" value="{h(job.get('id'))}" {'readonly' if not is_new else ''} required></div>
+    {job_id_field}
     <div><label>Name</label><input name="name" value="{h(job.get('name'))}" required></div>
     <div><label>Source Type</label><select name="source_type">{options}</select></div>
-    <div><label>Topic</label><input name="topic" value="{h(job.get('topic'))}" required></div>
-    <div><label>Source URL</label><input name="source_url" value="{h(job.get('source_url'))}" placeholder="Channel, playlist, or video URL"></div>
+    <div><label>Topic / Folder Label</label><input name="topic" value="{h(job.get('topic'))}" placeholder="เช่น on demand หรือชื่อหัวข้อ" required></div>
+    <div><label>Source URL</label><input name="source_url" value="{h(job.get('source_url'))}" placeholder="Channel, playlist, or single video URL"></div>
     <div><label>Number of Videos</label><input name="max_videos" type="number" min="1" max="50" value="{h(job.get('max_videos', 3))}"></div>
-    <div><label>Report Folder</label><input name="report_folder" value="{h(job.get('report_folder'))}" placeholder="folder or parent/folder"></div>
-    <div><label>Schedule Time</label><input name="schedule_time" value="{h(job.get('schedule_time'))}" placeholder="07:35"></div>
+    <div><label>Report Folder</label><input name="report_folder" value="{h(job.get('report_folder'))}" placeholder="blank = auto from topic; e.g. on_demand/url_summaries"></div>
+    <div><label>Schedule Time <span class="muted">(required if Add to Daily Cron is on)</span></label><input name="schedule_time" value="{h(job.get('schedule_time'))}" placeholder="07:35"></div>
   </div>
+  <p class="muted">Schedule Time is optional for manual-only jobs. If Add to Daily Cron is on, Save syncs the real production crontab immediately.</p>
   <label>Notes</label><textarea name="notes" rows="3">{h(job.get('notes'))}</textarea>
   <p>
-    <label><input type="checkbox" name="enabled" value="1" {'checked' if job.get('enabled', True) else ''} style="width:auto"> Enabled</label>
+    <label><input type="checkbox" name="enabled" value="1" {'checked' if enabled_default else ''} style="width:auto"> Job Enabled <span class="muted">(off = keep config but block Run and cron)</span></label>
+    <label><input type="checkbox" name="daily_cron_enabled" value="1" {'checked' if daily_cron_default else ''} style="width:auto"> Add to Daily Cron <span class="muted">(Save syncs production cron)</span></label>
     <label><input type="checkbox" name="detailed" value="1" {'checked' if job.get('detailed', True) else ''} style="width:auto"> Detailed Thai summary</label>
-    <label><input type="checkbox" name="include_in_daily_summary" value="1" {'checked' if job.get('include_in_daily_summary', True) else ''} style="width:auto"> Include in daily summary</label>
   </p>
   <button type="submit">Save</button>
   <a class="button secondary" href="/">Cancel</a>
@@ -716,47 +804,77 @@ window.addEventListener('DOMContentLoaded',function(){{buildMonthDropdown();setQ
         cron = result.stdout if result.returncode == 0 else result.stderr
         body = f"""<h1>Production Cron</h1>
 <section>
-  <p class="muted">Read-only view. The dashboard does not edit production cron.</p>
+  <p class="muted">Dashboard-managed ATS research cron. Saving a job with Add to Daily Cron syncs these lines.</p>
   <pre>{h(cron)}</pre>
 </section>"""
         self.send_html(page("Cron", body))
 
     def save_job(self, data):
         jobs = load_jobs()
-        job_id = slugify(data.get("id", [""])[0])
-        existing = next((j for j in jobs if j.get("id") == job_id), None)
+        requested_id = slugify(data.get("id", [""])[0])
+        existing = next((j for j in jobs if j.get("id") == requested_id), None) if requested_id else None
         topic = data.get("topic", [""])[0].strip()
-        report_folder = clean_report_folder(data.get("report_folder", [""])[0], slugify(topic))
+        name = data.get("name", [topic])[0].strip() or topic
+        source_url = data.get("source_url", [""])[0].strip()
+        # For new jobs, Job ID is generated by the system from topic/name/source URL
+        # and made unique with a numeric suffix when needed.
+        job_id = requested_id if existing else unique_job_id(topic or name or source_url, jobs)
+        report_folder = clean_report_folder(data.get("report_folder", [""])[0], slugify(topic or name or job_id))
         job = {
             "id": job_id,
-            "name": data.get("name", [topic])[0].strip(),
+            "name": name,
             "enabled": data.get("enabled", ["0"])[0] == "1",
             "source_type": data.get("source_type", ["topic"])[0],
             "topic": topic,
-            "source_url": data.get("source_url", [""])[0].strip(),
+            "source_url": source_url,
             "max_videos": max(1, int(data.get("max_videos", ["3"])[0] or 3)),
             "detailed": data.get("detailed", ["0"])[0] == "1",
             "report_folder": report_folder,
             "schedule_time": data.get("schedule_time", [""])[0].strip(),
-            "include_in_daily_summary": data.get("include_in_daily_summary", ["0"])[0] == "1",
+            "daily_cron_enabled": data.get("daily_cron_enabled", ["0"])[0] == "1",
+            "include_in_daily_summary": existing.get("include_in_daily_summary", False) if existing else False,
             "notes": data.get("notes", [""])[0].strip(),
         }
+        if job["daily_cron_enabled"] and not re.fullmatch(r"\d{1,2}:\d{2}", job["schedule_time"]):
+            self.send_html(page("Schedule required", '<h1>Schedule required</h1><p class="failed">Add to Daily Cron requires Schedule Time in HH:MM format.</p><p><a href="/job">Back</a></p>'), code=400)
+            return
         if existing:
             jobs[jobs.index(existing)] = job
         else:
             jobs.append(job)
         save_jobs(jobs)
+        try:
+            sync_dashboard_cron()
+        except Exception as exc:
+            self.send_html(page("Cron sync failed", f'<h1>Cron sync failed</h1><p class="failed">{h(exc)}</p><p><a href="/">Back to Jobs</a></p>'), code=500)
+            return
         self.redirect("/")
 
     def delete_job(self, data):
         job_id = data.get("id", [""])[0]
         save_jobs([j for j in load_jobs() if j.get("id") != job_id])
+        try:
+            sync_dashboard_cron()
+        except Exception as exc:
+            self.send_html(page("Cron sync failed", f'<h1>Cron sync failed</h1><p class="failed">{h(exc)}</p><p><a href="/">Back to Jobs</a></p>'), code=500)
+            return
         self.redirect("/")
 
     def run_job_action(self, data):
         job_id = data.get("id", [""])[0]
         job = next((j for j in load_jobs() if j.get("id") == job_id), None)
-        if job:
+        if job and not job.get("enabled", True):
+            status = load_status()
+            status[job_id] = {
+                "state": "disabled",
+                "last_started_at": now_text(),
+                "last_finished_at": now_text(),
+                "exit_code": None,
+                "latest_log": "",
+                "latest_report": "",
+            }
+            save_status(status)
+        elif job:
             start_job(job)
         self.redirect("/")
 

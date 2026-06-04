@@ -51,7 +51,7 @@ Automated daily AI trends research from YouTube. Scrapes videos → generates **
 | NATEHERK | @NATEHERK channel | channel |
 | Joanna Wiebe | @joanna-wiebe channel | channel |
 | Claude Code base subtopics | YouTube search | search (obsidian, notebooklm, design, skills, remotion video, video) |
-| Claude Code new subtopics | YouTube search | search (seedance, higgsfield, shopify, hyperframe) |
+| Claude Code new subtopics | YouTube search | search (seedance, higgsfield, shopify, hyperframe, heygen) |
 | Finance Money Coach | @THEMONEYCOACHTH channel | channel |
 | Finance Money Buffalo | /c/MoneyBuffalo channel | channel |
 | Finance A-Academy | /user/aacademychannel channel | channel |
@@ -74,7 +74,7 @@ Automated daily AI trends research from YouTube. Scrapes videos → generates **
 | Self Help/Thai Dharma — Oui Buddhabless | @OUIBB channel | channel (reports/self_help/thai/dharma/oui_buddhabless) |
 | Self Help/Thai Dharma — Khunkhao | @K.S.Khunkhao channel | channel (reports/self_help/thai/dharma/khunkhao) |
 
-**Claude Code subtopics:** obsidian · notebooklm · design · skills · remotion video · video · seedance · higgsfield · shopify · hyperframe
+**Claude Code subtopics:** obsidian · notebooklm · design · skills · remotion video · video · seedance · higgsfield · shopify · hyperframe · heygen
 
 ---
 
@@ -89,11 +89,11 @@ Automated daily AI trends research from YouTube. Scrapes videos → generates **
 | 05:40 | 22:40 prev | AI Viral Niche | `--max-results 5 --detailed` |
 | 06:00 | 23:00 prev | NATEHERK | `--max-results 3 --detailed` |
 | 06:25 | 23:25 prev | Joanna Wiebe | `--max-results 3 --detailed` |
-| 06:55 | 23:55 prev | Claude Code Base Subtopics | `--max-results 3 --total-videos 18 --detailed` |
+| 06:55 | 23:55 prev | Claude Code Base Subtopics | `--max-results 3 --total-videos 18 --transcript-langs "en,th,all" --detailed` |
 | 07:05 | 00:05 | Jacksons AI | `--max-results 3 --detailed` |
 | 07:15 | 00:15 | Make Money Matt | `--max-results 3 --detailed` |
 | 07:25 | 00:25 | Miss Luna Vega | `--max-results 3 --detailed` |
-| 07:35 | 00:35 | Claude Code New Subtopics | `--only "seedance,higgsfield,shopify,hyperframe" --max-results 5 --total-videos 20 --detailed` |
+| 07:35 | 00:35 | Claude Code New Subtopics | `--only "seedance,higgsfield,shopify,hyperframe,heygen" --max-results 5 --total-videos 25 --transcript-langs "en,th,all" --detailed` |
 | 07:45 | 00:45 | Finance Money Coach | `--channel @THEMONEYCOACHTH --max-results 3 --detailed` |
 | 07:55 | 00:55 | Finance Money Buffalo | `--channel /c/MoneyBuffalo --max-results 3 --detailed` |
 | 08:05 | 01:05 | Finance A-Academy | `--channel /user/aacademychannel --max-results 3 --detailed` |
@@ -213,7 +213,7 @@ bash scripts/run_ai_trends_with_creds.sh \
 
 **Run Claude Code subtopics:**
 ```bash
-bash scripts/run_claude_code_subtopics_with_creds.sh --max-results 3 --total-videos 18 --detailed
+bash scripts/run_claude_code_subtopics_with_creds.sh --max-results 3 --total-videos 18 --transcript-langs "en,th,all" --detailed
 bash scripts/run_claude_code_subtopics_with_creds.sh --only "seedance,higgsfield,shopify" --max-results 5 --total-videos 15 --detailed
 ```
 

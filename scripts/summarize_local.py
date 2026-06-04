@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
 summarize_local.py — drop-in replacement for the `summarize` CLI.
-Providers: vertex (Vertex AI ADC) → qwen → glm → gemini (AI Studio) → gemma
+Default provider: vertex (Vertex AI ADC) only.
+Optional manual fallback: set TRENDS_EXTRA_PROVIDERS="qwen,glm,gemini" explicitly.
 
 Usage (as library):
     from summarize_local import summarize_video
@@ -281,11 +282,13 @@ Provide a structured markdown summary with:
 
 Keep it concise and practical."""
 
-    # Provider chain: vertex (GCP ADC) → qwen → glm → gemini (AI Studio) → gemma
-    primary  = os.environ.get('TRENDS_PRIMARY_PROVIDER',  'vertex')
-    fallback = os.environ.get('TRENDS_FALLBACK_PROVIDER', 'qwen')
+    # Default provider is Vertex only. Older fallback providers remain available
+    # only when explicitly requested via TRENDS_EXTRA_PROVIDERS, to avoid hidden
+    # quota/key confusion in production ATS runs.
+    primary = os.environ.get('TRENDS_PRIMARY_PROVIDER', 'vertex')
+    extra = os.environ.get('TRENDS_EXTRA_PROVIDERS', '')
     seen, providers = set(), []
-    for p in [primary, fallback, 'glm', 'gemini', 'gemma']:
+    for p in [primary] + [x.strip() for x in extra.split(',') if x.strip()]:
         if p not in seen:
             seen.add(p)
             providers.append(p)

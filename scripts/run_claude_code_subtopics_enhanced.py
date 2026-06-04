@@ -118,11 +118,13 @@ def create_content_hash(title, description="", duration=0):
     content_string = f"{title}|{description}|{duration}"
     return hashlib.md5(content_string.encode()).hexdigest()
 
-def process_video_with_summarize(video_url, topic, video_title="Unknown", detailed=False):
+def process_video_with_summarize(video_url, topic, video_title="Unknown", detailed=False, transcript_langs=None):
     """Process single video using summarize skill"""
     prompt_file = THAI_SUMMARY_PROMPT_DETAILED if detailed else THAI_SUMMARY_PROMPT
     print(f"Processing with summarize: {video_title}")
     print(f"  → Using {'detailed' if detailed else 'standard'} prompt")
+    if transcript_langs:
+        print(f"  → Transcript language order: {','.join(transcript_langs)}")
 
     try:
         import importlib.util
@@ -133,7 +135,8 @@ def process_video_with_summarize(video_url, topic, video_title="Unknown", detail
         _mod = importlib.util.module_from_spec(_spec)
         _spec.loader.exec_module(_mod)
         summary_text = _mod.summarize_video(video_url, prompt_file=prompt_file,
-                                             language="th", topic=topic)
+                                             language="th", topic=topic,
+                                             transcript_langs=transcript_langs)
         result = type('R', (), {'returncode': 0, 'stdout': summary_text, 'stderr': ''})()
     except Exception as _e:
         result = type('R', (), {'returncode': 1, 'stdout': '', 'stderr': str(_e)})()
@@ -168,7 +171,9 @@ def main():
     parser.add_argument("--total-videos", type=int, default=8, help="Total videos across all subtopics (default: 8)")
     parser.add_argument("--detailed", action="store_true", help="Use detailed Thai prompt for comprehensive summaries")
     parser.add_argument("--only", type=str, default="", help="Comma-separated subtopic name filter (partial match, e.g. 'remotion,video')")
+    parser.add_argument("--transcript-langs", type=str, default="en,th,all", help="Comma-separated transcript language order (default: en,th,all)")
     args = parser.parse_args()
+    transcript_langs = [lang.strip() for lang in args.transcript_langs.split(',') if lang.strip()]
 
     all_subtopics = [
         "claude code obsidian",
@@ -180,7 +185,8 @@ def main():
         "claude code seedance",
         "claude code higgsfield",
         "claude code shopify",
-        "claude code hyperframe"
+        "claude code hyperframe",
+        "claude code heygen"
     ]
 
     if args.only:
@@ -258,7 +264,13 @@ def main():
             
             print(f"Processing: {video_title}")
             
-            video_data = process_video_with_summarize(video_url, subtopic, video_title, detailed=args.detailed)
+            video_data = process_video_with_summarize(
+                video_url,
+                subtopic,
+                video_title,
+                detailed=args.detailed,
+                transcript_langs=transcript_langs,
+            )
             video_data['subtopic'] = subtopic
             
             if video_data:

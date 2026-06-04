@@ -19,5 +19,6 @@ else
     exit 1
 fi
 
-# Run Python script with sourced environment
-python3 $SCRIPTS_DIR/run_claude_code_subtopics_enhanced.py "$@"
+# Run Python script with sourced environment. Use system Python because
+# google-genai/Vertex ADC runtime dependencies are installed there.
+/usr/bin/python3 $SCRIPTS_DIR/run_claude_code_subtopics_enhanced.py "$@"

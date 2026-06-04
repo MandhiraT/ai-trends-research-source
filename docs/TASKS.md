@@ -2,7 +2,7 @@
 
 > Working document for team/agent collaboration. Update this file whenever features change, bugs are found, or new work is planned. Keep statuses current.
 
-**Last updated:** 2026-05-29 ICT
+**Last updated:** 2026-06-04 ICT
 **Maintained by:** Sati (primary agent) / Mandhira / Mali
 
 ---
@@ -20,7 +20,7 @@
 | Per-topic report/voice notifications | ✅ Added 2026-05-27 — `run_daily_summary_cron.sh` sends configured email/Telegram topic notifications after report upload + audio upload, before final daily digest |
 | Hallucination guard | ✅ Fixed 2026-05-24 (no downloadable captions → transcript unavailable; Thai captions are supported; production jobs now pass explicit transcript language order) |
 | Cron project path | ✅ Fixed 2026-05-12 (`Desktop/Projects`, not lowercase `projects`) |
-| Claude Code new subtopics | ✅ Working (Seedance, Higgsfield, Shopify, Hyperframe) |
+| Claude Code new subtopics | ✅ Working (Seedance, Higgsfield, Shopify, Hyperframe, Heygen) |
 | Local dashboard | ✅ Working (`http://127.0.0.1:8092`) |
 | Searchable report index | ✅ Working (385 summarized video sections indexed locally, no-AI-cost backfill) |
 | Cloudflare dashboard route | ✅ Working (`https://ai-trends.thequietself.com`) |
@@ -46,7 +46,7 @@
 | Thai summarization | Vertex AI (ADC) → qwen → glm → gemini → gemma fallback chain | `summarize_local.py` |
 | Standard prompt | Slide-based summary (~500 words) | `prompts/thai_summary_prompt.txt` |
 | Detailed prompt | Section-based summary (2000-3000 words, 🎯📝🛠️📊💡 headers) | `prompts/thai_summary_prompt_detailed.txt` |
-| Claude Code subtopics | Base + new subtopics: obsidian, notebooklm, design, skills, remotion video, video, seedance, higgsfield, shopify, hyperframe | `run_claude_code_subtopics_enhanced.py` |
+| Claude Code subtopics | Base + new subtopics: obsidian, notebooklm, design, skills, remotion video, video, seedance, higgsfield, shopify, hyperframe, heygen | `run_claude_code_subtopics_enhanced.py` |
 | Daily Thai digest | Aggregates all topic reports + GitHub links + audio status | `ai_trends_daily_summary_thai.py` |
 | Per-topic notification | Sends configured report/voice links by email and/or Telegram after daily report/audio upload | `notify_topic.py`, `config/notification_routing.json` |
 | GitHub auto-upload | Clone reports repo → copy files → git push | `upload_reports_to_github_fixed.py` |
@@ -118,6 +118,7 @@
 | T-030 | **Implement ATS unified voice engine — Phase 1** | 2026-05-17 | Added `scripts/voice_engine.py`, `ats_female_narrator` voice profile (`Aoede`), refactored `generate_audio_report.py` wrappers to use the shared TTS/concat engine, and extended `config/audio_topics.json` with automation policy. Verified with py_compile, config JSON, engine dry-run, CLI help, profile load. |
 | T-031 | **Implement ATS Dashboard manual voice flow — Phase 2** | 2026-05-17 | Added `/api/assets/script` GET/POST, `/api/assets/voice-status`, `/api/assets/generate-voice`, script editor on Assets page, and per-row 📝/📚/🎙️/🎧 controls. Voice is generated from saved script only; missing script returns explicit error. Verified 8/8 API tests and browser UI; no real TTS cost triggered. |
 | T-032 | **ATS output repo folder cleanup — Phase A local migration** | 2026-05-17 | Migrated 13 WAV files `Voice/NateHerk → voice/nateherk`. Both repos committed and pushed. ✅ |
+| T-045 | **Add Claude Code Heygen ATS subtopic** | 2026-06-04 | Added `claude code heygen` to `scripts/run_claude_code_subtopics_enhanced.py`, production 07:35 cron `--only` batch (`seedance,higgsfield,shopify,hyperframe,heygen`, `--total-videos 25`), daily summary topic `CC Heygen`, dashboard job config, and report folder `reports/claude_code/claude_code_heygen/`. |
 | T-033 | **Enable Joanna Wiebe daily voice automation** | 2026-05-17 | Added `joanna_wiebe` to `enabled_topics` + `github_folder_map`, set `automated_voice_topics.joanna_wiebe.enabled=true, publish=true`. NATEHERK verified (9.9MB today). Generated and published `voice/joanna_wiebe/2026-05-17.wav` (9.2MB). From tomorrow cron generates + publishes Joanna audio automatically. |
 | T-034 | **Fix Dashboard Assets all-topic manual audio/social generation** | 2026-05-17 | Fixed `name '_slug' is not defined` in `scripts/generate_content_assets.py`, added explicit manual generation override so Dashboard `+Audio`, `+Social`, and `+All` work for any topic while `PRIORITY_TOPICS` remains default automation policy only. Updated full-script prompt framing to “คนที่เพิ่งดูมาแล้วอยากบอกเล่าสิ่งที่ได้เรียนรู้”, hook-first opening, no “คลิปนี้” opening, and banned over-casual words (`แก`, `เว้ย`, `แกๆ`, `โห`, `โคตร`, `เจ๋ง`, `อ่ะ`). Verification: py_compile passed, unit/fake-AI all-topic test passed, local `/assets` + asset endpoints 5/5, browser page loads via Cloudflare route with no console errors, real `jacksons_ai` audio-script generation returned 200 and created `audio_scripts/jacksons_ai/2026-05-17-v1.md`. |
 | T-035 | **Add Dashboard deep-dive script generation** | 2026-05-17 | Added script-first `📖 Generate deep dive script` button and `POST /api/assets/generate-deep-dive-script`. The endpoint creates only `audio_scripts/{topic}/{date}-vN-deep-dive.md` with `## Deep Dive Script`; it does not create voice. Existing scripts are not overwritten unless `force=1`. Added deep-dive prompt based on the Full Episode Formula plus a quality retry guard for forbidden greetings/openings. Verification: new tests 5/5 for generator + Dashboard workflow, full test suite 9/9, py_compile passed, local `/assets` 200, Cloudflare Assets page shows 📖 controls with no console errors, real `jacksons_ai` deep-dive script generated (8,482 chars) and no WAV was created. |
@@ -192,11 +193,11 @@
 | 05:40 | AI Viral Niche (search) | `--max-results 5 --detailed` |
 | 06:00 | NATEHERK (channel) | `--max-results 3 --detailed` |
 | 06:25 | Joanna Wiebe (channel) | `--max-results 3 --detailed` |
-| 06:55 | Claude Code base subtopics | `--max-results 3 --total-videos 18 --detailed` |
+| 06:55 | Claude Code base subtopics | `--max-results 3 --total-videos 18 --transcript-langs "en,th,all" --detailed` |
 | 07:05 | Jacksons AI (channel) | `--max-results 3 --detailed` |
 | 07:15 | Make Money Matt (channel) | `--max-results 3 --detailed` |
 | 07:25 | Miss Luna Vega (playlist) | `--max-results 3 --detailed` |
-| 07:35 | Claude Code new subtopics | `--only "seedance,higgsfield,shopify,hyperframe" --max-results 5 --total-videos 20 --detailed` |
+| 07:35 | Claude Code new subtopics | `--only "seedance,higgsfield,shopify,hyperframe,heygen" --max-results 5 --total-videos 25 --transcript-langs "en,th,all" --detailed` |
 | 07:45–08:25 | Finance channels | 5 channel jobs, `--max-results 3 --detailed` |
 | 08:35 | Boom BigNose (channel) | `--max-results 3 --detailed` |
 | 08:45 | Health — อาหารบำรุงสุขภาพ (search) | `--report-folder health/health_food_nutrition --max-results 5 --detailed` |
@@ -225,10 +226,10 @@ bash scripts/run_ai_trends_with_creds.sh \
   --max-results 3 --detailed
 
 # Claude Code subtopics only
-bash scripts/run_claude_code_subtopics_with_creds.sh --max-results 3 --total-videos 18 --detailed
+bash scripts/run_claude_code_subtopics_with_creds.sh --max-results 3 --total-videos 18 --transcript-langs "en,th,all" --detailed
 
 # Claude Code new subtopics only
-bash scripts/run_claude_code_subtopics_with_creds.sh --only "seedance,higgsfield,shopify,hyperframe" --max-results 5 --total-videos 20 --detailed
+bash scripts/run_claude_code_subtopics_with_creds.sh --only "seedance,higgsfield,shopify,hyperframe,heygen" --max-results 5 --total-videos 25 --transcript-langs "en,th,all" --detailed
 
 # End-of-day pipeline only: GitHub upload → audio → audio upload → per-topic notifications → daily digest
 bash scripts/run_daily_summary_cron.sh
