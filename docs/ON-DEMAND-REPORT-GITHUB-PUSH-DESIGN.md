@@ -186,6 +186,104 @@ Reason: secret scan failed / push conflict / auth error
 
 ---
 
+## Separate Future Improvement: Self-run Job Status Visibility
+
+> Status: Documented only — not implemented yet.
+
+This is a separate UX improvement from GitHub auto-push. Even if report pushing stays manual, Mandy should be able to understand what happened after clicking **Run** without asking Mali to inspect files.
+
+### Current visibility
+
+Mandy can currently check a self-run On Demand job in these places:
+
+1. **Jobs Dashboard**: `http://127.0.0.1:8092/`
+   - Shows the job row and state such as `running`, `success`, `failed`, or `disabled`.
+   - Shows the latest start/finish timestamp.
+2. **Logs page**: `http://127.0.0.1:8092/logs`
+   - Contains log files such as `speech_YYYYMMDD_HHMMSS.log`.
+   - Shows the command, warnings, processed videos, report path, and exit code.
+3. **Reports page**: `http://127.0.0.1:8092/reports`
+   - Shows generated local reports after the job succeeds.
+4. **Status JSON**: `ai_trends_reports/dashboard/job_status.json`
+   - Source of truth for Dashboard status fields:
+     - `state`
+     - `last_started_at`
+     - `last_finished_at`
+     - `exit_code`
+     - `latest_log`
+     - `latest_report`
+
+### Current UX gaps
+
+The data exists, but it is not obvious enough in the UI:
+
+- Jobs table does not expose a direct **View latest log** button.
+- Jobs table does not expose a direct **View latest report** button.
+- Jobs table does not summarize what happened, e.g. `processed 1 video`.
+- Warnings such as YouTube `HTTP 429` are visible only inside the log.
+- GitHub publishing state is not represented, because pushing is manual for now.
+- The latest report selection should remain job-specific, not global-newest, if more actions are added.
+
+### Recommended future UI changes
+
+Add these non-invasive status improvements before or independent of auto-push:
+
+```text
+Job: On Demand
+Research: running|success|failed
+Started: 2026-06-04 20:43:48
+Finished: 2026-06-04 20:45:59
+Videos processed: 1
+Exit code: 0
+Latest log: View
+Latest report: View
+GitHub: manual push required|pushed|failed|skipped
+```
+
+Recommended buttons in each Jobs row:
+
+- `View latest log`
+- `View latest report`
+- `Copy report path`
+- Optional later: `Ask Mali to push` / `Mark for manual push` (do not auto-push unless Mandy explicitly approves that feature)
+
+### Recommended status fields
+
+Extend `job_status.json` only when implementing:
+
+```json
+{
+  "state": "success",
+  "last_started_at": "2026-06-04 20:43:48",
+  "last_finished_at": "2026-06-04 20:45:59",
+  "exit_code": 0,
+  "latest_log": "/abs/path/to/log",
+  "latest_report": "/abs/path/to/report.md",
+  "videos_processed": 1,
+  "warning_summary": "YouTube 429 during Thai subtitle fetch; fallback succeeded",
+  "github_push_state": "manual_required"
+}
+```
+
+### Safety notes
+
+- This status visibility feature must not trigger GitHub push by itself.
+- It should only surface information that already exists locally.
+- Do not print credentials or raw secrets from logs.
+- If showing log snippets in the UI, cap the size and prefer tail output.
+- Keep research success separate from GitHub/manual-push state.
+
+### Tests to add if implemented later
+
+1. A successful job status renders `View latest log` and `View latest report` links.
+2. A running job displays `running` without requiring a report path.
+3. A failed job displays exit code and log link.
+4. Log preview does not expose sensitive assignment-like values.
+5. Missing log/report paths degrade gracefully.
+6. GitHub state stays `manual_required` unless a separate push workflow updates it.
+
+---
+
 ## Why Not Implement Now
 
 Mandy decided this is not necessary yet. Manual push by Mali is safer for now because:
