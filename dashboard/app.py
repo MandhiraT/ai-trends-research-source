@@ -219,6 +219,13 @@ def job_daily_cron_enabled(job):
     return bool((job.get("schedule_time") or "").strip())
 
 
+def report_date_key(filename, suffix):
+    """Return YYYY-MM-DD for both daily and timestamped on-demand report filenames."""
+    stem = filename[:-len(suffix)] if suffix and filename.endswith(suffix) else filename
+    match = re.match(r"^(\d{4}-\d{2}-\d{2})", stem)
+    return match.group(1) if match else stem
+
+
 def schedule_time_conflicts(jobs, schedule_time, current_job_id=None):
     schedule_time = (schedule_time or "").strip()
     if not schedule_time:
@@ -664,7 +671,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
             parts = rel.split("/")
             # Use full folder path (all parts except filename) as topic key
             topic = "/".join(parts[:-1]) if len(parts) > 1 else ""
-            date_part = parts[-1].replace(suffix, "") if is_reports else ""
+            date_part = report_date_key(parts[-1], suffix) if is_reports else ""
             data_attrs = f' data-topic="{h(topic)}" data-date="{h(date_part)}"' if is_reports else ""
             selected_class = ' class="selected-row"' if rel == selected else ""
             rows.append(f'<tr{data_attrs}{selected_class}><td><a href="{parsed.path}?file={quote(rel)}">{h(rel)}</a></td><td>{h(mtime)}</td></tr>')
