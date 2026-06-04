@@ -55,6 +55,46 @@ def sanitize_report_folder(folder):
             parts.append(part[:80])
     return "/".join(parts)
 
+
+FILLER_TITLE_WORDS = {
+    "a", "an", "and", "are", "at", "by", "for", "from", "full", "how", "in",
+    "is", "of", "official", "on", "part", "the", "this", "to", "video", "with",
+}
+
+
+def compact_title_slug(title, max_words=6, max_chars=55):
+    """Build a compact, human-readable slug from content title."""
+    normalized = re.sub(r"[^A-Za-z0-9]+", " ", title or "").strip().lower()
+    words = []
+    for word in normalized.split():
+        if word in FILLER_TITLE_WORDS:
+            continue
+        words.append(word)
+        if len(words) >= max_words:
+            break
+    if not words:
+        words = ["untitled"]
+    slug = "-".join(words)
+    return slug[:max_chars].strip("-") or "untitled"
+
+
+def build_report_filename(report_date, generated_at, on_demand, all_video_data, topic):
+    """Return report filename. Daily jobs stay date-only; on-demand jobs are unique per run."""
+    if not on_demand:
+        return f"{report_date}.md"
+
+    run_time = generated_at.strftime("%H%M")
+    if len(all_video_data) == 1:
+        video = all_video_data[0]
+        title_slug = compact_title_slug(video.get("title", ""))
+        video_id = re.sub(r"[^A-Za-z0-9_-]", "", video.get("video_id", ""))[:20]
+        suffix = f"{title_slug}_{video_id}" if video_id else title_slug
+    else:
+        topic_slug = compact_title_slug(topic, max_words=4, max_chars=35)
+        suffix = f"{topic_slug}-{len(all_video_data)}-videos"
+
+    return f"{report_date}_{run_time}_{suffix}.md"
+
 def get_dirs(topic, report_folder=None):
     """Get topic-specific directories"""
     topic_safe = sanitize_report_folder(report_folder) if report_folder else sanitize_topic(topic)
@@ -293,6 +333,7 @@ def main():
     parser.add_argument("--video-url", help="Specific YouTube video URL to summarize")
     parser.add_argument("--report-folder", help="Optional report folder under ai_trends_reports/reports")
     parser.add_argument("--config-job-id", help="Optional dashboard job id to include in report metadata")
+    parser.add_argument("--on-demand", action="store_true", help="Use unique, readable per-run report filenames")
     parser.add_argument(
         "--transcript-langs",
         help="Comma-separated caption language preference, e.g. en,th,all or th,en,all",
@@ -395,8 +436,9 @@ def main():
         return
     
     # Generate combined report
-    report_date = datetime.now().strftime('%Y-%m-%d')
-    report_time = datetime.now().strftime('%H:%M ICT')
+    generated_at = datetime.now()
+    report_date = generated_at.strftime('%Y-%m-%d')
+    report_time = generated_at.strftime('%H:%M ICT')
     
     report_content = f"""# AI Trends Research - {topic}
 
@@ -451,7 +493,8 @@ def main():
 """
     
     # Save report
-    report_file = f"{dirs['reports']}/{report_date}.md"
+    report_filename = build_report_filename(report_date, generated_at, args.on_demand, all_video_data, topic)
+    report_file = f"{dirs['reports']}/{report_filename}"
     
     with open(report_file, "w") as f:
         f.write(report_content)

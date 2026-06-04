@@ -326,6 +326,8 @@ def build_command(job):
             transcript_langs = ",".join(str(x).strip() for x in transcript_langs if str(x).strip())
         if transcript_langs:
             cmd.extend(["--transcript-langs", str(transcript_langs)])
+        if job.get("on_demand", False):
+            cmd.append("--on-demand")
 
     if job.get("detailed", True):
         cmd.append("--detailed")
@@ -602,6 +604,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
             f'<div><label>Job ID</label><input name="id" value="{h(job.get("id"))}" readonly></div>'
         )
         enabled_default = job.get('enabled', True)
+        on_demand_default = job.get('on_demand', False)
         daily_cron_default = job.get('daily_cron_enabled', bool(job.get('schedule_time'))) if not is_new else False
         conflicts = schedule_time_conflicts(jobs, job.get('schedule_time'), current_job_id=job.get('id')) if daily_cron_default else []
         conflict_warning = ""
@@ -630,6 +633,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
   <p>
     <label><input type="checkbox" name="enabled" value="1" {'checked' if enabled_default else ''} style="width:auto"> Job Enabled <span class="muted">(off = keep config but block Run and cron)</span></label>
     <label><input type="checkbox" name="daily_cron_enabled" value="1" {'checked' if daily_cron_default else ''} style="width:auto"> Add to Daily Cron <span class="muted">(Save syncs production cron)</span></label>
+    <label><input type="checkbox" name="on_demand" value="1" {'checked' if on_demand_default else ''} style="width:auto"> On Demand Report <span class="muted">(unique readable filename per run; prevents overwrite)</span></label>
     <label><input type="checkbox" name="detailed" value="1" {'checked' if job.get('detailed', True) else ''} style="width:auto"> Detailed Thai summary</label>
   </p>
   <button type="submit">Save</button>
@@ -832,6 +836,7 @@ window.addEventListener('DOMContentLoaded',function(){{buildMonthDropdown();setQ
             "report_folder": report_folder,
             "schedule_time": data.get("schedule_time", [""])[0].strip(),
             "daily_cron_enabled": data.get("daily_cron_enabled", ["0"])[0] == "1",
+            "on_demand": data.get("on_demand", ["0"])[0] == "1",
             "include_in_daily_summary": existing.get("include_in_daily_summary", False) if existing else False,
             "notes": data.get("notes", [""])[0].strip(),
         }

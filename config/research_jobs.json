@@ -844,16 +844,17 @@
       "id": "speech",
       "name": "On Demand",
       "enabled": true,
-      "source_type": "topic",
+      "source_type": "video",
       "topic": "Speech",
-      "source_url": "https://youtu.be/ORq_Hi5dB-g?si=skpzOV7B1OrHy2zu",
+      "source_url": "https://youtu.be/ORq_Hi5dB-g?si=ZhwMBRWh8rKy85hW",
       "max_videos": 3,
       "detailed": true,
       "report_folder": "on_demand/research_job",
       "schedule_time": "",
       "daily_cron_enabled": false,
       "include_in_daily_summary": false,
-      "notes": ""
+      "notes": "",
+      "on_demand": true
     }
   ]
 }
