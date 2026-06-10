@@ -29,7 +29,7 @@ TOPICS = [
     ("AI Agents",          "ai_agents",              "ai_agents"),
     ("Claude Code",        "claude_code",             "claude_code"),
     ("AI Viral Niche",     "ai_viral_niche",          "ai_viral_niche"),
-    ("NATEHERK",           "NATEHERK",                "NATEHERK"),
+    ("NATEHERK",           "nateherk",                "nateherk"),
     ("Joanna Wiebe",       "joanna_wiebe",            "joanna_wiebe"),
     ("Jacksons AI",        "jacksons_ai",             "jacksons_ai"),
     ("Make Money Matt",    "make_money_matt",         "make_money_matt"),
@@ -66,6 +66,7 @@ TOPICS = [
     ("Self Help/Thai Habits — The Library", "self_help/thai/habits/the_library", "self_help/thai/habits/the_library"),
     ("Self Help/Thai Dharma — Oui Buddhabless", "self_help/thai/dharma/oui_buddhabless", "self_help/thai/dharma/oui_buddhabless"),
     ("Self Help/Thai Dharma — Khunkhao", "self_help/thai/dharma/khunkhao", "self_help/thai/dharma/khunkhao"),
+    ("Self Help/Thai Podcast — Go with The Four", "self_help/thai/podcast/go_with_the_four", "self_help/thai/podcast/go_with_the_four"),
 ]
 
 

@@ -43,6 +43,24 @@ Automated daily AI trends research from YouTube. Scrapes videos → generates **
 
 ## Monitored Channels / Topics
 
+## ⚠️ CRITICAL: Report Folder Naming Standard
+
+**All `report_folder` values in `research_jobs.json` must be lowercase.** No exceptions.
+
+- `research_jobs.json` is the **single authoritative source** for folder names — every script reads it verbatim
+- Uppercase or mixed-case `report_folder` values cause silent pipeline failures on Linux (case-sensitive filesystem)
+- The pipeline, daily summary, audio generation, Obsidian sync, and notify scripts all derive paths from `research_jobs.json`
+- `sanitize_report_folder()` preserves case — it does NOT auto-correct case mismatches
+
+**When adding or editing a job:** always use lowercase `report_folder`.
+- ✅ `"report_folder": "nateherk"` — correct
+- ❌ `"report_folder": "NATEHERK"` — reports go missing silently
+- ❌ `"report_folder": "NateHerk"` — same problem
+
+**Reference:** Incident `mandy-ai-ops-docs/incidents/ats-nateherk-lowercase-2026-06-05.md` (6 days of missing reports caused by uppercase folder name).
+
+---
+
 | Topic | Source | Type |
 |-------|--------|------|
 | AI Agents | YouTube search | search |
@@ -73,6 +91,7 @@ Automated daily AI trends research from YouTube. Scrapes videos → generates **
 | Self Help/Thai Habits — The Library | channel/UClX89xX6Ladx4Yig9YmE0gA channel | channel (reports/self_help/thai/habits/the_library) |
 | Self Help/Thai Dharma — Oui Buddhabless | @OUIBB channel | channel (reports/self_help/thai/dharma/oui_buddhabless) |
 | Self Help/Thai Dharma — Khunkhao | @K.S.Khunkhao channel | channel (reports/self_help/thai/dharma/khunkhao) |
+| Self Help/Thai Podcast — Go with The Four | Go with The Four playlist | playlist (reports/self_help/thai/podcast/go_with_the_four) |
 
 **Claude Code subtopics:** obsidian · notebooklm · design · skills · remotion video · video · seedance · higgsfield · shopify · hyperframe · heygen
 
@@ -116,6 +135,7 @@ Automated daily AI trends research from YouTube. Scrapes videos → generates **
 | 11:20 | 04:20 | Self Help/Thai Habits — The Library | `--report-folder self_help/thai/habits/the_library --channel channel/UClX89xX6Ladx4Yig9YmE0gA --max-results 3 --detailed` |
 | 11:30 | 04:30 | Self Help/Thai Dharma — Oui Buddhabless | `--report-folder self_help/thai/dharma/oui_buddhabless --channel @OUIBB --max-results 3 --detailed` |
 | 11:40 | 04:40 | Self Help/Thai Dharma — Khunkhao | `--report-folder self_help/thai/dharma/khunkhao --channel @K.S.Khunkhao --max-results 3 --detailed` |
+| 11:50 | 04:50 | Self Help/Thai Podcast — Go with The Four | `--report-folder self_help/thai/podcast/go_with_the_four --channel playlist --max-results 5 --transcript-langs th,en,all --detailed` |
 | 12:10 | 05:10 | Self Help Summary + GitHub | `run_daily_summary_cron.sh --group self_help`; uploads/pushes self-help reports and self-help Telegram digest |
 
 **Morning reports + audio available on GitHub after ~09:30 Bangkok; self-help reports available after ~12:10 Bangkok.**

@@ -33,6 +33,7 @@
 | Dashboard Assets date filter | ✅ Fixed 2026-05-21 (empty default — was defaulting to today, hiding all historical rows) |
 | Finance/personal-finance channels | ✅ Added 2026-05-23 — 5 practical daily-life finance channels at 07:45–08:25 ICT |
 | Health topics/playlists | ✅ Added 2026-05-27 — `Health/อาหารบำรุงสุขภาพ` search + `Health/Top to Toe` playlist at 08:45/09:00 ICT; daily summary moved to 09:30 ICT |
+| Self-help Thai podcast playlist | ✅ Added 2026-06-06 — `Go with The Four` playlist under `self_help/thai/podcast/go_with_the_four` at 11:50 ICT; included in self-help daily summary |
 
 ---
 
@@ -134,6 +135,7 @@
 | T-040 | **Add explicit transcript language routing to production jobs** | 2026-05-29 | Added `--transcript-langs` CLI support so each production job controls caption order explicitly instead of guessing from topic names. English/international jobs use `en,th,all`; Thai jobs use `th,en,all`. Updated installed crontab, `config/research_jobs.json`, `scripts/run_all_today.sh`, `dashboard/app.py`, `run_ai_trends_research_enhanced.py`, and `summarize_local.py`. Added regression tests for parser, summarize propagation, and explicit English-first extraction. |
 | T-041 | **Add Psych2Go to Self-help Phase 1 psychology batch** | 2026-05-29 | Added `Self Help/Psychology — Psych2Go` (`@Psych2go`) under `self_help/psychology/psych2go`, English-first transcript routing, production cron at 11:00 ICT. Rationale: was present in the research matrix as a mass-reach psychology/animation reference but omitted from first top-10 production batch due simplified-content caution; Mandy requested it in Phase 1. |
 | T-042 | **Reconcile Self Help Channel DOCX and expand Phase 1 to 15 channels** | 2026-05-29 | Extracted Mandy's `Self Help Channel.docx` into `docs/SELF-HELP-CHANNEL-DOCX-EXTRACTED.md`, added reconciliation note `docs/SELF-HELP-PHASE1-DOCX-RECONCILIATION.md`, and expanded production self-help Phase 1 with the four remaining DOCX gaps: Clark Kegley, Pursuit of Wonder, The Mindful Movement, and Acharya Prashant. Daily summary moved to 12:10 ICT so the 11:40 job can finish. |
+| T-046 | **Add Go with The Four Thai podcast playlist to ATS self-help cron** | 2026-06-06 | Added playlist job `self_help_thai_go_with_the_four` at 11:50 ICT, max 5 videos, Thai-first transcript routing, report folder `self_help/thai/podcast/go_with_the_four`, and self-help daily summary inclusion. |
 
 ### Backlog
 

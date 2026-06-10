@@ -45,11 +45,13 @@ def sanitize_topic(topic):
     return topic.lower().replace(" ", "_").replace("/", "_").replace("\\", "_")[:50]
 
 def sanitize_report_folder(folder):
-    """Return a safe relative report folder path."""
+    """Return a safe relative report folder path, preserving the case in research_jobs.json."""
     parts = []
     for raw_part in folder.replace("\\", "/").split("/"):
-        part = raw_part.strip().lower().replace(" ", "_")
-        part = re.sub(r"[^a-z0-9_\-]", "_", part)
+        # Preserve case — research_jobs.json is authoritative. Only sanitize chars
+        # that are unsafe on the filesystem (spaces → _, other unsafe → _).
+        part = raw_part.strip().replace(" ", "_")
+        part = re.sub(r"[^a-zA-Z0-9_\-]", "_", part)
         part = re.sub(r"_+", "_", part).strip("_")
         if part and part not in {".", ".."}:
             parts.append(part[:80])

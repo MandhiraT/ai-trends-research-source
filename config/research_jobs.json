@@ -72,7 +72,7 @@
       "source_url": "https://youtube.com/@NATEHERK",
       "max_videos": 3,
       "detailed": true,
-      "report_folder": "NATEHERK",
+      "report_folder": "nateherk",
       "schedule_time": "06:00",
       "include_in_daily_summary": true,
       "notes": "Mirrors current production cron channel job.",
@@ -192,7 +192,7 @@
     {
       "id": "claude_code_higgsfield",
       "name": "Claude Code Higgsfield",
-      "enabled": false,
+      "enabled": true,
       "source_type": "claude_code_subtopic",
       "topic": "higgsfield",
       "source_url": "",
@@ -200,20 +200,15 @@
       "detailed": true,
       "report_folder": "claude_code/claude_code_higgsfield",
       "schedule_time": "07:35",
+      "daily_cron_enabled": true,
+      "on_demand": false,
       "include_in_daily_summary": true,
-      "notes": "Mirrors current production cron new Claude Code subtopic.",
-      "source_language": "en",
-      "transcript_langs": [
-        "en",
-        "th",
-        "all"
-      ],
-      "daily_cron_enabled": true
+      "notes": "Mirrors current production cron new Claude Code subtopic."
     },
     {
       "id": "claude_code_shopify",
       "name": "Claude Code Shopify",
-      "enabled": false,
+      "enabled": true,
       "source_type": "claude_code_subtopic",
       "topic": "shopify",
       "source_url": "",
@@ -221,15 +216,10 @@
       "detailed": true,
       "report_folder": "claude_code/claude_code_shopify",
       "schedule_time": "07:35",
+      "daily_cron_enabled": true,
+      "on_demand": false,
       "include_in_daily_summary": true,
-      "notes": "Mirrors current production cron new Claude Code subtopic.",
-      "source_language": "en",
-      "transcript_langs": [
-        "en",
-        "th",
-        "all"
-      ],
-      "daily_cron_enabled": true
+      "notes": "Mirrors current production cron new Claude Code subtopic."
     },
     {
       "id": "claude_code_design",
@@ -845,16 +835,38 @@
       "name": "On Demand",
       "enabled": true,
       "source_type": "video",
-      "topic": "Speech",
-      "source_url": "https://youtu.be/ORq_Hi5dB-g?si=ZhwMBRWh8rKy85hW",
+      "topic": "Claude",
+      "source_url": "https://youtu.be/28TGfTZweqw?si=n5ydmAcCTtjJfDrr",
       "max_videos": 3,
       "detailed": true,
       "report_folder": "on_demand/research_job",
       "schedule_time": "",
       "daily_cron_enabled": false,
+      "on_demand": true,
       "include_in_daily_summary": false,
-      "notes": "",
-      "on_demand": true
+      "notes": ""
+    },
+    {
+      "id": "self_help_thai_go_with_the_four",
+      "name": "Self Help Thai Podcast — Go with The Four",
+      "enabled": true,
+      "source_type": "playlist",
+      "topic": "Self Help Thai Podcast — Go with The Four",
+      "source_url": "https://youtube.com/playlist?list=PL3f7lV2hDdvANj7yxFKTCt1hcdAPyBrXH",
+      "max_videos": 5,
+      "detailed": true,
+      "report_folder": "self_help/thai/podcast/go_with_the_four",
+      "schedule_time": "11:50",
+      "include_in_daily_summary": true,
+      "notes": "Thai thought-leadership podcast playlist: society, life perspective, future mindset; added from Mandy request 2026-06-06.",
+      "source_language": "th",
+      "transcript_langs": [
+        "th",
+        "en",
+        "all"
+      ],
+      "daily_cron_enabled": true,
+      "on_demand": false
     }
   ]
 }
