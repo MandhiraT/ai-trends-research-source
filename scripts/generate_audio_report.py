@@ -154,6 +154,10 @@ def _condense_to_script(report_text: str, topic_name: str, date_str: str) -> str
 
 def _clean_section_text(text: str) -> str:
     """Strip markdown formatting so the condense model sees plain Thai prose."""
+    # Remove redundant summary sections that duplicate overview content
+    # (these cause the condense model to produce repetitive audio)
+    text = re.sub(r'สรุปสั้น.*?(?=\n\n|\Z)', '', text, flags=re.DOTALL)
+    text = re.sub(r'เอาไปใช้ยังไง.*?(?=\n\n|\Z)', '', text, flags=re.DOTALL)
     # Remove all heading markers (## ### ####) — they confuse section boundary detection
     text = re.sub(r'^#{1,6}\s*', '', text, flags=re.MULTILINE)
     # Remove bold/italic markers
@@ -177,13 +181,19 @@ def _condense_video_section(section_text: str, video_title: str, date_str: str,
 
     closing = "สำหรับรายละเอียดเพิ่มเติม ดูรายงานฉบับเต็มได้ที่ GitHub ค่ะ ขอบคุณที่ฟังนะคะ" if is_last else ""
 
+    # Count key points in source to set dynamic paragraph target
+    cleaned = _clean_section_text(section_text)
+    key_point_count = max(len(re.findall(r'\*\*\d+\.', section_text)), 4)
+    para_target = min(key_point_count, 10)  # cap at 10
+
     prompt = (
         "คุณคือนักเขียนบทพอดแคสต์ภาษาไทย ผู้เชี่ยวชาญในการสรุปเนื้อหาวิดีโอ AI\n\n"
         "งานของคุณ: เขียนบทพูดภาษาไทยที่สมบูรณ์สำหรับเนื้อหาวิดีโอด้านล่าง\n\n"
         "ข้อกำหนดสำคัญ:\n"
         f"1. เริ่มต้นด้วย: {opening}\n"
-        "2. เขียนเนื้อหาหลัก 4-6 ย่อหน้า แต่ละย่อหน้าอธิบายประเด็นสำคัญหนึ่งข้อ\n"
+        f"2. เขียนเนื้อหาหลัก {para_target} ย่อหน้า แต่ละย่อหน้าอธิบายประเด็นสำคัญหนึ่งข้อ\n"
         "   แต่ละย่อหน้ามีความยาว 3-5 ประโยค อธิบายอย่างละเอียดและให้ตัวอย่างจริง\n"
+        "   สำคัญมาก: ต้องครอบคลุมทุกประเด็นที่ระบุในเนื้อหา ห้ามตัดประเด็นออก\n"
         "3. เนื้อหารวมทั้งหมด (ไม่รวมประโยคเปิด-ปิด) ต้องยาวอย่างน้อย 300 คำ\n"
         "4. ใช้ภาษาพูดธรรมชาติ ไม่เป็นทางการ ฟังแล้วเข้าใจง่าย\n"
         "5. ไม่มี markdown ไม่มี bullet points ไม่มีหัวข้อ — เป็น plain text ล้วนๆ\n"
@@ -213,7 +223,7 @@ def _call_condense_model(prompt: str) -> str:
             response = client.models.generate_content(
                 model=CONDENSE_MODEL,
                 contents=prompt,
-                config=_genai.types.GenerateContentConfig(max_output_tokens=4096, temperature=0.7),
+                config=_genai.types.GenerateContentConfig(max_output_tokens=8192, temperature=0.7),
             )
             return response.text.strip()
         except Exception as e:
@@ -332,29 +342,39 @@ def _generate_per_video(topic_key: str, date_str: str, report_text: str,
     os.makedirs(audio_dir, exist_ok=True)
 
     success_count = 0
+    valid_sections = []
     for i, (title, text) in enumerate(sections):
-        video_num = i + 1
-        is_first  = (i == 0)
-        is_last   = (i == len(sections) - 1)
+        # Skip sections with no real content (AI summarization failed)
+        if 'Summary unavailable' in text or 'All AI providers failed' in text:
+            print(f'  [audio]   [{i+1}/{len(sections)}] ⏭️  Skipping "{(title or "section")[:50]}" — no summary available')
+            continue
+        valid_sections.append((i, title, text))
+
+    print(f'  [audio] 📹 {len(valid_sections)} valid section(s) (skipped {len(sections) - len(valid_sections)})')
+
+    for idx, (orig_i, title, text) in enumerate(valid_sections):
+        video_num = idx + 1
+        is_first  = (idx == 0)
+        is_last   = (idx == len(valid_sections) - 1)
         label     = title or f'section_{video_num}'
         short     = label[:50]
 
-        if i > 0:
+        if idx > 0:
             time.sleep(8)  # brief pause between sections to avoid quota bursts
 
-        print(f'  [audio]   [{video_num}/{len(sections)}] 📝 Condensing: "{short}"...')
+        print(f'  [audio]   [{video_num}/{len(valid_sections)}] 📝 Condensing: "{short}"...')
         try:
             script = _condense_video_section(text, label, date_str, is_first, is_last)
             # Retry once if output is too short — model sometimes under-generates
             if len(script) < 500:
-                print(f'  [audio]   [{video_num}/{len(sections)}] ⚠️  Script too short ({len(script)} chars) — retrying...')
+                print(f'  [audio]   [{video_num}/{len(valid_sections)}] ⚠️  Script too short ({len(script)} chars) — retrying...')
                 time.sleep(10)
                 script2 = _condense_video_section(text, label, date_str, is_first, is_last)
                 if len(script2) > len(script):
                     script = script2
-            print(f'  [audio]   [{video_num}/{len(sections)}] ✅ Script: {len(script)} chars')
+            print(f'  [audio]   [{video_num}/{len(valid_sections)}] ✅ Script: {len(script)} chars')
         except Exception as e:
-            print(f'  [audio]   [{video_num}/{len(sections)}] ❌ Condense failed: {e}')
+            print(f'  [audio]   [{video_num}/{len(valid_sections)}] ❌ Condense failed: {e}')
             continue
 
         _save_script(topic_key, date_str, video_num, label, script)
@@ -367,20 +387,20 @@ def _generate_per_video(topic_key: str, date_str: str, report_text: str,
 
         fname = voice_filename(topic_key, date_str, video_no=video_num)
         wav_path = os.path.join(audio_dir, fname)
-        print(f'  [audio]   [{video_num}/{len(sections)}] 🎙️  TTS → {fname}...')
+        print(f'  [audio]   [{video_num}/{len(valid_sections)}] 🎙️  TTS → {fname}...')
         try:
             _text_to_wav(script, wav_path, voice=voice)
             size_kb = os.path.getsize(wav_path) // 1024
-            print(f'  [audio]   [{video_num}/{len(sections)}] ✅ Saved: {size_kb} KB')
+            print(f'  [audio]   [{video_num}/{len(valid_sections)}] ✅ Saved: {size_kb} KB')
             success_count += 1
         except Exception as e:
-            print(f'  [audio]   [{video_num}/{len(sections)}] ❌ TTS failed: {e}')
+            print(f'  [audio]   [{video_num}/{len(valid_sections)}] ❌ TTS failed: {e}')
 
     if success_count == 0:
         print('  [audio] ❌ No segments generated')
         return False
 
-    print(f'  [audio] ✅ {success_count}/{len(sections)} video(s) done')
+    print(f'  [audio] ✅ {success_count}/{len(valid_sections)} video(s) done')
     return True
 
 

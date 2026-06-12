@@ -39,9 +39,6 @@ BASE_REPORTS_DIR = f"{WORKSPACE}/ai_trends_reports"
 
 def sanitize_topic(topic):
     """Convert topic to safe folder name"""
-    # Special case: Keep NATEHERK uppercase
-    if topic.upper() == "NATEHERK":
-        return "NATEHERK"
     return topic.lower().replace(" ", "_").replace("/", "_").replace("\\", "_")[:50]
 
 def sanitize_report_folder(folder):
@@ -100,7 +97,7 @@ def build_report_filename(report_date, generated_at, on_demand, all_video_data, 
 def get_dirs(topic, report_folder=None):
     """Get topic-specific directories"""
     topic_safe = sanitize_report_folder(report_folder) if report_folder else sanitize_topic(topic)
-    tracker_safe = topic_safe.replace("/", "_")
+    tracker_safe = topic_safe.replace("/", "_").lower()
     return {
         "reports": f"{BASE_REPORTS_DIR}/reports/{topic_safe}",
         "archive": f"{BASE_REPORTS_DIR}/reports_archive/{topic_safe}",
