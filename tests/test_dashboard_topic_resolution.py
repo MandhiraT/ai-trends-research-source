@@ -5,7 +5,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from dashboard.app import _resolve_report_path
+from dashboard.app import _resolve_relative_file, _resolve_report_path
 from generate_content_assets import find_reports
 
 
@@ -22,6 +22,19 @@ def test_resolve_report_path_does_not_fallback_to_unrelated_topic():
 
     assert report_path is None
     assert topic_slug == "claude_cdoe_design"
+
+
+def test_resolve_relative_file_handles_legacy_uppercase_report_link():
+    path = _resolve_relative_file(ROOT / "ai_trends_reports" / "reports", "NATEHERK/2026-05-04.md")
+
+    assert path is not None
+    assert path.relative_to(ROOT / "ai_trends_reports" / "reports").as_posix() == "nateherk/2026-05-04.md"
+
+
+def test_resolve_relative_file_blocks_path_traversal():
+    path = _resolve_relative_file(ROOT / "ai_trends_reports" / "reports", "../credentials.env")
+
+    assert path is None
 
 
 def test_find_reports_handles_nested_underscore_topic():

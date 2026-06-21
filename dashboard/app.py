@@ -57,7 +57,7 @@ RUN_LOCK = threading.Lock()
 
 def _slug(name: str) -> str:
     """Normalize a topic name to a slug for consistent comparison.
-    'AI Agents' → 'ai_agents', 'Claude Code' → 'claude_code', 'NATEHERK' → 'NATEHERK'
+    'AI Agents' → 'ai_agents', 'Claude Code' → 'claude_code', 'NATEHERK' → 'nateherk'
     """
     import re as _re
     return _re.sub(r"[\s\-]+", "_", name.strip()).lower()
@@ -114,6 +114,52 @@ def _resolve_report_path(topic: str, date: str) -> tuple[Path | None, str]:
 
     matches.sort(key=lambda p: (len(p.relative_to(REPORTS_DIR).parts), p.as_posix()))
     return matches[0], _slug(matches[0].parent.name)
+
+
+def _resolve_relative_file(base: Path, selected: str) -> Path | None:
+    """Resolve a user-facing relative file path safely, with case-insensitive dirs.
+
+    Search indexes and old shared links can contain historical folder casing such
+    as ``NATEHERK/2026-05-04.md`` while the canonical Linux path is lowercase
+    (``nateherk/2026-05-04.md``). Resolve each path segment by slug/casefold so
+    legacy links keep opening, without allowing absolute paths or ``..`` escapes.
+    """
+    decoded = unquote(selected or "").strip().replace("\\", "/")
+    parts = [p for p in decoded.split("/") if p]
+    if not parts or any(p in {".", ".."} for p in parts):
+        return None
+    if Path(decoded).is_absolute():
+        return None
+
+    base_resolved = base.resolve()
+    direct = (base / Path(*parts)).resolve()
+    if base_resolved in direct.parents and direct.is_file():
+        return direct
+
+    current = base
+    for part in parts:
+        candidate = current / part
+        if candidate.exists():
+            current = candidate
+            continue
+        if not current.is_dir():
+            return None
+        target_slug = _slug(part)
+        match = next(
+            (
+                child for child in current.iterdir()
+                if child.name.casefold() == part.casefold() or _slug(child.name) == target_slug
+            ),
+            None,
+        )
+        if not match:
+            return None
+        current = match
+
+    resolved = current.resolve()
+    if base_resolved in resolved.parents and resolved.is_file():
+        return resolved
+    return None
 
 
 def _asset_entry_score(entry: dict) -> tuple[int, int]:
@@ -657,8 +703,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
         content = ""
         if selected:
             try:
-                path = (base / unquote(selected)).resolve()
-                if base.resolve() in path.parents and path.is_file():
+                path = _resolve_relative_file(base, selected)
+                if path:
                     content = f'<section id="file-content"><h2>{h(selected)}</h2><pre style="white-space:pre-wrap;word-break:break-word">{h(read_text_file(path))}</pre></section>'
             except OSError:
                 content = "<p>Invalid file.</p>"
@@ -801,8 +847,8 @@ window.addEventListener('DOMContentLoaded',function(){{buildMonthDropdown();setQ
             self.send_html(page("Report", '<h1>Report</h1><p class="failed">No file specified.</p>'))
             return
         try:
-            path = (REPORTS_DIR / unquote(selected)).resolve()
-            if REPORTS_DIR.resolve() not in path.parents or not path.is_file():
+            path = _resolve_relative_file(REPORTS_DIR, selected)
+            if not path:
                 self.send_html(page("Report", '<h1>Report</h1><p class="failed">File not found.</p>'))
                 return
             body = f'<p><a href="/search">← Back to Search</a></p><h2>{h(selected)}</h2><pre>{h(read_text_file(path))}</pre>'
