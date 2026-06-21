@@ -840,7 +840,7 @@
       "max_videos": 3,
       "detailed": true,
       "report_folder": "sabrina",
-      "schedule_time": "12:00",
+      "schedule_time": "07:40",
       "include_in_daily_summary": true,
       "notes": "Channel added 2026-06-21 by Mandy request; max 3 clips in daily morning ATS run.",
       "source_language": "en",
