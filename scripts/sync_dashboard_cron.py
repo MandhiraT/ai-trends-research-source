@@ -79,7 +79,10 @@ def topic_job_command(job: dict) -> list[str]:
         "--config-job-id", job.get("id", ""),
     ]
     if source_type in {"channel", "playlist"} and job.get("source_url"):
-        cmd.extend(["--channel", job["source_url"], "--max-results", max_videos])
+        # yt-dlp channel date filtering can return more than --playlist-end on some
+        # channel/handle URLs. Pass --count too so the configured max_videos is
+        # enforced at processing time, not only at fetch time.
+        cmd.extend(["--channel", job["source_url"], "--max-results", max_videos, "--count", max_videos])
     elif source_type == "video" and job.get("source_url"):
         cmd.extend(["--video-url", job["source_url"], "--count", "1"])
     else:

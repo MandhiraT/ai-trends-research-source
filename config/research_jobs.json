@@ -831,6 +831,28 @@
       "daily_cron_enabled": true
     },
     {
+      "id": "sabrina",
+      "name": "Sabrina",
+      "enabled": true,
+      "source_type": "channel",
+      "topic": "Sabrina",
+      "source_url": "https://youtube.com/@sabrina_ramonov?si=foFSr6IephMn74Yc",
+      "max_videos": 3,
+      "detailed": true,
+      "report_folder": "sabrina",
+      "schedule_time": "12:00",
+      "include_in_daily_summary": true,
+      "notes": "Channel added 2026-06-21 by Mandy request; max 3 clips in daily morning ATS run.",
+      "source_language": "en",
+      "transcript_langs": [
+        "en",
+        "th",
+        "all"
+      ],
+      "daily_cron_enabled": true,
+      "on_demand": false
+    },
+    {
       "id": "speech",
       "name": "On Demand",
       "enabled": true,
