@@ -3,7 +3,8 @@
     "nateherk",
     "joanna_wiebe",
     "health_food_nutrition",
-    "health_top_to_toe"
+    "health_top_to_toe",
+    "boom_bignose"
   ],
   "voice": "Aoede",
   "language_hint": "th-TH",
@@ -11,7 +12,8 @@
     "nateherk": "nateherk",
     "joanna_wiebe": "joanna_wiebe",
     "health_food_nutrition": "health/health_food_nutrition",
-    "health_top_to_toe": "health/top_to_toe"
+    "health_top_to_toe": "health/top_to_toe",
+    "boom_bignose": "boom_bignose"
   },
   "default_voice_profile": "ats_female_narrator",
   "voice_profiles": {
@@ -58,6 +60,15 @@
       "per_video": true,
       "publish": true,
       "github_folder": "health/top_to_toe",
+      "voice_profile": "ats_female_narrator"
+    },
+    "boom_bignose": {
+      "enabled": true,
+      "script_type": "full",
+      "voice_type": "full",
+      "per_video": true,
+      "publish": true,
+      "github_folder": "boom_bignose",
       "voice_profile": "ats_female_narrator"
     }
   }

@@ -11,7 +11,8 @@
       "email_enabled": true,
       "telegram_enabled": false,
       "recipient_emails": [
-        "owllulla@gmail.com"
+        "owllulla@gmail.com",
+        "alongkot.n@gmail.com"
       ],
       "telegram_chat_ids": [
         "1043709932"
@@ -19,6 +20,15 @@
       "notification_mode": "per_topic"
     },
     "joanna_wiebe": {
+      "email_enabled": true,
+      "telegram_enabled": false,
+      "recipient_emails": [
+        "owllulla@gmail.com"
+      ],
+      "telegram_chat_ids": [],
+      "notification_mode": "per_topic"
+    },
+    "boom_big_nose": {
       "email_enabled": true,
       "telegram_enabled": false,
       "recipient_emails": [
