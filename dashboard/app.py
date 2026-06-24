@@ -50,6 +50,7 @@ LOGS_DIR = PROJECT_ROOT / "logs" / "dashboard"
 RUN_TOPIC = PROJECT_ROOT / "scripts" / "run_ai_trends_with_creds.sh"
 RUN_SUBTOPICS = PROJECT_ROOT / "scripts" / "run_claude_code_subtopics_with_creds.sh"
 SYNC_CRON = PROJECT_ROOT / "scripts" / "sync_dashboard_cron.py"
+AUDIO_CONFIG_PATH = PROJECT_ROOT / "config" / "audio_topics.json"
 
 SOURCE_TYPES = ("topic", "channel", "playlist", "video", "claude_code_subtopic")
 RUN_LOCK = threading.Lock()
@@ -233,6 +234,30 @@ def save_status(status):
     with STATUS_FILE.open("w") as f:
         json.dump(status, f, indent=2, ensure_ascii=False)
         f.write("\n")
+
+
+def load_audio_config():
+    if not AUDIO_CONFIG_PATH.exists():
+        return {"enabled_topics": [], "voice": "Aoede", "language_hint": "th-TH",
+                "github_folder_map": {}, "default_voice_profile": "ats_female_narrator",
+                "voice_profiles": {}, "automated_voice_topics": {}}
+    with AUDIO_CONFIG_PATH.open(encoding="utf-8") as f:
+        return json.load(f)
+
+
+def save_audio_config(cfg):
+    with AUDIO_CONFIG_PATH.open("w", encoding="utf-8") as f:
+        json.dump(cfg, f, indent=2, ensure_ascii=False)
+        f.write("\n")
+
+
+def resolve_audio_key(topic_key, local_folder, report_folder, enabled_set):
+    """Find which key in enabled_set matches this job, or return best key for new entries."""
+    normalized = report_folder.replace("/", "_")
+    for candidate in (local_folder, normalized, topic_key):
+        if candidate in enabled_set:
+            return candidate
+    return local_folder
 
 
 def sync_dashboard_cron():
@@ -514,6 +539,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self.render_assets_manage()
         elif parsed.path == "/api/assets/videos":
             self.api_assets_videos()
+        elif parsed.path == "/api/catalog":
+            self.api_catalog()
         elif parsed.path == "/api/assets/generate":
             self.api_assets_generate()
         elif parsed.path == "/api/assets/generate-one":
@@ -536,6 +563,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self.render_notifications()
         elif parsed.path == "/api/notifications/config":
             self.api_notifications_config_get()
+        elif parsed.path == "/api/audio/config":
+            self.api_audio_config_get()
         elif parsed.path == "/download/report":
             self.download_report()
         elif parsed.path == "/view/report":
@@ -548,7 +577,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
     def do_POST(self):
         parsed = urlparse(self.path)
         # Notifications API uses JSON body — handle before form-urlencoded parsing
-        if parsed.path in ("/api/notifications/config", "/api/notifications/test"):
+        if parsed.path in ("/api/notifications/config", "/api/notifications/test", "/api/audio/config"):
             length = int(self.headers.get("content-length", "0"))
             raw = self.rfile.read(length).decode("utf-8", errors="replace")
             try:
@@ -557,6 +586,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 json_body = {}
             if parsed.path == "/api/notifications/config":
                 self.api_notifications_config_save(json_body)
+            elif parsed.path == "/api/audio/config":
+                self.api_audio_config_save(json_body)
             else:
                 self.api_notifications_test(json_body)
             return
@@ -1449,7 +1480,7 @@ function clearSearch(){{
             rows += f'<td><span class="pill">{safe_topic}</span></td>'
             rows += f'<td style="text-align:center">{a["videos"]}</td>'
             rows += f'<td style="white-space:nowrap;font-size:13px">{b_asset} {b_script} {b_dd} {b_voice} {b_dd_v} {b_social}</td>'
-            rows += f'<td><a class="btn-sm" href="/assets/manage?topic={safe_folder}&date={safe_date}" title="Manage scripts and voice per video">🎛️ Manage</a></td>'
+            rows += f'<td><a class="btn-sm" href="/assets/manage?topic={safe_folder}&date={safe_date}" title="Manage scripts and voice per video">🎛️ Manage</a> <a class="btn-sm" href="http://localhost:8080/ats-sources?topic={safe_folder}&date={safe_date}" target="_blank" title="Open in FAW Draft Import" style="background:#17a2b8;color:#fff;text-decoration:none;padding:3px 8px;border-radius:4px;font-size:11px;">FAW→</a></td>'
             rows += f'<td class="muted" style="font-size:12px">{h(a["path"])}</td>'
             rows += f'<td id="gentd-{safe_folder}-{safe_date}" style="white-space:nowrap">'
             if is_generating:
@@ -2464,6 +2495,99 @@ document.addEventListener('DOMContentLoaded',function(){{
             "videos":       videos_out,
         })
 
+    def api_catalog(self):
+        """Read-only catalog API for FAW bridge / external consumers.
+
+        GET /api/catalog                    → list topics + date counts
+        GET /api/catalog?topic=X            → list dates for topic
+        GET /api/catalog?topic=X&date=Y     → full video detail for topic/date
+
+        Returns FAW-ready metadata: video_id, source_url, summary_short,
+        tags, keywords, content_use, social_posts. Never mutates data.
+        """
+        qs = parse_qs(urlparse(self.path).query)
+        topic = qs.get("topic", [""])[0].strip()
+        date_val = qs.get("date", [""])[0].strip()
+
+        try:
+            from generate_content_assets import ASSETS_DIR
+        except ImportError:
+            self._send_json({"error": "Asset module not available"}, code=500)
+            return
+
+        assets_dir = ASSETS_DIR
+
+        # Mode 1: no topic → list all topics
+        if not topic:
+            topics = []
+            if assets_dir.exists():
+                for d in sorted(assets_dir.iterdir()):
+                    if not d.is_dir():
+                        continue
+                    jsons = [f for f in d.iterdir() if f.suffix == ".json"]
+                    if jsons:
+                        topics.append({
+                            "topic": d.name,
+                            "date_count": len(jsons),
+                            "latest_date": max(f.stem for f in jsons),
+                        })
+            self._send_json({"topics": topics})
+            return
+
+        topic_slug = _slug(topic)
+        asset_dir = _find_topic_dir(assets_dir, topic, topic_slug)
+        if not asset_dir:
+            self._send_json({"error": f"Topic '{topic}' not found"}, code=404)
+            return
+
+        # Mode 2: topic only → list dates
+        if not date_val:
+            dates = sorted(
+                (f.stem for f in asset_dir.iterdir() if f.suffix == ".json"),
+                reverse=True,
+            )
+            self._send_json({"topic": asset_dir.name, "dates": dates})
+            return
+
+        # Mode 3: topic + date → full video detail
+        asset_file = asset_dir / f"{date_val}.json"
+        if not asset_file.exists():
+            self._send_json({"error": f"No asset for {asset_dir.name}/{date_val}"}, code=404)
+            return
+
+        try:
+            asset = json.loads(asset_file.read_text(encoding="utf-8"))
+        except Exception as exc:
+            self._send_json({"error": str(exc)}, code=500)
+            return
+
+        videos = []
+        for v in asset.get("videos", []):
+            use = v.get("content_use") or {}
+            social = v.get("social_posts") or {}
+            videos.append({
+                "video_no": v.get("video_no", 0),
+                "video_id": v.get("video_id", ""),
+                "video_title": v.get("video_title", ""),
+                "thai_title": v.get("thai_title", ""),
+                "source_url": v.get("source_url", ""),
+                "summary_short": v.get("summary_short", ""),
+                "keywords": v.get("keywords", []),
+                "tags": v.get("tags", []),
+                "content_use": use,
+                "social_facebook": social.get("facebook", ""),
+                "social_hashtags": social.get("hashtags", []),
+                "faw_ready": bool(use.get("social_post") or use.get("sonar_storytelling")),
+            })
+
+        self._send_json({
+            "topic": asset_dir.name,
+            "date": date_val,
+            "report_path": asset.get("report_path", ""),
+            "total_videos": asset.get("total_videos", len(videos)),
+            "videos": videos,
+        })
+
     def render_assets_manage(self):
         """Server-rendered manage page — per-video cards with script + voice actions."""
         qs = parse_qs(urlparse(self.path).query)
@@ -2856,6 +2980,8 @@ function runBulkVoice(){{
 
         defaults, topics_cfg = load_routing_config()
         live_topic_map = _load_topic_map()  # fresh read — picks up newly added jobs
+        audio_cfg = load_audio_config()
+        audio_enabled_set = set(audio_cfg.get("enabled_topics", []))
 
         # Build enabled-status lookup from research_jobs.json
         job_enabled = {j.get("id"): j.get("enabled", True) for j in load_jobs()}
@@ -2863,7 +2989,8 @@ function runBulkVoice(){{
         rows_html = []
         email_count = 0
         tg_count = 0
-        for topic_key, (display_name, _folder, _github) in live_topic_map.items():
+        audio_count = 0
+        for topic_key, (display_name, local_folder, report_folder) in live_topic_map.items():
             cfg = {
                 "email_enabled": False,
                 "telegram_enabled": False,
@@ -2885,12 +3012,19 @@ function runBulkVoice(){{
             job_en = job_enabled.get(topic_key, True)
             job_badge = '<span style="color:#16a34a;font-size:11px;font-weight:600">● Job ON</span>' if job_en else '<span style="color:#dc2626;font-size:11px;font-weight:600">○ Job OFF</span>'
 
+            audio_key     = resolve_audio_key(topic_key, local_folder, report_folder, audio_enabled_set)
+            audio_enabled = audio_key in audio_enabled_set
+            if audio_enabled:
+                audio_count += 1
+            audio_chk = "checked" if audio_enabled else ""
+
             rows_html.append(f"""<tr data-key="{h(topic_key)}">
   <td>{job_badge}<br><strong>{h(display_name)}</strong><br><span class="muted" style="font-size:12px">{h(topic_key)}</span></td>
   <td style="text-align:center"><input type="checkbox" class="email-chk" {email_chk} data-key="{h(topic_key)}"></td>
   <td><input class="email-input" type="text" value="{h(emails_str)}" placeholder="email1@x.com, email2@x.com" data-key="{h(topic_key)}" style="font-size:13px"></td>
   <td style="text-align:center"><input type="checkbox" class="tg-chk" {tg_chk} data-key="{h(topic_key)}"></td>
   <td><input class="tg-input" type="text" value="{h(chat_ids_str)}" placeholder="1043709932" data-key="{h(topic_key)}" style="font-size:13px"></td>
+  <td style="text-align:center"><input type="checkbox" class="audio-chk" {audio_chk} data-key="{h(topic_key)}" data-audio-key="{h(audio_key)}" data-report-folder="{h(report_folder)}"></td>
   <td><button class="secondary" style="font-size:12px;padding:5px 10px" onclick="testSend('{h(topic_key)}')">▶ Test</button></td>
 </tr>""")
 
@@ -2898,14 +3032,15 @@ function runBulkVoice(){{
         total = len(live_topic_map)
 
         body = f"""<h1>🔔 Notification Routing</h1>
-<div class="grid" style="grid-template-columns:repeat(3,minmax(0,1fr));margin-bottom:16px">
+<div class="grid" style="grid-template-columns:repeat(4,minmax(0,1fr));margin-bottom:16px">
   <div class="metric"><span class="muted">Topics</span><strong>{total}</strong></div>
   <div class="metric"><span class="muted">Email Active</span><strong>{email_count}</strong></div>
   <div class="metric"><span class="muted">Telegram Active</span><strong>{tg_count}</strong></div>
+  <div class="metric"><span class="muted">🎧 Audio Active</span><strong>{audio_count}</strong></div>
 </div>
 <section style="margin-bottom:16px">
-  <p class="muted" style="margin:0 0 12px;font-size:14px">กำหนดได้ว่าแต่ละ topic จะส่ง email หรือ Telegram DM ไปยังใคร
-  บันทึกใน <code>config/notification_routing.json</code></p>
+  <p class="muted" style="margin:0 0 12px;font-size:14px">กำหนดได้ว่าแต่ละ topic จะส่ง email / Telegram DM / สร้างไฟล์เสียงอัตโนมัติ
+  บันทึกใน <code>config/notification_routing.json</code> และ <code>config/audio_topics.json</code></p>
   <button onclick="saveAll()">💾 Save All Changes</button>
   <span id="saveStatus" style="margin-left:12px;font-size:13px"></span>
 </section>
@@ -2916,6 +3051,7 @@ function runBulkVoice(){{
     <th>Recipient Emails (comma-separated)</th>
     <th style="text-align:center">💬 Telegram</th>
     <th>Chat IDs (comma-separated)</th>
+    <th style="text-align:center">🎧 Audio</th>
     <th>Test</th>
   </tr></thead>
   <tbody>{table_rows}</tbody>
@@ -2943,16 +3079,34 @@ function collectConfig() {{
   }});
   return cfg;
 }}
+function collectAudioConfig() {{
+  var topics = {{}};
+  document.querySelectorAll('#notifTable .audio-chk').forEach(function(chk) {{
+    var jobKey = chk.dataset.key;
+    var audioKey = chk.dataset.audioKey;
+    var reportFolder = chk.dataset.reportFolder;
+    topics[jobKey] = {{ enabled: chk.checked, audio_key: audioKey, report_folder: reportFolder }};
+  }});
+  return {{ topics: topics }};
+}}
 function saveAll() {{
   var st = document.getElementById('saveStatus');
   st.textContent = 'Saving…';
-  fetch('/api/notifications/config', {{
-    method: 'POST',
-    headers: {{'Content-Type': 'application/json'}},
-    body: JSON.stringify(collectConfig())
-  }}).then(function(r){{return r.json();}})
-  .then(function(d){{
-    st.textContent = d.ok ? '✅ Saved' : ('❌ ' + (d.error||'error'));
+  Promise.all([
+    fetch('/api/notifications/config', {{
+      method: 'POST',
+      headers: {{'Content-Type': 'application/json'}},
+      body: JSON.stringify(collectConfig())
+    }}).then(function(r){{return r.json();}}),
+    fetch('/api/audio/config', {{
+      method: 'POST',
+      headers: {{'Content-Type': 'application/json'}},
+      body: JSON.stringify(collectAudioConfig())
+    }}).then(function(r){{return r.json();}})
+  ]).then(function(results) {{
+    var d1 = results[0]; var d2 = results[1];
+    var ok = d1.ok && d2.ok;
+    st.textContent = ok ? '✅ Saved' : ('❌ ' + (d1.error || d2.error || 'error'));
     setTimeout(function(){{st.textContent='';}}, 3000);
   }}).catch(function(e){{st.textContent='❌ ' + e;}});
 }}
@@ -2994,6 +3148,50 @@ function testSend(topicKey) {{
                 return
             with open(str(ROUTING_CONFIG_PATH), "w", encoding="utf-8") as f:
                 json.dump(json_body, f, ensure_ascii=False, indent=2)
+            self._send_json({"ok": True})
+        except Exception as e:
+            self._send_json({"error": str(e)}, code=500)
+
+    def api_audio_config_get(self):
+        try:
+            cfg = load_audio_config()
+            self._send_json({"ok": True, "enabled_topics": cfg.get("enabled_topics", [])})
+        except Exception as e:
+            self._send_json({"error": str(e)}, code=500)
+
+    def api_audio_config_save(self, json_body):
+        # json_body = {"topics": {"job_id": {"enabled": bool, "audio_key": str, "report_folder": str}}}
+        try:
+            topics_state = json_body.get("topics", {})
+            cfg = load_audio_config()
+            enabled_list  = cfg.setdefault("enabled_topics", [])
+            folder_map    = cfg.setdefault("github_folder_map", {})
+            voice_topics  = cfg.setdefault("automated_voice_topics", {})
+
+            for _job_id, state in topics_state.items():
+                enabled       = bool(state.get("enabled", False))
+                audio_key     = (state.get("audio_key") or "").strip()
+                report_folder = (state.get("report_folder") or audio_key).strip()
+                if not audio_key:
+                    continue
+                if enabled:
+                    if audio_key not in enabled_list:
+                        enabled_list.append(audio_key)
+                    folder_map.setdefault(audio_key, report_folder)
+                    voice_topics.setdefault(audio_key, {
+                        "enabled": True,
+                        "script_type": "full",
+                        "voice_type": "full",
+                        "per_video": True,
+                        "publish": True,
+                        "github_folder": audio_key,
+                        "voice_profile": "ats_female_narrator",
+                    })
+                else:
+                    if audio_key in enabled_list:
+                        enabled_list.remove(audio_key)
+
+            save_audio_config(cfg)
             self._send_json({"ok": True})
         except Exception as e:
             self._send_json({"error": str(e)}, code=500)
