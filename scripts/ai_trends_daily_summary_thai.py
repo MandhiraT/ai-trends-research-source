@@ -189,10 +189,11 @@ def send_telegram(text, bot_token, chat_id):
     return resp.json()
 
 
-def generate_daily_summary(group="all"):
+def generate_daily_summary(group="all", publish_warnings=None):
     date_str = datetime.now().strftime('%Y-%m-%d')
     time_str = datetime.now().strftime('%H:%M ICT')
     topics = select_topics(group)
+    publish_warnings = publish_warnings or []
 
     lines, total_videos, found, not_found = build_status(date_str, topics)
 
@@ -201,21 +202,31 @@ def generate_daily_summary(group="all"):
         f"# {group_title(group)} Status — {date_str}",
         f"Generated: {time_str}",
         f"Topics with new content: {found}/{len(topics)} | Total videos: {total_videos}",
+    ]
+    if publish_warnings:
+        report_lines.extend(["", "Publish warnings:"] + [f"- {warning}" for warning in publish_warnings])
+    report_lines.extend([
         "",
     ] + lines + [
         "",
         f"Full reports: https://github.com/MandhiraT/ai-trends-research/tree/master/reports",
-    ]
+    ])
     return "\n".join(report_lines), date_str, time_str, lines, total_videos, found
 
 
-def build_telegram_message(date_str, time_str, lines, total_videos, found, audio_status=None, group="all"):
+def build_telegram_message(date_str, time_str, lines, total_videos, found, audio_status=None, group="all", publish_warnings=None):
     topics = select_topics(group)
+    publish_warnings = publish_warnings or []
     msg = (
         f"📊 <b>{group_title(group)} — {date_str}</b>\n"
         f"เวลา: {time_str}\n"
         f"Topics: {found}/{len(topics)} | Videos: {total_videos} รายการ\n\n"
     )
+    if publish_warnings:
+        msg += "⚠️ <b>Publish warnings</b>\n"
+        for warning in publish_warnings:
+            msg += f"• {warning}\n"
+        msg += "\n"
     for line in lines:
         # Shorten for Telegram — show only label + video count (first line)
         first = line.split('\n')[0]
@@ -249,9 +260,19 @@ if __name__ == "__main__":
                         help="Topic group to include in this summary")
     parser.add_argument("--no-audio-status", action="store_true",
                         help="Skip audio status section in Telegram summary")
+    parser.add_argument("--report-publish-status", choices=["ok", "failed"], default="ok",
+                        help="Whether the reports GitHub publish step succeeded")
+    parser.add_argument("--audio-publish-status", choices=["ok", "failed"], default="ok",
+                        help="Whether the audio GitHub publish step succeeded")
     args = parser.parse_args()
 
-    summary, date_str, time_str, lines, total_videos, found = generate_daily_summary(args.group)
+    publish_warnings = []
+    if args.report_publish_status != "ok":
+        publish_warnings.append("GitHub upload ของ reports ล้มเหลว — สรุปนี้อ้างอิงไฟล์ local เป็นหลัก")
+    if args.audio_publish_status != "ok":
+        publish_warnings.append("GitHub upload ของ audio ล้มเหลว — ลิงก์เสียงอาจยังไม่อัปเดตบน GitHub")
+
+    summary, date_str, time_str, lines, total_videos, found = generate_daily_summary(args.group, publish_warnings)
     print(summary)
 
     audio_status = [] if args.no_audio_status else build_audio_status(date_str)
@@ -265,7 +286,7 @@ if __name__ == "__main__":
     bot_token, chat_id = get_telegram_creds()
     if bot_token and chat_id:
         try:
-            msg = build_telegram_message(date_str, time_str, lines, total_videos, found, audio_status, args.group)
+            msg = build_telegram_message(date_str, time_str, lines, total_videos, found, audio_status, args.group, publish_warnings)
             send_telegram(msg, bot_token, chat_id)
             print(f"✅ Telegram notification sent to {chat_id}")
         except Exception as e:

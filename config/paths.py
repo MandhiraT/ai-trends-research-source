@@ -20,8 +20,13 @@ LOGS_DIR          = os.path.join(PROJECT_ROOT, 'logs')
 CREDENTIALS_FILE  = os.environ.get('CREDENTIALS_FILE',
                         os.path.join(PROJECT_ROOT, 'credentials.env'))
 
-# GitHub upload working directory
-GITHUB_TEMP_CLONE = os.environ.get('GITHUB_TEMP_CLONE', '/tmp/ai-trends-research')
+# GitHub output-repo working directory.
+# Default moved from /tmp to a stable cache path because the publisher now
+# recreates a fresh clone every run and should not depend on tmp-state survival.
+GITHUB_TEMP_CLONE = os.environ.get(
+    'GITHUB_TEMP_CLONE',
+    os.path.expanduser('~/.cache/ai-trends-research/github-output-repo'),
+)
 
 # Prompt files
 THAI_SUMMARY_PROMPT          = os.path.join(PROMPTS_DIR, 'thai_summary_prompt.txt')

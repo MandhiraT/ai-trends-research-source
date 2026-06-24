@@ -5,7 +5,7 @@
 #   --group self_help upload self-help reports + self-help Telegram summary
 #   --group all       legacy all-topic pipeline
 
-set -e
+set -euo pipefail
 
 _GROUP="all"
 while [[ $# -gt 0 ]]; do
@@ -35,11 +35,16 @@ fi
 
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting daily pipeline group=$_GROUP"
 
-# 1. Push MD reports to GitHub for this round. The uploader is idempotent and
-# syncs the current local reports tree; running it in both rounds publishes
-# morning reports early and self-help reports after the self-help block.
-/usr/bin/python3 "$SCRIPTS_DIR/upload_reports_to_github_fixed.py"
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] GitHub reports upload done group=$_GROUP"
+report_publish_status="ok"
+audio_publish_status="ok"
+
+# 1. Push MD reports to GitHub for this round.
+if /usr/bin/python3 "$SCRIPTS_DIR/upload_reports_to_github_fixed.py"; then
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] GitHub reports upload done group=$_GROUP"
+else
+    report_publish_status="failed"
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] WARNING: GitHub reports upload failed group=$_GROUP"
+fi
 
 if [[ "$_GROUP" == "morning" || "$_GROUP" == "all" ]]; then
     # 2. Generate audio reports (per-video mode) only in the morning/all round.
@@ -47,17 +52,27 @@ if [[ "$_GROUP" == "morning" || "$_GROUP" == "all" ]]; then
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] Audio generation done"
 
     # 3. Push audio WAV files to GitHub
-    /usr/bin/python3 "$SCRIPTS_DIR/upload_audio_to_github.py" --date "$(date +%Y-%m-%d)" || true
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Audio GitHub push done"
+    if /usr/bin/python3 "$SCRIPTS_DIR/upload_audio_to_github.py" --date "$(date +%Y-%m-%d)"; then
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] Audio GitHub push done"
+    else
+        audio_publish_status="failed"
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] WARNING: Audio GitHub push failed"
+    fi
 
     # 4. Per-topic notifications (email + Telegram DM per routing config)
     /usr/bin/python3 "$SCRIPTS_DIR/notify_topic.py" --all --date "$(date +%Y-%m-%d)" || true
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] Per-topic notifications done"
 
-    /usr/bin/python3 "$SCRIPTS_DIR/ai_trends_daily_summary_thai.py" --group "$_GROUP"
+    /usr/bin/python3 "$SCRIPTS_DIR/ai_trends_daily_summary_thai.py" \
+        --group "$_GROUP" \
+        --report-publish-status "$report_publish_status" \
+        --audio-publish-status "$audio_publish_status"
 else
     # Self-help round: report push + self-help Telegram summary only.
-    /usr/bin/python3 "$SCRIPTS_DIR/ai_trends_daily_summary_thai.py" --group self_help --no-audio-status
+    /usr/bin/python3 "$SCRIPTS_DIR/ai_trends_daily_summary_thai.py" \
+        --group self_help \
+        --no-audio-status \
+        --report-publish-status "$report_publish_status"
 fi
 
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Daily summary + Telegram notification done group=$_GROUP"

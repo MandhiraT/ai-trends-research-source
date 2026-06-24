@@ -2,7 +2,7 @@
 
 > Working document for team/agent collaboration. Update this file whenever features change, bugs are found, or new work is planned. Keep statuses current.
 
-**Last updated:** 2026-06-04 ICT
+**Last updated:** 2026-06-24 ICT
 **Maintained by:** Sati (primary agent) / Mandhira / Mali
 
 ---
@@ -14,7 +14,7 @@
 | Daily pipeline | ✅ Running (system crontab, Bangkok/ICT timezone) |
 | Detailed summaries | ✅ Working (--detailed flag in all cron jobs) |
 | Audio TTS reports | ✅ Working (Gemini 2.5 Flash TTS, per-video mode) |
-| GitHub upload | ✅ Working |
+| GitHub upload | ✅ Hardened 2026-06-24 (fresh clone per publish, explicit publish-status warnings) |
 | Dedup system | ✅ Working |
 | Telegram daily digest | ✅ Working (includes audio status) |
 | Per-topic report/voice notifications | ✅ Added 2026-05-27 — `run_daily_summary_cron.sh` sends configured email/Telegram topic notifications after report upload + audio upload, before final daily digest |
@@ -137,6 +137,8 @@
 | T-042 | **Reconcile Self Help Channel DOCX and expand Phase 1 to 15 channels** | 2026-05-29 | Extracted Mandy's `Self Help Channel.docx` into `docs/SELF-HELP-CHANNEL-DOCX-EXTRACTED.md`, added reconciliation note `docs/SELF-HELP-PHASE1-DOCX-RECONCILIATION.md`, and expanded production self-help Phase 1 with the four remaining DOCX gaps: Clark Kegley, Pursuit of Wonder, The Mindful Movement, and Acharya Prashant. Daily summary moved to 12:10 ICT so the 11:40 job can finish. |
 | T-046 | **Add Go with The Four Thai podcast playlist to ATS self-help cron** | 2026-06-06 | Added playlist job `self_help_thai_go_with_the_four` at 11:50 ICT, max 5 videos, Thai-first transcript routing, report folder `self_help/thai/podcast/go_with_the_four`, and self-help daily summary inclusion. |
 
+| T-047 | **Harden ATS output-repo publishing against stale clone corruption** | 2026-06-24 | Root cause of missed 2026-06-23/24 daily summaries was a corrupted long-lived output clone. Permanent fix: added shared `github_output_repo.py`, switched reports/audio publishers to fresh clone per run with explicit push auth, moved default checkout path from `/tmp` to `~/.cache/ai-trends-research/github-output-repo`, and changed `run_daily_summary_cron.sh` + `ai_trends_daily_summary_thai.py` so Telegram summaries still send with publish warnings if GitHub upload fails. Verification: `py_compile` on 4 scripts ✅, `bash -n scripts/run_daily_summary_cron.sh` ✅, full `pytest -q` = 79 passed ✅. |
+|
 ### Backlog
 
 | ID | Task | Priority | Notes |
@@ -163,6 +165,7 @@
 | B-004 | AI Trends cron used lowercase `/Desktop/projects/...` path | High | ✅ Fixed 2026-05-12 | Root cause of missed 2026-05-12 daily summary; crontab now uses `/Desktop/Projects/...` |
 | B-005 | Dashboard Assets duplicate rows / false "เสร็จแล้ว" for nested underscore topics | High | ✅ Fixed 2026-05-17 | Caused by display-name asset JSON folders plus generate-one fallback resolving `claude_code_design` to unrelated `NATEHERK` report. Fixed in T-036. |
 | B-006 | Thai finance videos with Thai captions incorrectly marked “ไม่มี transcript ภาษาอังกฤษ” | High | ✅ Fixed 2026-05-24 | `summarize_local.py` was English-caption-only; now tries `th`, `en`, then `all` caption tracks before returning unavailable. |
+| B-007 | ATS output repo publisher could fail on stale/corrupted long-lived clone and block daily summary | High | ✅ Fixed 2026-06-24 | Replaced reused temp clone flow with fresh-clone-per-run publisher + summary warnings on upload failure. Root cause of missing daily summaries on 2026-06-23/24. |
 
 ---
 
