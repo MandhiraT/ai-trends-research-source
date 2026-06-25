@@ -34,6 +34,7 @@ from voice_engine import (
     SAMPLE_RATE,
     SAMPLE_WIDTH,
     CHANNELS,
+    chunk_script,
     concat_wavs,
     load_voice_profile,
     text_to_wav,
@@ -62,6 +63,12 @@ DEFAULT_VOICE     = 'Aoede'
 SAMPLE_RATE       = 24000   # Hz — Gemini TTS native PCM rate
 SAMPLE_WIDTH      = 2       # bytes (16-bit)
 CHANNELS          = 1       # mono
+# Keep automated report TTS chunks well below the Gemini hard limit.
+# In production we have seen occasional repeated passages when long per-video
+# scripts were sent as a single one-shot TTS request (for example Joanna Wiebe
+# clips on 2026-06-17 and 2026-06-25). Smaller chunks trade a little extra API
+# latency for much more stable narration output.
+AUTO_TTS_SAFE_CHARS = 2000
 
 
 def _load_audio_config() -> dict:
@@ -236,8 +243,26 @@ def _call_condense_model(prompt: str) -> str:
 
 
 def _text_to_wav(text: str, output_path: str, voice: str = DEFAULT_VOICE) -> None:
-    """Compatibility wrapper: use unified ATS voice engine for Gemini TTS."""
-    text_to_wav(text, output_path, voice=voice)
+    """Generate WAV via conservative chunked TTS to avoid repeated passages."""
+    chunks = chunk_script(text, max_chars=AUTO_TTS_SAFE_CHARS)
+    if not chunks:
+        raise ValueError('Script text is empty')
+    if len(chunks) == 1:
+        text_to_wav(chunks[0], output_path, voice=voice)
+        return
+
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        seg_paths = []
+        for idx, chunk in enumerate(chunks, start=1):
+            if idx > 1:
+                time.sleep(2)
+            seg = os.path.join(tmpdir, f'chunk_{idx:02d}.wav')
+            print(f'  [audio]     🔹 TTS chunk {idx}/{len(chunks)} ({len(chunk)} chars)')
+            text_to_wav(chunk, seg, voice=voice)
+            seg_paths.append(seg)
+        concat_wavs(seg_paths, output_path)
 
 
 def _concat_wavs(wav_paths: list[str], output_path: str) -> None:

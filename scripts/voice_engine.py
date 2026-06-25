@@ -118,7 +118,10 @@ def chunk_script(text: str, max_chars: int = MAX_TTS_CHARS) -> list[str]:
         if len(paragraph) <= max_chars:
             units.append(paragraph)
             continue
-        parts = re.split(r"(?<=[.!?。！？]|ค่ะ|ครับ|นะคะ|นะครับ)\s+", paragraph)
+        parts = re.split(
+            r"(?<=[.!?。！？])\s+|(?<=ค่ะ)\s+|(?<=ครับ)\s+|(?<=นะคะ)\s+|(?<=นะครับ)\s+",
+            paragraph,
+        )
         for part in parts:
             part = part.strip()
             if not part:
