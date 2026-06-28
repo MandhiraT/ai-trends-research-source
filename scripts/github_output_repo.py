@@ -64,9 +64,22 @@ def run_git(
     *,
     check: bool = True,
     env: dict[str, str] | None = None,
+    timeout: int | None = 180,
 ) -> subprocess.CompletedProcess:
     """Run a git command and optionally raise with stderr context."""
-    result = subprocess.run(args, cwd=str(cwd), capture_output=True, text=True, env=env)
+    try:
+        result = subprocess.run(
+            args,
+            cwd=str(cwd),
+            capture_output=True,
+            text=True,
+            env=env,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise GitRepoError(
+            f"git command timed out after {timeout}s: {' '.join(args)}"
+        ) from exc
     if check and result.returncode != 0:
         stderr = (result.stderr or result.stdout or "").strip()
         raise GitRepoError(f"git command failed: {' '.join(args)}\n{stderr}")
@@ -125,6 +138,7 @@ def prepare_fresh_checkout(
     branch: str = "master",
     token: str | None = None,
     retries: int = 2,
+    clone_timeout: int = 180,
     allowed_roots: Iterable[str | Path] | None = None,
 ) -> Path:
     """Create a fresh healthy checkout every run.
@@ -143,12 +157,21 @@ def prepare_fresh_checkout(
         _safe_rmtree(checkout)
 
         with _git_auth_env(token) as env:
-            clone = subprocess.run(
-                ["git", "clone", "--depth", "1", "--branch", branch, repo_url, str(staging)],
-                capture_output=True,
-                text=True,
-                env=env,
-            )
+            try:
+                clone = subprocess.run(
+                    ["git", "clone", "--depth", "1", "--branch", branch, repo_url, str(staging)],
+                    capture_output=True,
+                    text=True,
+                    env=env,
+                    timeout=clone_timeout,
+                )
+            except subprocess.TimeoutExpired:
+                last_error = f"git clone timed out after {clone_timeout}s"
+                _safe_rmtree(staging)
+                if attempt < retries:
+                    time.sleep(1)
+                    continue
+                raise GitRepoError(f"failed to clone output repo into {checkout}: {last_error}")
         if clone.returncode != 0:
             last_error = (clone.stderr or clone.stdout or "").strip()
             _safe_rmtree(staging)
@@ -166,6 +189,83 @@ def prepare_fresh_checkout(
         return checkout
 
     raise GitRepoError(f"failed to prepare output repo checkout: {last_error}")
+
+
+def prepare_checkout(
+    repo_url: str,
+    checkout_dir: str | Path,
+    *,
+    branch: str = "master",
+    token: str | None = None,
+    fetch_timeout: int = 120,
+    clone_timeout: int = 600,
+    allowed_roots: Iterable[str | Path] | None = None,
+) -> Path:
+    """Prepare a checkout for publishing — reuse persistent clone if healthy, else clone fresh.
+
+    On subsequent runs, does a fast fetch+reset instead of re-cloning the full repo.
+    Uses --filter=blob:none so large audio/binary blobs are never downloaded —
+    we replace those subtrees entirely from local content anyway.
+    """
+    checkout = _validate_checkout_dir(checkout_dir, allowed_roots=allowed_roots)
+    checkout.parent.mkdir(parents=True, exist_ok=True)
+
+    git_dir = checkout / ".git"
+    if checkout.is_dir() and git_dir.is_dir():
+        # Fast path: fetch latest commit + reset index (working tree left for replace_tree)
+        with _git_auth_env(token) as env:
+            try:
+                run_git(["git", "remote", "set-url", "origin", repo_url], checkout)
+                run_git(
+                    ["git", "fetch", "--depth", "1", "--filter=blob:none", "origin", branch],
+                    checkout,
+                    env=env,
+                    timeout=fetch_timeout,
+                )
+                run_git(["git", "reset", "--mixed", f"origin/{branch}"], checkout)
+                run_git(["git", "config", "user.email", "mandhira@thequietself.com"], checkout)
+                run_git(["git", "config", "user.name", "MandhiraT"], checkout)
+                return checkout
+            except GitRepoError:
+                # Checkout corrupt — fall through to fresh clone
+                _safe_rmtree(checkout)
+
+    # First-time (or post-corruption) clone.
+    # --filter=blob:none + --no-checkout: downloads only commit/tree objects (1-2s),
+    # skipping all blobs (audio/report content we replace entirely anyway).
+    # git reset --mixed HEAD then populates the index without touching working tree.
+    staging = checkout.parent / f".{checkout.name}.clone-{os.getpid()}"
+    _safe_rmtree(staging)
+    with _git_auth_env(token) as env:
+        try:
+            clone = subprocess.run(
+                [
+                    "git", "clone",
+                    "--depth", "1",
+                    "--filter=blob:none",
+                    "--no-checkout",
+                    "--branch", branch,
+                    repo_url, str(staging),
+                ],
+                capture_output=True,
+                text=True,
+                env=env,
+                timeout=clone_timeout,
+            )
+        except subprocess.TimeoutExpired:
+            _safe_rmtree(staging)
+            raise GitRepoError(f"failed to clone output repo into {checkout}: git clone timed out after {clone_timeout}s")
+    if clone.returncode != 0:
+        _safe_rmtree(staging)
+        stderr = (clone.stderr or clone.stdout or "").strip()
+        raise GitRepoError(f"failed to clone output repo into {checkout}: {stderr}")
+
+    run_git(["git", "remote", "set-url", "origin", repo_url], staging)
+    run_git(["git", "config", "user.email", "mandhira@thequietself.com"], staging)
+    run_git(["git", "config", "user.name", "MandhiraT"], staging)
+    run_git(["git", "reset", "--mixed", "HEAD"], staging)
+    staging.rename(checkout)
+    return checkout
 
 
 def replace_tree(src_dir: str | Path, dest_dir: str | Path) -> None:
@@ -192,10 +292,16 @@ def has_staged_changes(repo_dir: str | Path) -> bool:
     return result.returncode != 0
 
 
-def commit_and_push(repo_dir: str | Path, message: str, *, token: str | None = None) -> bool:
+def commit_and_push(
+    repo_dir: str | Path,
+    message: str,
+    *,
+    token: str | None = None,
+    push_timeout: int = 180,
+) -> bool:
     if not has_staged_changes(repo_dir):
         return False
     run_git(["git", "commit", "-m", message], repo_dir)
     with _git_auth_env(token) as env:
-        run_git(["git", "push", "origin", "master"], repo_dir, env=env)
+        run_git(["git", "push", "origin", "master"], repo_dir, env=env, timeout=push_timeout)
     return True
