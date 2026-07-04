@@ -10,7 +10,7 @@ Built and operated solo by **Mandhira.T** as the upstream intelligence layer of 
 
 ## What It Does
 
-- **Monitors** 40+ YouTube channels/playlists across 6 topic verticals
+- **Monitors** 29+ YouTube channels/playlists across AI/tech, finance, health, and self-help (psychology, habits, Thai mindfulness & dharma) verticals
 - **Scrapes** new uploads via `yt-dlp` with content-hash deduplication
 - **Summarizes** each video into a structured Thai report (2,000–3,000 words) with key insights, actionable takeaways, and source metadata
 - **Generates audio** narration (TTS) for select reports
@@ -85,6 +85,11 @@ bash scripts/run_all_today.sh
 # Or trigger via dashboard at localhost:8092
 ```
 
+### Dashboard
+
+- Local: `http://127.0.0.1:8092`
+- Production: `https://ai-trends.thequietself.com` (Cloudflare Tunnel, Access-gated)
+
 ### Configuration
 
 - Job definitions: `research_jobs.json` (⚠️ `report_folder` must be **lowercase** — Linux is case-sensitive)
@@ -135,4 +140,4 @@ ATS is the **upstream intelligence/source layer** of Mandhira's content engine. 
 
 ---
 
-*ATS Pipeline — Owned and operated by Mandhira.T | Last updated: 2026-06-15*
+*ATS Pipeline — Owned and operated by Mandhira.T | Last updated: 2026-07-04*
