@@ -466,26 +466,37 @@ def page(title, body):
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{h(title)}</title>
   <style>
-    :root {{ color-scheme: light; --line:#d8dee8; --ink:#172033; --muted:#5f6c80; --bg:#f6f8fb; --panel:#fff; --blue:#0d63ce; --green:#0b7a42; --red:#b42318; }}
+    :root {{
+      color-scheme: light;
+      --line:#d8dee8; --ink:#172033; --muted:#5f6c80; --bg:#f6f8fb; --panel:#fff;
+      --blue:#0d63ce; --green:#0b7a42; --red:#b42318;
+      /* Shared brand tokens (ATS/FAW/MJS) */
+      --accent:#7c3aed; --accent-hover:#6d28d9; --accent-soft:#f3edfd;
+      --font-shared: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+    }}
     * {{ box-sizing: border-box; }}
-    body {{ margin:0; font-family: Arial, sans-serif; background:var(--bg); color:var(--ink); }}
-    header {{ background:#111827; color:white; padding:16px 24px; display:flex; align-items:center; justify-content:space-between; gap:16px; }}
+    body {{ margin:0; font-family: var(--font-shared); background:var(--bg); color:var(--ink); }}
+    header {{ background:#111827; color:white; padding:16px 24px; display:flex; align-items:center; justify-content:space-between; gap:16px; border-bottom:2px solid var(--accent); }}
     header a {{ color:white; text-decoration:none; margin-left:14px; }}
+    header a:hover {{ color:var(--accent-soft); }}
     main {{ max-width:1180px; margin:0 auto; padding:22px; }}
     h1 {{ font-size:24px; margin:0 0 14px; }}
     h2 {{ font-size:18px; margin:24px 0 10px; }}
     .grid {{ display:grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap:12px; }}
-    .metric, section {{ background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:14px; }}
+    .metric, section {{ background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px; }}
     .metric strong {{ display:block; font-size:22px; margin-top:4px; }}
-    table {{ width:100%; border-collapse:collapse; background:var(--panel); border:1px solid var(--line); border-radius:8px; overflow:hidden; }}
+    table {{ width:100%; border-collapse:collapse; background:var(--panel); border:1px solid var(--line); border-radius:10px; overflow:hidden; }}
     th, td {{ padding:10px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; font-size:14px; }}
     th {{ background:#eef2f7; font-size:12px; text-transform:uppercase; color:var(--muted); }}
     tr:last-child td {{ border-bottom:0; }}
     .actions {{ display:flex; gap:8px; flex-wrap:wrap; }}
-    button, .button {{ appearance:none; border:1px solid var(--blue); background:var(--blue); color:white; padding:8px 10px; border-radius:6px; text-decoration:none; cursor:pointer; font-size:14px; }}
-    .button.secondary, button.secondary {{ background:white; color:var(--blue); }}
+    button, .button {{ appearance:none; border:1px solid var(--accent); background:var(--accent); color:white; padding:8px 10px; border-radius:6px; text-decoration:none; cursor:pointer; font-size:14px; transition:background .15s,border-color .15s; }}
+    button:hover, .button:hover {{ background:var(--accent-hover); border-color:var(--accent-hover); }}
+    .button.secondary, button.secondary {{ background:white; color:var(--accent); }}
+    .button.secondary:hover, button.secondary:hover {{ background:var(--accent-soft); }}
     button.danger {{ border-color:var(--red); background:var(--red); }}
     input, select, textarea {{ width:100%; padding:9px; border:1px solid var(--line); border-radius:6px; font:inherit; }}
+    input:focus, select:focus, textarea:focus {{ outline:none; border-color:var(--accent); }}
     label {{ display:block; font-size:13px; color:var(--muted); margin:12px 0 5px; }}
     form.inline {{ display:inline; }}
     .form-grid {{ display:grid; grid-template-columns: 1fr 1fr; gap:0 14px; }}
