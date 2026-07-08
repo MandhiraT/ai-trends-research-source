@@ -26,6 +26,7 @@
 | Cloudflare dashboard route | ✅ Working (`https://ai-trends.thequietself.com`) |
 | Dashboard systemd service | ✅ Working (user-level `ats-dashboard.service`, auto-restart, linger enabled) |
 | Content asset generation | ✅ Working (`generate_content_assets.py`, dashboard Assets tab; manual audio/social works for all topics; asset JSON folders canonicalized to slug paths) |
+| Daily asset-only automation | ✅ Added 2026-07-08 (`scripts/run_daily_assets_cron.py`; 12:20 ICT cron; today-only, skip existing, no AI/social/audio cost) |
 | Dashboard Asset batch generate | ✅ Working (date range, skip existing, progress bar, per-row buttons; manual AI generation overrides default priority-topic policy) |
 | Dashboard Existing Assets filters | ✅ Working (client-side topic/date table filter, verified Joanna today case) |
 | Voice generation design / manual flow | ✅ Implemented for script-first workflow (`docs/VOICE-DESIGN.md`, Assets page) |
@@ -59,6 +60,7 @@
 || Searchable report index | JSONL/SQLite/Markdown mobile indexes + CLI search for report archive | `scripts/build_report_index.py`, `scripts/search_reports.py` |
 || Dashboard search | Search reports by query/topic/tag from Dashboard UI | `dashboard/app.py` `/search`, `/api/search` |
 | Dashboard content assets | Generate asset JSON, audio scripts, deep-dive scripts, social posts per report | `dashboard/app.py` `/assets`, `/api/assets/generate`, `/api/assets/generate-one`, `/api/assets/generate-deep-dive-script` |
+| Daily asset-only cron | Generates structured JSON assets for today's reports only; skips existing files; no AI/social/audio generation | `scripts/run_daily_assets_cron.py` |
 | Dashboard asset batch generate | Date range filter, skip existing, AI confirm, progress bar, per-row buttons | `dashboard/app.py` `/api/assets/progress` |
 | Dashboard Existing Assets filters | Client-side table filtering by Topic + Date from/to; counter updates live | `dashboard/app.py` `/assets` |
 | Voice generation manual flow | Script editor/save + Gemini TTS voice from saved full/deep-dive scripts only | `dashboard/app.py`, `scripts/voice_engine.py` |
