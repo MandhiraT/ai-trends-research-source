@@ -2880,8 +2880,12 @@ document.addEventListener('DOMContentLoaded',function(){{
                 if has_ddv else ""
             )
 
-            fd_option = (
-                f'<option value="full_detail">Full Detail — from transcript{" (done)" if has_fd else ""}</option>'
+            fd_gen_option = (
+                f'<option value="full_detail">Full Detail — from transcript{" (regenerate)" if has_fd else ""}</option>'
+                if full_detail_enabled else ""
+            )
+            fd_view_option = (
+                f'<option value="full_detail"{"" if has_fd else " disabled"}>Full Detail{"" if has_fd else " (not generated)"}</option>'
                 if full_detail_enabled else ""
             )
             fd_dot = f' &nbsp;{_dot(has_fd)} Full Detail' if full_detail_enabled else ""
@@ -2896,13 +2900,13 @@ document.addEventListener('DOMContentLoaded',function(){{
   <select class="btn-sm" id="gentype-{vno}" title="Choose what to generate">
     <option value="full">Quick Script (~400w, from report)</option>
     <option value="deep_dive">Long Narration (~10min, from report)</option>
-    {fd_option}
+    {fd_gen_option}
   </select>
   <button class="btn-sm" onclick="genSelected('{safe_topic}','{safe_date}',{vno})" title="Generate the selected type via AI">🤖 Generate</button>
   <select class="btn-sm" id="viewtype-{vno}" title="Choose what to view">
     <option value="full"{' disabled' if not has_fs else ''}>Quick Script{'' if has_fs else ' (not generated)'}</option>
     <option value="deep_dive"{' disabled' if not has_dds else ''}>Long Narration{'' if has_dds else ' (not generated)'}</option>
-    {fd_option if full_detail_enabled else ""}
+    {fd_view_option}
   </select>
   <button class="btn-sm" onclick="viewSelected('{safe_topic}','{safe_date}',{vno})" title="Open the selected type">📄 View</button>
   <button class="btn-sm{'' if has_fs else ' disabled-btn'}" onclick="genVoice('{safe_topic}','{safe_date}',{vno},'full')" title="Generate voice from saved Quick Script" {'disabled' if not has_fs else ''}>🎙️ Voice</button>
