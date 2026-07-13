@@ -12,6 +12,11 @@ export PROMPTS_DIR="$PROJECT_ROOT/prompts"
 export REPORTS_DIR="$PROJECT_ROOT/ai_trends_reports"
 export LOGS_DIR="$PROJECT_ROOT/logs"
 
+# Dashboard/systemd services can start with a minimal PATH. ATS shell wrappers
+# need user-installed tools such as yt-dlp (~/.local/bin) and bun/claude helpers
+# even when launched from the dashboard service rather than an interactive shell.
+export PATH="$HOME/.local/bin:$HOME/.bun/bin:$HOME/.npm-global/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${PATH:-}"
+
 # Credentials (override via env var; default to global ~/.credentials.env like FAW)
 export CREDENTIALS_FILE="${CREDENTIALS_FILE:-$HOME/.credentials.env}"
 
