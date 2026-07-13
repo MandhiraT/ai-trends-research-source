@@ -41,6 +41,13 @@ try:
 except ImportError:
     _MD_OK = False
 
+# Regular daily-cron reports are named {date}.md. On-demand reports (the
+# "speech"/"On Demand" job) are named {date}_{HHMM}_{slug}.md instead, since
+# there can be several per calendar day (see build_report_filename() in
+# run_ai_trends_research_enhanced.py) -- every "date" validation below must
+# accept both, or on-demand reports are structurally invisible to Assets.
+DATE_OR_REPORT_STEM_RE = re.compile(r"^\d{4}-\d{2}-\d{2}(_[A-Za-z0-9_-]+)?$")
+
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 CONFIG_FILE = PROJECT_ROOT / "config" / "research_jobs.json"
 REPORTS_DIR = PROJECT_ROOT / "ai_trends_reports" / "reports"
@@ -89,7 +96,7 @@ def _resolve_report_path(topic: str, date: str) -> tuple[Path | None, str]:
     """
     topic = (topic or "").strip()
     topic_slug = _slug(topic)
-    if not topic_slug or not re.match(r"^\d{4}-\d{2}-\d{2}$", date or ""):
+    if not topic_slug or not DATE_OR_REPORT_STEM_RE.match(date or ""):
         return None, topic_slug
 
     for candidate in (
@@ -117,10 +124,9 @@ def _resolve_report_path(topic: str, date: str) -> tuple[Path | None, str]:
     return matches[0], _slug(matches[0].parent.name)
 
 
-# Topics allowed to use Full Detail (on-demand, re-reads the original transcript
-# instead of the already-compressed report). NATEHERK-only for this first phase
-# per Mandy's instruction; lift this gate once proven.
-FULL_DETAIL_TOPICS = {"nateherk"}
+# Full Detail (on-demand, re-reads the original transcript instead of the
+# already-compressed report) started NATEHERK-only, lifted to every topic
+# 2026-07-13 per Mandy's instruction once the NATEHERK trial proved out.
 FULL_DETAIL_PROMPT_FILE = PROJECT_ROOT / "prompts" / "thai_summary_prompt_full_detail.txt"
 
 # Topics with automated daily TTS audio already emailed to Mandy — regenerating
@@ -1185,7 +1191,7 @@ function clearSearch(){{
             raise ValueError("video must be a number")
         if not safe_topic or not re.match(r"^[A-Za-z0-9_]+$", safe_topic):
             raise ValueError("invalid topic")
-        if not re.match(r"^\d{4}-\d{2}-\d{2}$", date or ""):
+        if not DATE_OR_REPORT_STEM_RE.match(date or ""):
             raise ValueError("invalid date")
         if vno < 1 or vno > 99:
             raise ValueError("invalid video number")
@@ -1375,15 +1381,12 @@ function clearSearch(){{
             force = data.get("force", [""])[0] == "1"
 
             safe_topic = _slug(topic)
-            if safe_topic not in FULL_DETAIL_TOPICS:
-                self._send_json({"error": f"Full Detail is not enabled for topic '{safe_topic}' yet"}, code=403)
-                return
             try:
                 vno = int(video)
             except (TypeError, ValueError):
                 self._send_json({"error": "video must be a number"}, code=400)
                 return
-            if not re.match(r"^\d{4}-\d{2}-\d{2}$", date or ""):
+            if not DATE_OR_REPORT_STEM_RE.match(date or ""):
                 self._send_json({"error": "invalid date"}, code=400)
                 return
 
@@ -2342,7 +2345,7 @@ document.addEventListener('DOMContentLoaded',function(){{
         topic = qs.get("topic", [""])[0].strip()
         date  = qs.get("date",  [""])[0].strip()
         video = qs.get("video", [""])[0].strip()
-        if not topic or not re.match(r"^\d{4}-\d{2}-\d{2}$", date):
+        if not topic or not DATE_OR_REPORT_STEM_RE.match(date):
             self.send_error(400)
             return
 
@@ -2378,7 +2381,7 @@ document.addEventListener('DOMContentLoaded',function(){{
         date  = qs.get("date",  [""])[0].strip()
         video = qs.get("video", [""])[0].strip()
         vtype = qs.get("type",  ["full"])[0].strip()
-        if not topic or not re.match(r"^\d{4}-\d{2}-\d{2}$", date) or not video or not video.isdigit():
+        if not topic or not DATE_OR_REPORT_STEM_RE.match(date) or not video or not video.isdigit():
             self.send_error(400)
             return
         if vtype not in ("full", "deep_dive"):
@@ -2411,7 +2414,7 @@ document.addEventListener('DOMContentLoaded',function(){{
         qs = parse_qs(urlparse(self.path).query)
         topic = qs.get("topic", [""])[0].strip()
         date  = qs.get("date",  [""])[0].strip()
-        if not topic or not re.match(r"^\d{4}-\d{2}-\d{2}$", date):
+        if not topic or not DATE_OR_REPORT_STEM_RE.match(date):
             self._send_json({"error": "Invalid topic or date"}, code=400)
             return
 
@@ -2437,7 +2440,7 @@ document.addEventListener('DOMContentLoaded',function(){{
         qs = parse_qs(urlparse(self.path).query)
         topic = qs.get("topic", [""])[0].strip()
         date  = qs.get("date",  [""])[0].strip()
-        if not topic or not re.match(r"^\d{4}-\d{2}-\d{2}$", date):
+        if not topic or not DATE_OR_REPORT_STEM_RE.match(date):
             self.send_error(400)
             return
 
@@ -2466,7 +2469,7 @@ document.addEventListener('DOMContentLoaded',function(){{
         qs = parse_qs(urlparse(self.path).query)
         topic = qs.get("topic", [""])[0].strip()
         date  = qs.get("date",  [""])[0].strip()
-        if not topic or not re.match(r"^\d{4}-\d{2}-\d{2}$", date):
+        if not topic or not DATE_OR_REPORT_STEM_RE.match(date):
             self.send_error(400)
             return
 
@@ -2521,7 +2524,7 @@ document.addEventListener('DOMContentLoaded',function(){{
         topic = qs.get("topic", [""])[0].strip()
         date  = qs.get("date",  [""])[0].strip()
         video = qs.get("video", ["1"])[0].strip()
-        if not topic or not re.match(r"^\d{4}-\d{2}-\d{2}$", date) or not video.isdigit():
+        if not topic or not DATE_OR_REPORT_STEM_RE.match(date) or not video.isdigit():
             self.send_error(400)
             return
 
@@ -2575,7 +2578,7 @@ document.addEventListener('DOMContentLoaded',function(){{
         qs = parse_qs(urlparse(self.path).query)
         topic = qs.get("topic", [""])[0].strip()
         date  = qs.get("date",  [""])[0].strip()
-        if not topic or not re.match(r"^\d{4}-\d{2}-\d{2}$", date):
+        if not topic or not DATE_OR_REPORT_STEM_RE.match(date):
             self.send_error(400)
             return
 
@@ -2631,7 +2634,7 @@ document.addEventListener('DOMContentLoaded',function(){{
         qs = parse_qs(urlparse(self.path).query)
         topic = qs.get("topic", [""])[0].strip()
         date  = qs.get("date",  [""])[0].strip()
-        if not topic or not re.match(r"^\d{4}-\d{2}-\d{2}$", date):
+        if not topic or not DATE_OR_REPORT_STEM_RE.match(date):
             self._send_json({"error": "topic and date required"}, code=400)
             return
 
@@ -2791,7 +2794,7 @@ document.addEventListener('DOMContentLoaded',function(){{
         topic = qs.get("topic", [""])[0].strip()
         date  = qs.get("date",  [""])[0].strip()
 
-        if not topic or not re.match(r"^\d{4}-\d{2}-\d{2}$", date):
+        if not topic or not DATE_OR_REPORT_STEM_RE.match(date):
             self.send_html(page("Manage", '<p class="failed">topic and date required</p>'))
             return
 
@@ -2827,7 +2830,7 @@ document.addEventListener('DOMContentLoaded',function(){{
         safe_topic    = h(topic_slug)
         safe_date     = h(date)
         total_videos  = asset_data.get("total_videos", 0)
-        full_detail_enabled = topic_slug in FULL_DETAIL_TOPICS
+        full_detail_enabled = True
         is_automated_audio_topic = topic_slug in AUTOMATED_AUDIO_TOPICS
 
         # Build per-video card data

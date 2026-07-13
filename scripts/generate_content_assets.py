@@ -59,6 +59,11 @@ ASSETS_DIR = Path(__file__).resolve().parents[1] / "ai_trends_reports" / "assets
 AUDIO_SCRIPTS_DIR = Path(__file__).resolve().parents[1] / "ai_trends_reports" / "audio_scripts"
 SOCIAL_DIR = Path(__file__).resolve().parents[1] / "ai_trends_reports" / "social"
 
+# Regular daily reports are named {date}.md. On-demand reports (the "speech"/
+# "On Demand" job) are named {date}_{HHMM}_{slug}.md instead since there can be
+# several per calendar day -- match both, or on-demand reports are invisible here.
+_DATE_OR_STEM_RE = re.compile(r"^\d{4}-\d{2}-\d{2}(_[A-Za-z0-9_-]+)?$")
+
 
 def _slug(name: str) -> str:
     """Normalize display topic names to stable folder slugs.
@@ -200,9 +205,21 @@ def _call_ai(prompt: str, module=None) -> str:
 def build_asset_from_report(report_path: Path, reports_root: Path) -> dict[str, Any] | None:
     """Build a content asset dict from a single report file."""
     text = report_path.read_text(encoding="utf-8")
-    date = _extract_meta(text, "Date") or report_path.stem
-    date = date.split()[0]
-    topic = _extract_meta(text, "Topic") or report_path.parent.name.replace("_", " ")
+    if re.match(r"^\d{4}-\d{2}-\d{2}$", report_path.stem):
+        # Regular daily report — one per day, collapse metadata "Date:" to plain YYYY-MM-DD.
+        date = _extract_meta(text, "Date") or report_path.stem
+        date = date.split()[0]
+        topic = _extract_meta(text, "Topic") or report_path.parent.name.replace("_", " ")
+    else:
+        # On-demand report — filename stem is already the unique per-run identifier
+        # ({date}_{HHMM}_{slug}); several can exist for the same calendar date, so
+        # collapsing to plain YYYY-MM-DD here would make them collide. Keep the full stem.
+        # Topic is forced to the report's actual folder name (not the free-text "Topic:"
+        # metadata, which is whatever ad-hoc search term that specific run used, e.g.
+        # "Claude") so every on-demand report groups consistently in Assets instead of
+        # scattering under a different folder per run.
+        date = report_path.stem
+        topic = report_path.parent.name.replace("_", " ")
 
     sections = _split_video_sections(text)
     if not sections:
@@ -570,13 +587,13 @@ def find_reports(topic: str | None = None, reports_root: Path = REPORTS_ROOT) ->
             if topic_dir.exists() and topic_dir.is_dir():
                 return sorted(
                     p for p in topic_dir.rglob("*.md")
-                    if re.match(r"^\d{4}-\d{2}-\d{2}$", p.stem)
+                    if _DATE_OR_STEM_RE.match(p.stem)
                 )
 
         matches: list[Path] = []
         if reports_root.exists():
             for p in reports_root.rglob("*.md"):
-                if not p.is_file() or not re.match(r"^\d{4}-\d{2}-\d{2}$", p.stem):
+                if not p.is_file() or not _DATE_OR_STEM_RE.match(p.stem):
                     continue
                 rel_parent = p.parent.relative_to(reports_root).as_posix()
                 leaf_slug = _slug(p.parent.name)
@@ -587,7 +604,7 @@ def find_reports(topic: str | None = None, reports_root: Path = REPORTS_ROOT) ->
 
     return sorted(
         p for p in reports_root.rglob("*.md")
-        if p.is_file() and re.match(r"^\d{4}-\d{2}-\d{2}$", p.stem)
+        if p.is_file() and _DATE_OR_STEM_RE.match(p.stem)
     )
 
 
