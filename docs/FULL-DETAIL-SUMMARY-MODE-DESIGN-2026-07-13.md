@@ -1,7 +1,7 @@
 # ATS Full-Detail Summary Mode — Design (not implemented)
 
-**Status:** 🟡 Design done — awaiting Mandy's decisions before implementation
-**Date:** 2026-07-13
+**Status:** 🟡 Design revised per Mandy's feedback — awaiting go-ahead to implement
+**Date:** 2026-07-13 (updated same day after Mandy's answers)
 **Triggered by:** Mandy reported that the current `--detailed` Thai summary mode loses step-by-step
 detail on instructional/tutorial videos (example: a camera-movement-prompt tutorial with 42 distinct
 commands, where the report only surfaces ~15 of them grouped into 5 themes). She wants a new,
@@ -108,27 +108,72 @@ full_detail only.
   dashboard report viewer, search index) — full_detail reports are still markdown files in the same
   `reports/{topic}/{date}.md` location, so no changes needed there.
 
-## 4. Open questions for Mandy
+## 4. Mandy's answers (2026-07-13) — revised scope
 
-1. **Which jobs should default to full_detail?** My guess based on content type: tool-tutorial-heavy
-   topics (Claude Code subtopics, NATEHERK, Jacksons AI, Make Money Matt) are more likely candidates
-   than trend-roundup topics (AI Agents, AI Viral Niche) or opinion channels (The School of Life,
-   HealthyGamerGG). Want her actual list rather than guessing.
-2. **On-demand form:** confirm full_detail should be selectable for one-off manual runs too (not just
-   recurring cron jobs) — her own trigger case was an on-demand run.
-3. **Cost/latency trade-off:** full_detail prompts will be longer (up to ~120k chars of transcript)
-   and outputs longer (up to 2x current for enumeration-heavy videos), so Vertex calls will cost more
-   and take longer per video. Confirming this is acceptable given it's opt-in per job.
-4. **Daily digest / Telegram distinction:** should full_detail reports be visually flagged in the
-   daily digest (e.g., a "📘 Full Detail" badge) so Mandy can tell at a glance which reports are the
-   enumerative kind vs. the analytical kind, or is the report content itself enough?
+1. Not a per-job cron default for now. Scope to **NATEHERK only** to start; other channels later, her choice.
+2. Must be selectable **on-demand**, not just as a job setting.
+3. NATEHERK first, no other channels yet.
+4. Yes to a badge marking which reports/videos have a full-detail version.
+
+She also raised a real dependency I hadn't checked: **NATEHERK already has automated TTS audio**
+(`config/audio_topics.json` → `automated_voice_topics.nateherk`, `script_type: full`, `per_video:
+true`) **emailed to her daily**, and asked whether turning on full_detail for NATEHERK would change
+that audio. She then reconsidered the whole delivery model: rather than a per-job cron setting, she
+wants **on-demand control** — read a report, decide a specific video needs more detail, and trigger
+regeneration herself — and asked whether this fits on the existing Assets page
+(`https://ai-trends.thequietself.com/assets` → `/assets/manage?topic=&date=`).
+
+### 4a. Audio impact analysis (traced through `scripts/generate_audio_report.py`)
+
+The per-video audio path (`_generate_per_video` → `_condense_video_section`, used for NATEHERK) does
+**not** read the report's bullet count directly into the spoken script — it runs its own separate
+condensation LLM call, and already caps itself independent of source detail:
+`key_point_count = max(len(re.findall(r'\*\*\d+\.', section_text)), 4)` then
+`para_target = min(key_point_count, 10)` (lines 193-194). So even a 42-item full-detail section would
+only ever produce up to ~10 spoken paragraphs of audio, not a 42-item read-aloud — the audio length
+is naturally bounded regardless of report length.
+
+More importantly: **audio generation and full-detail generation should be separate, independent
+actions**, not linked. If full_detail is added as an on-demand button on the Assets/manage page
+(rather than baked into the NATEHERK cron job itself), the daily automated report + audio + email
+pipeline for NATEHERK is **completely unaffected** — nothing changes unless Mandy manually triggers
+full_detail for a specific video, and even then, regenerating audio for that video is a separate
+existing button she'd click independently if she wants updated audio too. This addresses her FYI
+concern directly: on-demand-only means zero default impact on the thing she already receives daily.
+
+### 4b. Assets/manage page — confirmed feasible
+
+Checked `/assets/manage?topic=&date=` (`dashboard/app.py` `render_assets_manage` /
+`api_assets_videos`, ~line 2443). Each video card already has everything needed:
+- `source_url` per video (line 2495) — required to re-run summarization against that exact video
+- Existing precedent for per-video on-demand actions on this same page: "Generate script",
+  "Generate deep-dive script", "Generate voice" all already work this way (`/api/assets/generate-one`,
+  `/api/assets/generate-deep-dive-script`, `/api/assets/generate-voice`)
+
+So a new "🔎 Full Detail" button per video card, calling a new
+`/api/assets/generate-full-detail` endpoint, fits the page's existing pattern exactly — same shape as
+the buttons already there.
+
+**Storage decision:** write the full-detail output to its own new file per video (e.g.
+`ai_trends_reports/reports/nateherk/{date}-v{N}-full-detail.md`), not into the existing report file.
+Reasons: (1) the existing report is what the daily digest, search index, and the audio condenser's
+section-splitting regex all already parse — overwriting or restructuring it risks breaking those
+without any upside; (2) Mandy wants this as an *additional*, opt-in artifact she pulls up when she
+wants more, not a replacement of what's already working. The badge on `/assets/manage` (and later
+`/reports` if wanted) simply reflects whether this sibling file exists for a given video, the same
+way `full_voice`/`deep_dive_voice` existence is already checked and shown today.
+
+**Scope gate:** show the "🔎 Full Detail" button only when `topic == nateherk` for this first phase
+(a one-line condition, trivial to lift to other topics later once proven), per Mandy's "NATEHERK
+first" instruction.
 
 ---
 
-**Next Actions (once Mandy answers the above):**
+**Next Actions:**
 1. Write `prompts/thai_summary_prompt_full_detail.txt`
-2. Add `summary_mode` to `research_jobs.json` schema + migrate existing jobs (default = current `detailed` value)
-3. Extend `process_video_with_summarize()` / `summarize_video()` for 3-way mode + mode-gated transcript/output limits
-4. Update dashboard job-edit form + on-demand form (dropdown instead of checkbox)
-5. Test against the HOjCT6TxlHM video specifically — confirm all 42 commands appear in the new report
-6. Update `docs/TASKS.md` and this doc's status to Implemented
+2. Add `/api/assets/generate-full-detail` endpoint (topic/date/video_no/source_url in, writes
+   `{date}-v{N}-full-detail.md`, mode-gated transcript (~120k char) and output (~32k token) limits)
+3. Add "🔎 Full Detail" button + badge to `/assets/manage`, gated to `topic == nateherk`
+4. Test against the HOjCT6TxlHM video specifically — confirm all 42 commands appear in the output
+5. Update `docs/TASKS.md` and this doc's status to Implemented
+6. Confirm with Mandy before starting whether she wants the go-ahead now
