@@ -1440,6 +1440,11 @@ function clearSearch(){{
                 except (json.JSONDecodeError, OSError):
                     pass
         existing = _dedupe_asset_entries(existing)
+        # Sort by actual date recency (not directory-traversal order) before capping
+        # the list below — rglob() yields entries alphabetically by topic folder first,
+        # so an uncapped-by-date slice silently drops topics whose folder name sorts
+        # early (e.g. "ai_viral_niche") once total asset count exceeds the display cap.
+        existing.sort(key=lambda a: a["date"])
 
         # Collect available topics
         topics = sorted(set(str(p.parent.name) for p in REPORTS_DIR.rglob("*.md") if p.is_file()))
