@@ -154,6 +154,7 @@
 || ~~T-019~~ | **Add Dashboard Search tab backed by report index** | ~~High~~ | ✅ Completed 2026-05-14 as T-023: `/search` UI + `/api/search` JSON endpoint + `/api/search/rebuild` |
 || ~~T-020~~ | **Add content asset layer for audio/social/Sonar scripts** | ~~High~~ | ✅ Completed 2026-05-14 as T-024: `generate_content_assets.py` + dashboard Assets tab |
 | T-021 | **Implement ATS voice generation** | Medium | NATEHERK + Joanna Wiebe daily automation fully enabled. Both publish to `voice/{topic}/` in output repo. Deep-dive script + voice generation available from Dashboard manage page. Remaining: optional short-script voice if needed. |
+| T-048 | **Add "full detail" summary mode (per-job opt-in)** | High | Mandy reported `--detailed` mode compresses instructional/tutorial videos into 4-7 thematic bullets, losing individual steps (example: 42-command camera-movement tutorial → only ~15 commands surfaced across 5 themes). Root cause + fix design written: `docs/FULL-DETAIL-SUMMARY-MODE-DESIGN-2026-07-13.md`. New third mode (sequential, uncapped walkthrough instead of thematic compression), new prompt file, mode-gated transcript/output limit increases, `summary_mode` field in `research_jobs.json`, dashboard dropdown. Design done, **not implemented** — awaiting Mandy's answers to 4 open questions in the doc (which jobs default to it, on-demand form inclusion, cost/latency trade-off, digest badge). |
 
 ---
 
