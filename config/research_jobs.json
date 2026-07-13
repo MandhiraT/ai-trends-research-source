@@ -889,6 +889,28 @@
       ],
       "daily_cron_enabled": true,
       "on_demand": false
+    },
+    {
+      "id": "claude_fable_5",
+      "name": "Claude Code Fable 5",
+      "enabled": true,
+      "source_type": "claude_code_subtopic",
+      "topic": "fable 5",
+      "source_url": "",
+      "max_videos": 3,
+      "detailed": true,
+      "report_folder": "claude_code/claude_code_fable_5",
+      "schedule_time": "07:35",
+      "daily_cron_enabled": true,
+      "on_demand": false,
+      "include_in_daily_summary": true,
+      "notes": "Claude Code subtopic for Fable 5; runs in the morning Claude Code subtopics cron batch.",
+      "source_language": "en",
+      "transcript_langs": [
+        "en",
+        "th",
+        "all"
+      ]
     }
   ]
 }

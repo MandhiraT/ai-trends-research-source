@@ -186,7 +186,8 @@ def main():
         "claude code higgsfield",
         "claude code shopify",
         "claude code hyperframe",
-        "claude code heygen"
+        "claude code heygen",
+        "claude code fable 5"
     ]
 
     if args.only:

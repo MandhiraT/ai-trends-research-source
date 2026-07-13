@@ -45,6 +45,15 @@
       ],
       "telegram_chat_ids": [],
       "notification_mode": "per_topic"
+    },
+    "claude_fable_5": {
+      "email_enabled": true,
+      "telegram_enabled": false,
+      "recipient_emails": [
+        "owllulla@gmail.com"
+      ],
+      "telegram_chat_ids": [],
+      "notification_mode": "per_topic"
     }
   }
 }

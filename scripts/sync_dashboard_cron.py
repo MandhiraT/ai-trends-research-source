@@ -97,8 +97,9 @@ def topic_job_command(job: dict) -> list[str]:
 
 def subtopic_filter(job: dict) -> str:
     topic = (job.get("topic") or job.get("name") or "").strip().lower()
+    topic = topic.replace("_", " ").replace("-", " ")
     topic = topic.replace("claude code", "").strip()
-    return topic.replace(" ", "_") or slugify(job.get("id", ""))
+    return re.sub(r"\s+", " ", topic) or slugify(job.get("id", ""))
 
 
 def generate_lines(jobs: list[dict]) -> list[str]:
