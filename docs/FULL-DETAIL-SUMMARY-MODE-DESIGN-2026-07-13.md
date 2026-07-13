@@ -167,6 +167,41 @@ way `full_voice`/`deep_dive_voice` existence is already checked and shown today.
 (a one-line condition, trivial to lift to other topics later once proven), per Mandy's "NATEHERK
 first" instruction.
 
+### 4c. "Isn't this the same as Deep Dive?" — checked, it is not
+
+Mandy asked whether this duplicates the existing "Deep Dive" script feature already on
+`/assets/manage`, and separately flagged that the page already has too many buttons/icons to keep
+track of. Traced `scripts/generate_content_assets.py` `generate_deep_dive_script()` (line 396) to
+answer precisely:
+
+| | Deep Dive (existing) | Full Detail (proposed) |
+|---|---|---|
+| **Source data** | `video["section_text"]` — text already pulled from the finished `--detailed` **report** (`generate_content_assets.py:409`), capped at 12,000 chars | The original YouTube **transcript**, direct from the video |
+| **Can it recover content already lost by `--detailed`?** | **No** — it only rephrases/narrates what survived into the report. If a report already dropped 27 of 42 commands, Deep Dive has nothing to expand from — it never re-reads the transcript | **Yes** — this is the entire point: re-summarize from source, uncapped |
+| **Output shape** | Spoken **podcast script**, plain text only, no lists/bullets/markdown, 8-12 min target (`DEEP_DIVE_SCRIPT_PROMPT`, line 122) | Written **article**, sequential numbered walkthrough, markdown, for reading |
+| **Consumed by** | TTS voice generation | Read directly (or fed to TTS later like any other report) |
+
+So Deep Dive solves a different problem (turning a written report into a narrated audio experience)
+and, being built on the report rather than the transcript, structurally cannot fix what Mandy
+reported. Full Detail is not redundant with it — but she is right that the page is between them
+getting cluttered, so the UI plan below consolidates rather than just adding a 5th button.
+
+### 4d. UI consolidation, not just another button
+
+Current per-video card on `/assets/manage` already shows, per video: Gen/Regen Script, Open/Edit
+Script, Gen/Regen Deep-Dive, Open DD Script, Full Voice, DD Voice, plus conditional download links —
+6+ controls before this feature. Rather than bolt on a 5th "generate" and 3rd "open" button,
+consolidate the generate-type actions into two dropdown controls:
+- **"🤖 Generate ▾"** — one button, options: Full Script / Deep-Dive / Full Detail (replaces the two
+  separate "Gen Script" + "Gen Deep-Dive" buttons)
+- **"📄 View ▾"** — one button, options: Full Script / Deep-Dive / Full Detail (replaces "Open
+  Script" + "Open DD Script")
+
+Net effect: adding the third content type while *reducing* visible buttons on the card (4 buttons →
+2 dropdowns), directly addressing the "too many icons, can't remember what does what" complaint
+rather than making it worse. Voice generation buttons stay as-is (unrelated to this change — full
+detail output isn't fed to TTS in this phase).
+
 ---
 
 **Next Actions:**
