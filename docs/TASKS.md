@@ -169,6 +169,7 @@
 | B-005 | Dashboard Assets duplicate rows / false "เสร็จแล้ว" for nested underscore topics | High | ✅ Fixed 2026-05-17 | Caused by display-name asset JSON folders plus generate-one fallback resolving `claude_code_design` to unrelated `NATEHERK` report. Fixed in T-036. |
 | B-006 | Thai finance videos with Thai captions incorrectly marked “ไม่มี transcript ภาษาอังกฤษ” | High | ✅ Fixed 2026-05-24 | `summarize_local.py` was English-caption-only; now tries `th`, `en`, then `all` caption tracks before returning unavailable. |
 | B-007 | ATS output repo publisher could fail on stale/corrupted long-lived clone and block daily summary | High | ✅ Fixed 2026-06-24 | Replaced reused temp clone flow with fresh-clone-per-run publisher + summary warnings on upload failure. Root cause of missing daily summaries on 2026-06-23/24. |
+| B-008 | Dashboard Assets page silently drops topics past 100 total assets | High | ✅ Fixed 2026-07-13 | `existing[-100:]` capped by `rglob()` traversal order (alphabetical topic, then date) instead of actual recency — topics sorting early alphabetically (e.g. `ai_viral_niche`) fell off the list entirely once total asset count passed 100, even for a JSON generated moments earlier. Mandy hit this generating AI Viral Niche assets and not seeing them afterward. Fixed by sorting `existing` by date before capping (`dashboard/app.py`, commit `80f544a`); verified live — all 4 recent ai_viral_niche rows now appear. |
 
 ---
 
