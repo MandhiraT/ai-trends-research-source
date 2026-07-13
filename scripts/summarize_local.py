@@ -59,7 +59,9 @@ def _get_youtube_transcript(video_url: str, preferred_langs=None) -> str:
                 if clean and clean not in seen:
                     seen.add(clean)
                     lines_clean.append(clean)
-        return ' '.join(lines_clean)[:30000]
+        # Upper bound only guards against pathological caption files — callers
+        # slice down further to their own transcript_char_limit before prompting.
+        return ' '.join(lines_clean)[:200000]
 
     # Prefer the caller's source-language order, then any caption track.  `en`
     # and `th` auto-translated captions can independently hit YouTube 429s, so
@@ -127,7 +129,7 @@ def _get_youtube_transcript(video_url: str, preferred_langs=None) -> str:
     return ''
 
 
-def _call_provider(provider: str, prompt: str, system_prompt: str = '') -> str:
+def _call_provider(provider: str, prompt: str, system_prompt: str = '', max_output_tokens: int = 16384) -> str:
     if provider == 'vertex':
         from google import genai as _genai
         _project  = os.environ.get('VERTEX_PROJECT_ID', '')
@@ -145,7 +147,7 @@ def _call_provider(provider: str, prompt: str, system_prompt: str = '') -> str:
             model=_model,
             contents=_contents,
             config=_genai.types.GenerateContentConfig(
-                max_output_tokens=16384, temperature=0.3))
+                max_output_tokens=max_output_tokens, temperature=0.3))
         return _response.text.strip()
 
     if provider in ('gemini', 'gemma'):
@@ -211,6 +213,8 @@ def summarize_video(
     language: str = 'th',
     topic: str = '',
     transcript_langs=None,
+    transcript_char_limit: int = 25000,
+    max_output_tokens: int = 16384,
 ) -> str:
     """
     Summarize a YouTube video using AI providers.
@@ -247,7 +251,7 @@ def summarize_video(
 หัวข้อ: {topic or 'เทรนด์ AI และเทคโนโลยี'}
 
 เนื้อหาจากวิดีโอ:
-{transcript[:25000]}"""
+{transcript[:transcript_char_limit]}"""
         else:
             # No prompt file — use default Thai structure
             prompt = f"""คุณต้องเขียนคำตอบเป็นภาษาไทยทั้งหมดเท่านั้น ห้ามใช้ภาษาอังกฤษในเนื้อหาเด็ดขาด
@@ -297,7 +301,7 @@ Keep it concise and practical."""
     for provider in providers:
         for attempt in range(3):
             try:
-                return _call_provider(provider, prompt, system_prompt)
+                return _call_provider(provider, prompt, system_prompt, max_output_tokens=max_output_tokens)
             except Exception as e:
                 msg = str(e)
                 if '429' in msg:

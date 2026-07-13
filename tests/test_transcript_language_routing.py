@@ -96,7 +96,7 @@ def test_summarize_video_uses_explicit_transcript_langs_without_topic_heuristic(
         captured["preferred_langs"] = preferred_langs
         return "source transcript"
 
-    def fake_call_provider(provider, prompt, system_prompt=""):
+    def fake_call_provider(provider, prompt, system_prompt="", max_output_tokens=16384):
         return "สรุปภาษาไทย"
 
     prompt = tmp_path / "prompt.txt"

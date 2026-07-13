@@ -292,7 +292,9 @@ def generate_audio_scripts(asset: dict, module=None) -> dict:
         if not section_text or len(section_text) < 200:
             continue
 
-        # Full script (~400 words)
+        # Quick Script (~400 words). A ~150-word "short" variant was previously
+        # generated here too but had no UI to view or use it anywhere — cut per
+        # Mandy's request to remove dead/invisible output (2026-07-13).
         prompt = AUDIO_SCRIPT_PROMPT.format(
             target_words=400,
             section_text=section_text[:4000],
@@ -302,16 +304,6 @@ def generate_audio_scripts(asset: dict, module=None) -> dict:
             video["audio_script_full"] = _fix_gender(result.strip())
             generated += 1
             time.sleep(2)  # Rate limit
-
-        # Short script (~150 words)
-        prompt = AUDIO_SCRIPT_PROMPT.format(
-            target_words=150,
-            section_text=section_text[:2000],
-        )
-        result = _call_ai(prompt, module)
-        if result:
-            video["audio_script_short"] = _fix_gender(result.strip())
-            time.sleep(2)
 
     return {"audio_scripts_generated": generated}
 

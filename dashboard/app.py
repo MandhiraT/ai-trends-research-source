@@ -117,6 +117,25 @@ def _resolve_report_path(topic: str, date: str) -> tuple[Path | None, str]:
     return matches[0], _slug(matches[0].parent.name)
 
 
+# Topics allowed to use Full Detail (on-demand, re-reads the original transcript
+# instead of the already-compressed report). NATEHERK-only for this first phase
+# per Mandy's instruction; lift this gate once proven.
+FULL_DETAIL_TOPICS = {"nateherk"}
+FULL_DETAIL_PROMPT_FILE = PROJECT_ROOT / "prompts" / "thai_summary_prompt_full_detail.txt"
+
+# Topics with automated daily TTS audio already emailed to Mandy — regenerating
+# Quick Script here would silently overwrite that day's real audio script.
+AUTOMATED_AUDIO_TOPICS = {"nateherk", "joanna_wiebe", "health_food_nutrition", "health_top_to_toe", "boom_bignose", "research_job"}
+
+
+def _full_detail_path(topic: str, date: str, video_no: int) -> Path | None:
+    """Sibling file next to the day's report: {date}-v{N}-full-detail.md."""
+    report_path, _ = _resolve_report_path(topic, date)
+    if not report_path:
+        return None
+    return report_path.parent / f"{date}-v{int(video_no)}-full-detail.md"
+
+
 def _resolve_relative_file(base: Path, selected: str) -> Path | None:
     """Resolve a user-facing relative file path safely, with case-insensitive dirs.
 
@@ -580,6 +599,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self.download_report()
         elif parsed.path == "/view/report":
             self.view_report()
+        elif parsed.path == "/view/full-detail":
+            self.view_full_detail()
         elif parsed.path == "/view/audio":
             self.view_audio()
         else:
@@ -614,6 +635,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self.api_assets_script_save(data)
         elif parsed.path == "/api/assets/generate-deep-dive-script":
             self.api_assets_generate_deep_dive_script(data)
+        elif parsed.path == "/api/assets/generate-full-detail":
+            self.api_assets_generate_full_detail(data)
         elif parsed.path == "/api/assets/generate-voice":
             self.api_assets_generate_voice(data)
         else:
@@ -1331,6 +1354,109 @@ function clearSearch(){{
                 "type": "deep_dive",
                 "path": str(saved_path.relative_to(PROJECT_ROOT)),
                 **result,
+            })
+        except Exception as exc:
+            self._send_json({"error": str(exc)}, code=500)
+
+    def api_assets_generate_full_detail(self, data):
+        """Generate a Full Detail report for one video — re-reads the original
+        transcript (not the already-compressed report) and writes a sibling file.
+        Never touches the day's main report."""
+        try:
+            from generate_content_assets import build_asset_from_report, _find_asset_video
+        except ImportError:
+            self._send_json({"error": "Asset module not available"}, code=500)
+            return
+
+        try:
+            topic = data.get("topic", [""])[0]
+            date = data.get("date", [""])[0]
+            video = data.get("video", ["1"])[0]
+            force = data.get("force", [""])[0] == "1"
+
+            safe_topic = _slug(topic)
+            if safe_topic not in FULL_DETAIL_TOPICS:
+                self._send_json({"error": f"Full Detail is not enabled for topic '{safe_topic}' yet"}, code=403)
+                return
+            try:
+                vno = int(video)
+            except (TypeError, ValueError):
+                self._send_json({"error": "video must be a number"}, code=400)
+                return
+            if not re.match(r"^\d{4}-\d{2}-\d{2}$", date or ""):
+                self._send_json({"error": "invalid date"}, code=400)
+                return
+
+            out_path = _full_detail_path(safe_topic, date, vno)
+            if not out_path:
+                self._send_json({"error": f"Report not found: {topic}/{date}"}, code=404)
+                return
+            if out_path.exists() and not force:
+                self._send_json({
+                    "status": "exists",
+                    "topic": safe_topic,
+                    "date": date,
+                    "video": vno,
+                    "type": "full_detail",
+                    "path": str(out_path.relative_to(PROJECT_ROOT)),
+                    "message": "Full Detail already exists — pass force=1 to regenerate",
+                })
+                return
+
+            report_path, _ = _resolve_report_path(safe_topic, date)
+            if not report_path:
+                self._send_json({"error": f"Report not found: {topic}/{date}"}, code=404)
+                return
+            asset = build_asset_from_report(report_path, REPORTS_DIR)
+            if not asset:
+                self._send_json({"error": "Failed to parse report"}, code=500)
+                return
+            video_entry = _find_asset_video(asset, vno)
+            if not video_entry:
+                self._send_json({"error": f"video {vno} not found in report"}, code=404)
+                return
+            source_url = video_entry.get("source_url", "")
+            if not source_url:
+                self._send_json({"error": "selected video has no source URL to re-summarize"}, code=400)
+                return
+
+            for creds in (PROJECT_ROOT / "credentials.env", Path.home() / ".credentials.env"):
+                if creds.exists():
+                    for line in creds.read_text().splitlines():
+                        if "=" in line and not line.startswith("#"):
+                            k, _, v = line.partition("=")
+                            os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+
+            import summarize_local
+            result_text = summarize_local.summarize_video(
+                source_url,
+                prompt_file=str(FULL_DETAIL_PROMPT_FILE),
+                language="th",
+                topic=asset.get("topic", topic),
+                transcript_langs=["th", "en", "all"],
+                transcript_char_limit=120000,
+                max_output_tokens=32768,
+            )
+
+            video_title = video_entry.get("thai_title") or video_entry.get("video_title", "")
+            content = (
+                f"# Full Detail: {video_title}\n"
+                f"Date: {date}\n"
+                f"Topic: {asset.get('topic', topic)}\n"
+                f"Video: {video_entry.get('video_title', '')}\n"
+                f"Source: {source_url}\n\n"
+                f"{result_text}\n"
+            )
+            out_path.parent.mkdir(parents=True, exist_ok=True)
+            out_path.write_text(content, encoding="utf-8")
+
+            self._send_json({
+                "status": "ok",
+                "topic": safe_topic,
+                "date": date,
+                "video": vno,
+                "type": "full_detail",
+                "path": str(out_path.relative_to(PROJECT_ROOT)),
             })
         except Exception as exc:
             self._send_json({"error": str(exc)}, code=500)
@@ -2389,6 +2515,61 @@ document.addEventListener('DOMContentLoaded',function(){{
         self.end_headers()
         self.wfile.write(data)
 
+    def view_full_detail(self):
+        """Render a Full Detail file as HTML for in-browser reading."""
+        qs = parse_qs(urlparse(self.path).query)
+        topic = qs.get("topic", [""])[0].strip()
+        date  = qs.get("date",  [""])[0].strip()
+        video = qs.get("video", ["1"])[0].strip()
+        if not topic or not re.match(r"^\d{4}-\d{2}-\d{2}$", date) or not video.isdigit():
+            self.send_error(400)
+            return
+
+        full_detail_path = _full_detail_path(topic, date, int(video))
+        if not full_detail_path or not full_detail_path.exists():
+            self.send_error(404)
+            return
+
+        try:
+            text = full_detail_path.read_text(encoding="utf-8")
+        except OSError:
+            self.send_error(404)
+            return
+
+        if _MD_OK:
+            body_html = _md_lib.markdown(text, extensions=["nl2br", "fenced_code"])
+        else:
+            body_html = f"<pre style='white-space:pre-wrap;word-break:break-word'>{h(text)}</pre>"
+
+        title = h(f"{topic} — {date} — Full Detail v{video}")
+        html_page = f"""<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{title}</title>
+<style>
+  body{{max-width:820px;margin:0 auto;padding:16px 18px;font-family:-apple-system,Arial,sans-serif;font-size:16px;line-height:1.7;color:#1a202c;background:#fff}}
+  h1,h2,h3{{color:#111827;line-height:1.3}}
+  h1{{font-size:1.5em}} h2{{font-size:1.25em;border-bottom:1px solid #e5e7eb;padding-bottom:4px}} h3{{font-size:1.1em}}
+  a{{color:#1d4ed8}} pre,code{{background:#f3f4f6;border-radius:4px;padding:2px 6px;font-size:14px;word-break:break-word;white-space:pre-wrap}}
+  pre{{padding:12px;overflow-x:auto}}
+  .nav{{margin-bottom:16px;font-size:14px;color:#6b7280}}
+</style>
+</head>
+<body>
+<p class="nav">🔎 {title}</p>
+{body_html}
+</body>
+</html>"""
+        data = html_page.encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(data)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(data)
+
     def view_audio(self):
         """List all audio files for a topic+date with inline players and download links."""
         qs = parse_qs(urlparse(self.path).query)
@@ -2646,6 +2827,8 @@ document.addEventListener('DOMContentLoaded',function(){{
         safe_topic    = h(topic_slug)
         safe_date     = h(date)
         total_videos  = asset_data.get("total_videos", 0)
+        full_detail_enabled = topic_slug in FULL_DETAIL_TOPICS
+        is_automated_audio_topic = topic_slug in AUTOMATED_AUDIO_TOPICS
 
         # Build per-video card data
         card_data = []
@@ -2656,6 +2839,7 @@ document.addEventListener('DOMContentLoaded',function(){{
             vdir_name = voice_dir.name if voice_dir else topic_slug
             full_voice_path  = (voice_dir / _vf(vdir_name, date, video_no=vno, variant="full"))  if voice_dir else None
             dd_voice_path    = (voice_dir / _vf(vdir_name, date, video_no=vno, variant="deep_dive")) if voice_dir else None
+            full_detail_file = _full_detail_path(topic_slug, date, vno) if full_detail_enabled else None
 
             card_data.append({
                 "vno":          vno,
@@ -2665,6 +2849,7 @@ document.addEventListener('DOMContentLoaded',function(){{
                 "has_dd_s":     bool(dd_script_path and dd_script_path.exists()),
                 "has_full_v":   bool(full_voice_path and full_voice_path.exists()),
                 "has_dd_v":     bool(dd_voice_path and dd_voice_path.exists()),
+                "has_full_detail": bool(full_detail_file and full_detail_file.exists()),
             })
 
         # Build video cards HTML
@@ -2675,36 +2860,50 @@ document.addEventListener('DOMContentLoaded',function(){{
             has_dds   = c["has_dd_s"]
             has_fv    = c["has_full_v"]
             has_ddv   = c["has_dd_v"]
+            has_fd    = c["has_full_detail"]
 
             def _dot(ok):
                 return '<span style="color:#16a34a">●</span>' if ok else '<span style="color:#d1d5db">●</span>'
 
             src_link = f' <a href="{c["source_url"]}" target="_blank" rel="noopener" style="font-size:12px;color:#6366f1">↗</a>' if c["source_url"] else ""
-            dd_button_label = "📚 Open DD Script" if has_dds else '<span style="opacity:.45">📚 No DD Script</span>'
             full_voice_download = (
                 f"<a class='btn-sm' href='/api/voice/serve?topic={safe_topic}&date={safe_date}&video={vno}&type=full' "
-                "download title='Download full voice WAV'>⬇️ Full Voice</a>"
+                "download title='Download Quick Script voice WAV'>⬇️ Voice</a>"
                 if has_fv else ""
             )
             dd_voice_download = (
                 f"<a class='btn-sm' href='/api/voice/serve?topic={safe_topic}&date={safe_date}&video={vno}&type=deep_dive' "
-                "download title='Download deep-dive voice WAV'>⬇️ DD Voice</a>"
+                "download title='Download Long Narration voice WAV'>⬇️ Narration Voice</a>"
                 if has_ddv else ""
             )
+
+            fd_option = (
+                f'<option value="full_detail">Full Detail — from transcript{" (done)" if has_fd else ""}</option>'
+                if full_detail_enabled else ""
+            )
+            fd_dot = f' &nbsp;{_dot(has_fd)} Full Detail' if full_detail_enabled else ""
 
             cards_html += f'''<div class="vcard" id="vcard-{vno}">
 <div class="vcard-header">
   <span class="vcard-num">Video {vno}</span>
   <span class="vcard-title">{c["title"]}{src_link}</span>
-  <span class="vcard-dots">{_dot(has_fs)} Script &nbsp;{_dot(has_dds)} DD Script &nbsp;{_dot(has_fv)} Voice &nbsp;{_dot(has_ddv)} DD Voice</span>
+  <span class="vcard-dots">{_dot(has_fs)} Quick Script &nbsp;{_dot(has_dds)} Long Narration &nbsp;{_dot(has_fv)} Voice &nbsp;{_dot(has_ddv)} Narration Voice{fd_dot}</span>
 </div>
 <div class="vcard-actions">
-  <button class="btn-sm" onclick="genScriptVideo('{safe_topic}','{safe_date}',{vno})" title="Generate full audio script for this video via AI">🤖 {'Regen' if has_fs else 'Gen'} Script</button>
-  <button class="btn-sm" onclick="openManageScript('{safe_topic}','{safe_date}',{vno},'full')" title="Open / edit full script">📝 {'Open' if has_fs else 'Edit'} Script</button>
-  <button class="btn-sm" onclick="genDeepDive('{safe_topic}','{safe_date}',{vno})" title="Generate deep-dive script via AI">📖 {'Regen' if has_dds else 'Generate'} Deep-Dive</button>
-  <button class="btn-sm" onclick="openManageScript('{safe_topic}','{safe_date}',{vno},'deep_dive')" title="Open / edit deep-dive script">{dd_button_label}</button>
-  <button class="btn-sm{'' if has_fs else ' disabled-btn'}" onclick="genVoice('{safe_topic}','{safe_date}',{vno},'full')" title="Generate full voice from saved script" {'disabled' if not has_fs else ''}>🎙️ Full Voice</button>
-  <button class="btn-sm{'' if has_dds else ' disabled-btn'}" onclick="genVoice('{safe_topic}','{safe_date}',{vno},'deep_dive')" title="Generate deep-dive voice from saved script" {'disabled' if not has_dds else ''}>🎧 DD Voice</button>
+  <select class="btn-sm" id="gentype-{vno}" title="Choose what to generate">
+    <option value="full">Quick Script (~400w, from report)</option>
+    <option value="deep_dive">Long Narration (~10min, from report)</option>
+    {fd_option}
+  </select>
+  <button class="btn-sm" onclick="genSelected('{safe_topic}','{safe_date}',{vno})" title="Generate the selected type via AI">🤖 Generate</button>
+  <select class="btn-sm" id="viewtype-{vno}" title="Choose what to view">
+    <option value="full"{' disabled' if not has_fs else ''}>Quick Script{'' if has_fs else ' (not generated)'}</option>
+    <option value="deep_dive"{' disabled' if not has_dds else ''}>Long Narration{'' if has_dds else ' (not generated)'}</option>
+    {fd_option if full_detail_enabled else ""}
+  </select>
+  <button class="btn-sm" onclick="viewSelected('{safe_topic}','{safe_date}',{vno})" title="Open the selected type">📄 View</button>
+  <button class="btn-sm{'' if has_fs else ' disabled-btn'}" onclick="genVoice('{safe_topic}','{safe_date}',{vno},'full')" title="Generate voice from saved Quick Script" {'disabled' if not has_fs else ''}>🎙️ Voice</button>
+  <button class="btn-sm{'' if has_dds else ' disabled-btn'}" onclick="genVoice('{safe_topic}','{safe_date}',{vno},'deep_dive')" title="Generate voice from saved Long Narration" {'disabled' if not has_dds else ''}>🎧 Narration Voice</button>
   {full_voice_download}
   {dd_voice_download}
   <span id="vstatus-{vno}" class="muted" style="font-size:12px"></span>
@@ -2750,6 +2949,55 @@ document.addEventListener('DOMContentLoaded',function(){{
         # Inline JS for manage page
         js = f'''<script>
 var _manageTopic='{safe_topic}', _manageDate='{safe_date}';
+var _isAutomatedAudioTopic={json.dumps(is_automated_audio_topic)};
+
+function genSelected(topic,date,video){{
+  var type=document.getElementById('gentype-'+video).value;
+  if(type==='full') genScriptVideo(topic,date,video);
+  else if(type==='deep_dive') genDeepDive(topic,date,video);
+  else if(type==='full_detail') genFullDetail(topic,date,video);
+}}
+
+function viewSelected(topic,date,video){{
+  var type=document.getElementById('viewtype-'+video).value;
+  if(type==='full_detail'){{
+    window.open('/view/full-detail?topic='+encodeURIComponent(topic)+'&date='+encodeURIComponent(date)+'&video='+encodeURIComponent(video),'_blank');
+  }} else {{
+    openManageScript(topic,date,video,type);
+  }}
+}}
+
+function genFullDetail(topic,date,video){{
+  var vstatus=document.getElementById('vstatus-'+video);
+  if(!confirm('Generate FULL DETAIL for v'+video+'?\\nRe-reads the original video transcript (not the report) — takes longer than Quick Script.')) return;
+  if(vstatus) vstatus.textContent='⏳ Generating Full Detail (may take 1-2 min)...';
+  var body=new URLSearchParams({{topic:topic,date:date,video:video}});
+  fetch('/api/assets/generate-full-detail',{{method:'POST',headers:{{'Content-Type':'application/x-www-form-urlencoded'}},body:body}})
+    .then(function(r){{return r.json()}})
+    .then(function(data){{
+      if(data.error){{if(vstatus) vstatus.textContent='Error: '+data.error;alert('Error: '+data.error);return;}}
+      if(data.status==='exists'){{
+        if(!confirm('Full Detail already exists for v'+video+'. Regenerate and overwrite?')){{
+          if(vstatus) vstatus.textContent='';
+          return;
+        }}
+        var body2=new URLSearchParams({{topic:topic,date:date,video:video,force:'1'}});
+        if(vstatus) vstatus.textContent='⏳ Regenerating Full Detail...';
+        fetch('/api/assets/generate-full-detail',{{method:'POST',headers:{{'Content-Type':'application/x-www-form-urlencoded'}},body:body2}})
+          .then(function(r2){{return r2.json()}})
+          .then(function(d2){{
+            if(d2.error){{if(vstatus) vstatus.textContent='Error: '+d2.error;alert('Error: '+d2.error);return;}}
+            if(vstatus) vstatus.textContent='✅ Full Detail ready';
+            setTimeout(function(){{location.reload();}},1500);
+          }})
+          .catch(function(err){{if(vstatus) vstatus.textContent='Error: '+err;}});
+        return;
+      }}
+      if(vstatus) vstatus.textContent='✅ Full Detail ready';
+      setTimeout(function(){{location.reload();}},1500);
+    }})
+    .catch(function(err){{if(vstatus) vstatus.textContent='Error: '+err;alert('Error: '+err);}});
+}}
 
 function openManageScript(topic,date,video,type){{
   var st=document.getElementById('meStatus');
@@ -2815,7 +3063,9 @@ function genVoiceFromEditor(){{
 
 function genScriptVideo(topic,date,video){{
   var vstatus=document.getElementById('vstatus-'+video);
-  if(!confirm('Generate audio script for Video '+video+' via AI?\\nใช้เวลาประมาณ 1 นาที')) return;
+  var warnMsg='Generate Quick Script for Video '+video+' via AI?\\nใช้เวลาประมาณ 1 นาที';
+  if(_isAutomatedAudioTopic) warnMsg+='\\n\\n⚠️ This topic has automated daily audio already emailed — regenerating here will OVERWRITE today\\'s automated script file.';
+  if(!confirm(warnMsg)) return;
   if(vstatus) vstatus.textContent='⏳ กำลังส่งคำสั่ง...';
   var params='?mode=audio&topic='+encodeURIComponent(topic)+'&date='+encodeURIComponent(date)+'&video='+encodeURIComponent(video);
   fetch('/api/assets/generate-one'+params)
