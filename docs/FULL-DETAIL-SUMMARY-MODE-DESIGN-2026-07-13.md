@@ -202,6 +202,73 @@ Net effect: adding the third content type while *reducing* visible buttons on th
 rather than making it worse. Voice generation buttons stay as-is (unrelated to this change — full
 detail output isn't fed to TTS in this phase).
 
+## 5. Full `/assets/manage` page audit (per Mandy's request to cut redundant/confusing features)
+
+Mandy asked whether "Full Script" is the same thing as the audio already emailed to her daily, and
+whether "Deep Dive" is even useful — and asked for a full redesign of the page: what to keep, cut,
+adjust, add. Traced every generation path in `generate_content_assets.py` and compared against
+`generate_audio_report.py` (the automated daily pipeline) to answer precisely rather than guess.
+
+### 5a. "Full Script" — confirmed: a duplicate implementation, and a real overwrite risk
+
+- Dashboard's "🤖 Gen Script" button → `generate_content_assets.py::generate_audio_scripts()` →
+  `AUDIO_SCRIPT_PROMPT` (~400 words) → saved by `save_audio_scripts()` to
+  `audio_scripts/{topic}/{date}-v{N}.md`
+- Automated daily cron (NATEHERK, Joanna Wiebe, and 4 others in
+  `config/audio_topics.json:automated_voice_topics`) → `generate_audio_report.py::_generate_per_video()`
+  → `_condense_video_section()` (different prompt) → saved by `_save_script()` to the
+  **exact same path**: `audio_scripts/{topic}/{date}-v{N}.md`
+
+These are two independent code paths, with two different prompts, writing to the identical file
+path. The dashboard button has no awareness that a cron-generated file might already exist there —
+its "already generated, skip" check only looks at the in-memory asset JSON field, not the file on
+disk. **Clicking "Gen Script" on the dashboard for a NATEHERK/Joanna video that already has an
+automated script silently overwrites it with different content, no warning.**
+
+Checked whether this has actually happened recently: all June–July script files for
+nateherk/joanna_wiebe carry the cron's `เวอร์ชัน: auto-generated` marker, so no recent overwrite has
+occurred — but April/May files from before automation was enabled lack the marker, confirming the
+button *can* and *does* write to this path when used. The risk is latent, not yet triggered
+recently, but real.
+
+**Yes — for NATEHERK, Joanna Wiebe, and the other 4 automated topics, "Full Script" is the same kind
+of content as what's already emailed daily**, just possibly different wording each time it's
+(re)generated, and generating it manually risks clobbering that day's real audio source.
+
+### 5b. "Short Script" (150 words) — generated but has no UI to view it
+
+`generate_audio_scripts()` also generates a second, ~150-word "short" variant every time (line
+306-314), appended as a second heading inside the same `.md` file. `render_assets_manage`'s per-video
+card only checks for/displays the *full* script's existence — there is no button, status dot, or
+viewer anywhere for the short variant. It is generated on every run and then effectively invisible.
+
+### 5c. "Deep Dive" — not useless, but easy to confuse with the other two
+
+Genuinely different from both: longer (8-12 min target vs. ~400 words), still built from the report
+(not the transcript, see §4c), and its own separate file/button. Real use case: videos with enough
+substance that a quick ~400-word recap loses too much of what already made it into the report. Not
+redundant, but the current naming ("Full Script" vs "Deep Dive" vs proposed "Full Detail") gives no
+hint that they differ by **source** (report vs. transcript) and **shape** (audio script vs. written
+article) — that's the actual source of confusion, not that any one of them is useless.
+
+### 5d. Proposed redesign
+
+| Keep | Cut | Rename / clarify | Add |
+|---|---|---|---|
+| Deep Dive generation (real, distinct use case) | "Short Script" (150w) — generated but has zero UI, nobody can see or use it today | "Full Script" → **"Quick Script (~400w, from report)"**; "Deep Dive" → **"Long Narration (~10min, from report)"** — names now say source + length | **Full Detail (written, from transcript)** — the new feature, visually separated from the two audio-script options since it's a different artifact type entirely |
+| Voice generation (both variants) — unrelated to this confusion, keep as-is | | | A disk-existence check before "Quick Script"/"Long Narration" generation on the 6 automated topics — warn ("⚠️ overwrites today's automated audio script") instead of silently clobbering |
+
+**Consolidated card layout** (replacing today's 6+ separate buttons):
+- **"🤖 Generate ▾"** — Quick Script / Long Narration / Full Detail
+- **"📄 View ▾"** — Quick Script / Long Narration / Full Detail
+- **"🎙️ Voice"** buttons — unchanged, still tied only to Quick Script / Long Narration (Full Detail has no voice step in this phase)
+- Status dots row stays, gains a 5th dot for Full Detail
+
+This directly answers "what to keep/cut/adjust/add": cut the invisible Short Script, keep Deep Dive
+under a clearer name, add Full Detail as its own category (not a 3rd audio-script variant), and fix
+the silent-overwrite risk on the 6 automated topics as part of the same pass since it's the same code
+being touched.
+
 ---
 
 **Next Actions:**
