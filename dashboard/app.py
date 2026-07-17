@@ -395,13 +395,67 @@ def schedule_slot_options(jobs, current_job_id=None, current_value=""):
     return "".join(options)
 
 
+RESERVED_REPORT_FOLDERS = {"", "research_job"}
+
+
 def clean_report_folder(value, fallback):
     parts = []
-    for raw in value.replace("\\", "/").split("/"):
+    for raw in (value or "").replace("\\", "/").split("/"):
+        if not raw.strip() or raw.strip() in {".", ".."}:
+            continue
         part = slugify(raw)
         if part and part not in {".", ".."}:
             parts.append(part)
-    return "/".join(parts) if parts else fallback
+    cleaned = "/".join(parts) if parts else slugify(fallback or "research_job")
+    return cleaned.lower()
+
+
+def default_report_folder_for_job(topic, name="", source_url="", job_id=""):
+    """User-friendly report folder: derive a safe lowercase folder from topic/name.
+
+    Operators should not need to understand filesystem naming. The dashboard uses
+    this when the Report Folder field is blank or accidentally left as a generic
+    placeholder like 'research_job'.
+    """
+    return clean_report_folder("", slugify(topic or name or job_id or source_url or "research_job"))
+
+
+def normalize_report_folder_for_save(raw_value, topic, name, source_url, job_id, *, is_on_demand=False):
+    fallback = default_report_folder_for_job(topic, name, source_url, job_id)
+    folder = clean_report_folder(raw_value or "", fallback)
+    # 'research_job' is the legacy/on-demand reference bucket. For normal jobs it
+    # makes reports look like they belong to the reference job and risks overwrite.
+    if not is_on_demand and folder in RESERVED_REPORT_FOLDERS:
+        folder = fallback
+    return folder
+
+
+def unique_report_folder(folder, jobs, current_job_id=""):
+    """Avoid multiple jobs writing the same daily report file path."""
+    existing = {
+        clean_report_folder(j.get("report_folder") or "", slugify(j.get("topic") or j.get("name") or j.get("id") or "research_job"))
+        for j in jobs
+        if j.get("id") != current_job_id
+    }
+    if folder not in existing:
+        return folder
+    base = folder
+    for i in range(2, 1000):
+        candidate = f"{base}_{i}"
+        if candidate not in existing:
+            return candidate
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    return f"{base}_{timestamp}"
+
+
+def report_files_for_job(job):
+    folder = clean_report_folder(job.get("report_folder") or "", slugify(job.get("topic") or job.get("name") or job.get("id") or "research_job"))
+    base = REPORTS_DIR / folder
+    if not base.exists():
+        return []
+    files = [p for p in base.rglob("*.md") if p.is_file()]
+    files.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+    return files
 
 
 def unique_job_id(base, jobs, current_id=""):
@@ -514,7 +568,7 @@ def run_job(job):
             log.write(f"\n[{now_text()}] Exit code: {result.returncode}\n")
 
         latest_report = ""
-        reports = relative_files(REPORTS_DIR, ".md")
+        reports = report_files_for_job(job)
         if reports:
             latest_report = str(reports[0])
 
@@ -788,6 +842,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
         transcript_langs_default = job.get('transcript_langs', DEFAULT_TRANSCRIPT_LANGS)
         if isinstance(transcript_langs_default, list):
             transcript_langs_default = ",".join(transcript_langs_default)
+        current_report_folder = job.get('report_folder') or ''
+        default_folder_preview = default_report_folder_for_job(job.get('topic', ''), job.get('name', ''), job.get('source_url', ''), job.get('id', '')) if not is_new else 'auto from Topic, e.g. VidIQ → vidiq'
         conflicts = schedule_time_conflicts(jobs, job.get('schedule_time'), current_job_id=job.get('id')) if daily_cron_default else []
         conflict_warning = ""
         if conflicts:
@@ -804,10 +860,10 @@ class DashboardHandler(BaseHTTPRequestHandler):
     {job_id_field}
     <div><label>Name</label><input name="name" value="{h(job.get('name'))}" required></div>
     <div><label>Source Type</label><select name="source_type">{options}</select></div>
-    <div><label>Topic / Folder Label</label><input name="topic" value="{h(job.get('topic'))}" placeholder="เช่น on demand หรือชื่อหัวข้อ" required></div>
+    <div><label>Topic / Search Query</label><input name="topic" id="topic_input" value="{h(job.get('topic'))}" placeholder="เช่น VidIQ หรือ OpenAI Codex" required><div class="muted" style="font-size:12px;margin-top:4px">ระบบใช้ค่านี้เป็นคำค้น/ชื่อหัวข้อในรายงาน ไม่ใช่ชื่อโฟลเดอร์ที่ต้องจำเอง</div></div>
     <div><label>Source URL</label><input name="source_url" value="{h(job.get('source_url'))}" placeholder="Channel, playlist, or single video URL"></div>
     <div><label>Number of Videos</label><input name="max_videos" type="number" min="1" max="50" value="{h(job.get('max_videos', 3))}"></div>
-    <div><label>Report Folder</label><input name="report_folder" value="{h(job.get('report_folder'))}" placeholder="blank = auto from topic; e.g. vidiq"></div>
+    <div><label>Report Folder <span class="muted">(optional)</span></label><input name="report_folder" id="report_folder" value="{h(current_report_folder)}" placeholder="Auto-generate from Topic"><div class="muted" style="font-size:12px;margin-top:4px">ปล่อยว่างได้ — ระบบจะสร้าง lowercase folder ให้อัตโนมัติ: <code id="folder_preview">{h(default_folder_preview)}</code>. ห้ามใช้ <code>research_job</code> สำหรับ daily jobs เพราะเป็น legacy/reference bucket.</div></div>
     <div><label>Schedule Time <span class="muted">(select a supported slot)</span></label><select name="schedule_time" id="schedule_time">{schedule_options}</select></div>
     <input type="hidden" name="source_language" value="{h(source_language_default)}">
     <input type="hidden" name="transcript_langs" value="{h(transcript_langs_default)}">
@@ -824,6 +880,26 @@ class DashboardHandler(BaseHTTPRequestHandler):
   <script>
     const dailyCron = document.getElementById('daily_cron_enabled');
     const scheduleSelect = document.getElementById('schedule_time');
+    const topicInput = document.getElementById('topic_input');
+    const folderInput = document.getElementById('report_folder');
+    const folderPreview = document.getElementById('folder_preview');
+    function slugifyFolder(value) {{
+      const slug = String(value || '').trim().toLowerCase()
+        .replace(/[\\s-]+/g, '_')
+        .replace(/[^a-z0-9_\\/]+/g, '_')
+        .replace(/_+/g, '_')
+        .replace(/^_+|_+$/g, '');
+      return slug || 'auto_after_save';
+    }}
+    function syncFolderPreview() {{
+      if (!folderPreview) return;
+      const explicit = folderInput && folderInput.value.trim();
+      const raw = explicit || (topicInput && topicInput.value) || '';
+      let preview = slugifyFolder(raw);
+      if (!explicit && preview === 'research_job') preview = 'auto_after_save';
+      if (explicit && preview === 'research_job') preview = 'auto from Topic (research_job is reserved)';
+      folderPreview.textContent = preview;
+    }}
     function syncScheduleHint() {{
       if (dailyCron && scheduleSelect && dailyCron.checked && !scheduleSelect.value) {{
         scheduleSelect.setCustomValidity('Please choose a schedule time for daily cron.');
@@ -836,6 +912,9 @@ class DashboardHandler(BaseHTTPRequestHandler):
       scheduleSelect.addEventListener('change', syncScheduleHint);
       syncScheduleHint();
     }}
+    if (topicInput) topicInput.addEventListener('input', syncFolderPreview);
+    if (folderInput) folderInput.addEventListener('input', syncFolderPreview);
+    syncFolderPreview();
   </script>
   <button type="submit">Save</button>
   <a class="button secondary" href="/">Cancel</a>
@@ -1024,7 +1103,17 @@ window.addEventListener('DOMContentLoaded',function(){{buildMonthDropdown();setQ
         # For new jobs, Job ID is generated by the system from topic/name/source URL
         # and made unique with a numeric suffix when needed.
         job_id = requested_id if existing else unique_job_id(topic or name or source_url, jobs)
-        report_folder = clean_report_folder(data.get("report_folder", [""])[0], slugify(topic or name or job_id))
+        on_demand = data.get("on_demand", ["0"])[0] == "1"
+        report_folder = normalize_report_folder_for_save(
+            data.get("report_folder", [""])[0],
+            topic,
+            name,
+            source_url,
+            job_id,
+            is_on_demand=on_demand,
+        )
+        if not on_demand:
+            report_folder = unique_report_folder(report_folder, jobs, current_job_id=job_id)
         schedule_time = data.get("schedule_time", [""])[0].strip()
         daily_cron_enabled = data.get("daily_cron_enabled", ["0"])[0] == "1"
         raw_transcript_langs = data.get("transcript_langs", [""])[0].strip()
@@ -1047,7 +1136,7 @@ window.addEventListener('DOMContentLoaded',function(){{buildMonthDropdown();setQ
             "report_folder": report_folder,
             "schedule_time": schedule_time,
             "daily_cron_enabled": daily_cron_enabled,
-            "on_demand": data.get("on_demand", ["0"])[0] == "1",
+            "on_demand": on_demand,
             "include_in_daily_summary": data.get("include_in_daily_summary", ["0"])[0] == "1",
             "notes": data.get("notes", [""])[0].strip(),
             "source_language": source_language,
