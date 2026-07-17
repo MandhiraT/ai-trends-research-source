@@ -911,6 +911,50 @@
         "th",
         "all"
       ]
+    },
+    {
+      "id": "vidiq",
+      "name": "VidIQ",
+      "enabled": true,
+      "source_type": "channel",
+      "topic": "VidIQ",
+      "source_url": "https://youtube.com/@vidiq",
+      "max_videos": 3,
+      "detailed": true,
+      "report_folder": "vidiq",
+      "schedule_time": "12:00",
+      "daily_cron_enabled": true,
+      "on_demand": false,
+      "include_in_daily_summary": true,
+      "notes": "YouTube growth/channel strategy source added 2026-07-17; unique report folder and daily cron enabled.",
+      "source_language": "en",
+      "transcript_langs": [
+        "en",
+        "th",
+        "all"
+      ]
+    },
+    {
+      "id": "opeai_codex",
+      "name": "OpenAI Codex",
+      "enabled": true,
+      "source_type": "topic",
+      "topic": "OpenAI Codex",
+      "source_url": "",
+      "max_videos": 3,
+      "detailed": true,
+      "report_folder": "openai_codex",
+      "schedule_time": "12:10",
+      "daily_cron_enabled": true,
+      "on_demand": false,
+      "include_in_daily_summary": true,
+      "notes": "OpenAI Codex topic job added 2026-07-17; id kept as opeai_codex for existing dashboard URL compatibility.",
+      "source_language": "en",
+      "transcript_langs": [
+        "en",
+        "th",
+        "all"
+      ]
     }
   ]
 }
