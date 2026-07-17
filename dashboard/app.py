@@ -60,6 +60,11 @@ SYNC_CRON = PROJECT_ROOT / "scripts" / "sync_dashboard_cron.py"
 AUDIO_CONFIG_PATH = PROJECT_ROOT / "config" / "audio_topics.json"
 
 SOURCE_TYPES = ("topic", "channel", "playlist", "video", "claude_code_subtopic")
+DEFAULT_TRANSCRIPT_LANGS = ["en", "th", "all"]
+DEFAULT_SOURCE_LANGUAGE = "en"
+SCHEDULE_SLOT_START = "05:00"
+SCHEDULE_SLOT_END = "23:50"
+SCHEDULE_SLOT_STEP_MINUTES = 10
 RUN_LOCK = threading.Lock()
 
 
@@ -345,6 +350,51 @@ def duplicate_schedule_groups(jobs):
     return {time_: group for time_, group in sorted(groups.items()) if len(group) > 1}
 
 
+def _time_to_minutes(value):
+    if not re.fullmatch(r"\d{1,2}:\d{2}", (value or "").strip()):
+        return None
+    hour, minute = [int(x) for x in value.split(":")]
+    if not (0 <= hour <= 23 and 0 <= minute <= 59):
+        return None
+    return hour * 60 + minute
+
+
+def schedule_slot_values():
+    """Allowed production daily cron times shown in the job form dropdown."""
+    start = _time_to_minutes(SCHEDULE_SLOT_START) or 0
+    end = _time_to_minutes(SCHEDULE_SLOT_END) or (23 * 60 + 50)
+    slots = []
+    for total in range(start, end + 1, SCHEDULE_SLOT_STEP_MINUTES):
+        slots.append(f"{total // 60:02d}:{total % 60:02d}")
+    return slots
+
+
+def schedule_slot_options(jobs, current_job_id=None, current_value=""):
+    """Render safe schedule options: used slots are disabled except current job's slot."""
+    current_value = (current_value or "").strip()
+    used_by = {}
+    for job in jobs:
+        if job.get("id") == current_job_id:
+            continue
+        slot = (job.get("schedule_time") or "").strip()
+        if job.get("enabled", True) and job_daily_cron_enabled(job) and slot:
+            used_by.setdefault(slot, []).append(job.get("name") or job.get("id") or slot)
+
+    known_slots = schedule_slot_values()
+    if current_value and current_value not in known_slots:
+        known_slots = [current_value] + known_slots
+
+    options = ['<option value="">Manual only / no daily cron</option>']
+    for slot in known_slots:
+        names = used_by.get(slot, [])
+        disabled = bool(names)
+        label = slot if not names else f"{slot} — used by {', '.join(names[:2])}{'…' if len(names) > 2 else ''}"
+        options.append(
+            f'<option value="{h(slot)}" {"selected" if slot == current_value else ""} {"disabled" if disabled else ""}>{h(label)}</option>'
+        )
+    return "".join(options)
+
+
 def clean_report_folder(value, fallback):
     parts = []
     for raw in value.replace("\\", "/").split("/"):
@@ -418,7 +468,9 @@ def build_command(job):
             job.get("id", ""),
         ]
         if source_type in {"channel", "playlist"} and job.get("source_url"):
-            cmd.extend(["--channel", job["source_url"], "--max-results", max_videos])
+            # Some channel/handle fetches return more unique videos than --playlist-end;
+            # --count enforces the dashboard's Number of Videos at processing time.
+            cmd.extend(["--channel", job["source_url"], "--max-results", max_videos, "--count", max_videos])
         elif source_type == "video" and job.get("source_url"):
             cmd.extend(["--video-url", job["source_url"], "--count", "1"])
         else:
@@ -729,7 +781,13 @@ class DashboardHandler(BaseHTTPRequestHandler):
         )
         enabled_default = job.get('enabled', True)
         on_demand_default = job.get('on_demand', False)
+        include_summary_default = job.get('include_in_daily_summary', True if is_new else False)
         daily_cron_default = job.get('daily_cron_enabled', bool(job.get('schedule_time'))) if not is_new else False
+        schedule_options = schedule_slot_options(jobs, current_job_id=job.get('id'), current_value=job.get('schedule_time', ''))
+        source_language_default = job.get('source_language', DEFAULT_SOURCE_LANGUAGE)
+        transcript_langs_default = job.get('transcript_langs', DEFAULT_TRANSCRIPT_LANGS)
+        if isinstance(transcript_langs_default, list):
+            transcript_langs_default = ",".join(transcript_langs_default)
         conflicts = schedule_time_conflicts(jobs, job.get('schedule_time'), current_job_id=job.get('id')) if daily_cron_default else []
         conflict_warning = ""
         if conflicts:
@@ -749,17 +807,36 @@ class DashboardHandler(BaseHTTPRequestHandler):
     <div><label>Topic / Folder Label</label><input name="topic" value="{h(job.get('topic'))}" placeholder="เช่น on demand หรือชื่อหัวข้อ" required></div>
     <div><label>Source URL</label><input name="source_url" value="{h(job.get('source_url'))}" placeholder="Channel, playlist, or single video URL"></div>
     <div><label>Number of Videos</label><input name="max_videos" type="number" min="1" max="50" value="{h(job.get('max_videos', 3))}"></div>
-    <div><label>Report Folder</label><input name="report_folder" value="{h(job.get('report_folder'))}" placeholder="blank = auto from topic; e.g. on_demand/url_summaries"></div>
-    <div><label>Schedule Time <span class="muted">(required if Add to Daily Cron is on)</span></label><input name="schedule_time" value="{h(job.get('schedule_time'))}" placeholder="07:35"></div>
+    <div><label>Report Folder</label><input name="report_folder" value="{h(job.get('report_folder'))}" placeholder="blank = auto from topic; e.g. vidiq"></div>
+    <div><label>Schedule Time <span class="muted">(select a supported slot)</span></label><select name="schedule_time" id="schedule_time">{schedule_options}</select></div>
+    <input type="hidden" name="source_language" value="{h(source_language_default)}">
+    <input type="hidden" name="transcript_langs" value="{h(transcript_langs_default)}">
   </div>
-  <p class="muted">Schedule Time is optional for manual-only jobs. If Add to Daily Cron is on, Save syncs the real production crontab immediately.</p>
+  <p class="muted">เลือกเวลาจาก dropdown เท่านั้นเพื่อกัน cron format ผิด/เวลาชนกัน ถ้าไม่ต้องการ daily cron ให้เลือก Manual only และปิด Add to Daily Cron</p>
   <label>Notes</label><textarea name="notes" rows="3">{h(job.get('notes'))}</textarea>
   <p>
     <label><input type="checkbox" name="enabled" value="1" {'checked' if enabled_default else ''} style="width:auto"> Job Enabled <span class="muted">(off = keep config but block Run and cron)</span></label>
-    <label><input type="checkbox" name="daily_cron_enabled" value="1" {'checked' if daily_cron_default else ''} style="width:auto"> Add to Daily Cron <span class="muted">(Save syncs production cron)</span></label>
+    <label><input type="checkbox" name="daily_cron_enabled" id="daily_cron_enabled" value="1" {'checked' if daily_cron_default else ''} style="width:auto"> Add to Daily Cron <span class="muted">(Save syncs production cron)</span></label>
     <label><input type="checkbox" name="on_demand" value="1" {'checked' if on_demand_default else ''} style="width:auto"> On Demand Report <span class="muted">(unique readable filename per run; prevents overwrite)</span></label>
+    <label><input type="checkbox" name="include_in_daily_summary" value="1" {'checked' if include_summary_default else ''} style="width:auto"> Include in Daily Summary <span class="muted">(ให้ digest ดึง report ของ job นี้ด้วย)</span></label>
     <label><input type="checkbox" name="detailed" value="1" {'checked' if job.get('detailed', True) else ''} style="width:auto"> Detailed Thai summary</label>
   </p>
+  <script>
+    const dailyCron = document.getElementById('daily_cron_enabled');
+    const scheduleSelect = document.getElementById('schedule_time');
+    function syncScheduleHint() {{
+      if (dailyCron && scheduleSelect && dailyCron.checked && !scheduleSelect.value) {{
+        scheduleSelect.setCustomValidity('Please choose a schedule time for daily cron.');
+      }} else if (scheduleSelect) {{
+        scheduleSelect.setCustomValidity('');
+      }}
+    }}
+    if (dailyCron && scheduleSelect) {{
+      dailyCron.addEventListener('change', syncScheduleHint);
+      scheduleSelect.addEventListener('change', syncScheduleHint);
+      syncScheduleHint();
+    }}
+  </script>
   <button type="submit">Save</button>
   <a class="button secondary" href="/">Cancel</a>
 </form>
@@ -948,6 +1025,16 @@ window.addEventListener('DOMContentLoaded',function(){{buildMonthDropdown();setQ
         # and made unique with a numeric suffix when needed.
         job_id = requested_id if existing else unique_job_id(topic or name or source_url, jobs)
         report_folder = clean_report_folder(data.get("report_folder", [""])[0], slugify(topic or name or job_id))
+        schedule_time = data.get("schedule_time", [""])[0].strip()
+        daily_cron_enabled = data.get("daily_cron_enabled", ["0"])[0] == "1"
+        raw_transcript_langs = data.get("transcript_langs", [""])[0].strip()
+        if raw_transcript_langs:
+            transcript_langs = [x.strip() for x in raw_transcript_langs.split(",") if x.strip()]
+        else:
+            transcript_langs = existing.get("transcript_langs", DEFAULT_TRANSCRIPT_LANGS) if existing else DEFAULT_TRANSCRIPT_LANGS
+        source_language = data.get("source_language", [""])[0].strip()
+        if not source_language:
+            source_language = existing.get("source_language", DEFAULT_SOURCE_LANGUAGE) if existing else DEFAULT_SOURCE_LANGUAGE
         job = {
             "id": job_id,
             "name": name,
@@ -958,15 +1045,26 @@ window.addEventListener('DOMContentLoaded',function(){{buildMonthDropdown();setQ
             "max_videos": max(1, int(data.get("max_videos", ["3"])[0] or 3)),
             "detailed": data.get("detailed", ["0"])[0] == "1",
             "report_folder": report_folder,
-            "schedule_time": data.get("schedule_time", [""])[0].strip(),
-            "daily_cron_enabled": data.get("daily_cron_enabled", ["0"])[0] == "1",
+            "schedule_time": schedule_time,
+            "daily_cron_enabled": daily_cron_enabled,
             "on_demand": data.get("on_demand", ["0"])[0] == "1",
-            "include_in_daily_summary": existing.get("include_in_daily_summary", False) if existing else False,
+            "include_in_daily_summary": data.get("include_in_daily_summary", ["0"])[0] == "1",
             "notes": data.get("notes", [""])[0].strip(),
+            "source_language": source_language,
+            "transcript_langs": transcript_langs,
         }
-        if job["daily_cron_enabled"] and not re.fullmatch(r"\d{1,2}:\d{2}", job["schedule_time"]):
-            self.send_html(page("Schedule required", '<h1>Schedule required</h1><p class="failed">Add to Daily Cron requires Schedule Time in HH:MM format.</p><p><a href="/job">Back</a></p>'), code=400)
-            return
+        if daily_cron_enabled:
+            if not schedule_time:
+                self.send_html(page("Schedule required", '<h1>Schedule required</h1><p class="failed">Add to Daily Cron requires choosing a Schedule Time from the dropdown.</p><p><a href="/job">Back</a></p>'), code=400)
+                return
+            if schedule_time not in schedule_slot_values():
+                self.send_html(page("Invalid schedule", f'<h1>Invalid schedule</h1><p class="failed">{h(schedule_time)} is not a supported ATS schedule slot. Please choose from the dropdown.</p><p><a href="/job">Back</a></p>'), code=400)
+                return
+            conflicts = schedule_time_conflicts(jobs, schedule_time, current_job_id=job_id)
+            if conflicts:
+                names = ", ".join(h(j.get("name") or j.get("id")) for j in conflicts)
+                self.send_html(page("Schedule conflict", f'<h1>Schedule conflict</h1><p class="failed">{h(schedule_time)} is already used by: {names}. Please choose another dropdown time.</p><p><a href="/job">Back</a></p>'), code=400)
+                return
         if existing:
             jobs[jobs.index(existing)] = job
         else:
