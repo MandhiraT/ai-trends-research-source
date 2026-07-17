@@ -422,11 +422,15 @@ def default_report_folder_for_job(topic, name="", source_url="", job_id=""):
 
 def normalize_report_folder_for_save(raw_value, topic, name, source_url, job_id, *, is_on_demand=False):
     fallback = default_report_folder_for_job(topic, name, source_url, job_id)
+    if is_on_demand and not (raw_value or "").strip():
+        return clean_report_folder(f"on_demand/{fallback}", fallback)
     folder = clean_report_folder(raw_value or "", fallback)
     # 'research_job' is the legacy/on-demand reference bucket. For normal jobs it
     # makes reports look like they belong to the reference job and risks overwrite.
     if not is_on_demand and folder in RESERVED_REPORT_FOLDERS:
         folder = fallback
+    if is_on_demand and folder == "research_job":
+        folder = "on_demand/research_job"
     return folder
 
 
@@ -843,7 +847,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
         if isinstance(transcript_langs_default, list):
             transcript_langs_default = ",".join(transcript_langs_default)
         current_report_folder = job.get('report_folder') or ''
-        default_folder_preview = default_report_folder_for_job(job.get('topic', ''), job.get('name', ''), job.get('source_url', ''), job.get('id', '')) if not is_new else 'auto from Topic, e.g. VidIQ → vidiq'
+        default_folder_preview = default_report_folder_for_job(job.get('topic', ''), job.get('name', ''), job.get('source_url', ''), job.get('id', '')) if not is_new else 'auto from Topic, e.g. VidIQ → vidiq; On Demand → on_demand/vidiq'
         conflicts = schedule_time_conflicts(jobs, job.get('schedule_time'), current_job_id=job.get('id')) if daily_cron_default else []
         conflict_warning = ""
         if conflicts:
@@ -873,12 +877,14 @@ class DashboardHandler(BaseHTTPRequestHandler):
   <p>
     <label><input type="checkbox" name="enabled" value="1" {'checked' if enabled_default else ''} style="width:auto"> Job Enabled <span class="muted">(off = keep config but block Run and cron)</span></label>
     <label><input type="checkbox" name="daily_cron_enabled" id="daily_cron_enabled" value="1" {'checked' if daily_cron_default else ''} style="width:auto"> Add to Daily Cron <span class="muted">(Save syncs production cron)</span></label>
-    <label><input type="checkbox" name="on_demand" value="1" {'checked' if on_demand_default else ''} style="width:auto"> On Demand Report <span class="muted">(unique readable filename per run; prevents overwrite)</span></label>
-    <label><input type="checkbox" name="include_in_daily_summary" value="1" {'checked' if include_summary_default else ''} style="width:auto"> Include in Daily Summary <span class="muted">(ให้ digest ดึง report ของ job นี้ด้วย)</span></label>
+    <label><input type="checkbox" name="on_demand" id="on_demand" value="1" {'checked' if on_demand_default else ''} style="width:auto"> On Demand Report <span class="muted">(manual run only; unique readable filename per run; prevents overwrite)</span></label>
+    <label><input type="checkbox" name="include_in_daily_summary" id="include_in_daily_summary" value="1" {'checked' if include_summary_default else ''} style="width:auto"> Include in Daily Summary <span class="muted">(ให้ digest ดึง report ของ job นี้ด้วย)</span></label>
     <label><input type="checkbox" name="detailed" value="1" {'checked' if job.get('detailed', True) else ''} style="width:auto"> Detailed Thai summary</label>
   </p>
   <script>
     const dailyCron = document.getElementById('daily_cron_enabled');
+    const onDemand = document.getElementById('on_demand');
+    const includeSummary = document.getElementById('include_in_daily_summary');
     const scheduleSelect = document.getElementById('schedule_time');
     const topicInput = document.getElementById('topic_input');
     const folderInput = document.getElementById('report_folder');
@@ -896,9 +902,23 @@ class DashboardHandler(BaseHTTPRequestHandler):
       const explicit = folderInput && folderInput.value.trim();
       const raw = explicit || (topicInput && topicInput.value) || '';
       let preview = slugifyFolder(raw);
+      if (!explicit && onDemand && onDemand.checked) preview = `on_demand/${{preview}}`;
       if (!explicit && preview === 'research_job') preview = 'auto_after_save';
-      if (explicit && preview === 'research_job') preview = 'auto from Topic (research_job is reserved)';
+      if (explicit && preview === 'research_job') preview = onDemand && onDemand.checked ? 'on_demand/research_job' : 'auto from Topic (research_job is reserved)';
       folderPreview.textContent = preview;
+    }}
+    function syncOnDemandMode() {{
+      if (!onDemand) return;
+      if (onDemand.checked) {{
+        if (dailyCron) {{ dailyCron.checked = false; dailyCron.disabled = true; }}
+        if (scheduleSelect) {{ scheduleSelect.value = ''; scheduleSelect.disabled = true; }}
+        if (includeSummary) {{ includeSummary.checked = false; }}
+      }} else {{
+        if (dailyCron) dailyCron.disabled = false;
+        if (scheduleSelect) scheduleSelect.disabled = false;
+      }}
+      syncFolderPreview();
+      syncScheduleHint();
     }}
     function syncScheduleHint() {{
       if (dailyCron && scheduleSelect && dailyCron.checked && !scheduleSelect.value) {{
@@ -914,6 +934,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
     }}
     if (topicInput) topicInput.addEventListener('input', syncFolderPreview);
     if (folderInput) folderInput.addEventListener('input', syncFolderPreview);
+    if (onDemand) onDemand.addEventListener('change', syncOnDemandMode);
+    syncOnDemandMode();
     syncFolderPreview();
   </script>
   <button type="submit">Save</button>
@@ -1116,6 +1138,11 @@ window.addEventListener('DOMContentLoaded',function(){{buildMonthDropdown();setQ
             report_folder = unique_report_folder(report_folder, jobs, current_job_id=job_id)
         schedule_time = data.get("schedule_time", [""])[0].strip()
         daily_cron_enabled = data.get("daily_cron_enabled", ["0"])[0] == "1"
+        include_in_daily_summary = data.get("include_in_daily_summary", ["0"])[0] == "1"
+        if on_demand:
+            schedule_time = ""
+            daily_cron_enabled = False
+            include_in_daily_summary = False
         raw_transcript_langs = data.get("transcript_langs", [""])[0].strip()
         if raw_transcript_langs:
             transcript_langs = [x.strip() for x in raw_transcript_langs.split(",") if x.strip()]
@@ -1137,7 +1164,7 @@ window.addEventListener('DOMContentLoaded',function(){{buildMonthDropdown();setQ
             "schedule_time": schedule_time,
             "daily_cron_enabled": daily_cron_enabled,
             "on_demand": on_demand,
-            "include_in_daily_summary": data.get("include_in_daily_summary", ["0"])[0] == "1",
+            "include_in_daily_summary": include_in_daily_summary,
             "notes": data.get("notes", [""])[0].strip(),
             "source_language": source_language,
             "transcript_langs": transcript_langs,

@@ -91,7 +91,17 @@ def test_report_folder_research_job_allowed_for_on_demand_reference_job():
         "research_job", "Claude", "On Demand", "", "speech", is_on_demand=True
     )
 
-    assert folder == "research_job"
+    assert folder == "on_demand/research_job"
+
+
+def test_report_folder_blank_on_demand_uses_on_demand_namespace():
+    app = load_app()
+
+    folder = app.normalize_report_folder_for_save(
+        "", "One-off Video", "One-off Video", "", "one_off_video", is_on_demand=True
+    )
+
+    assert folder == "on_demand/one-off_video"
 
 
 def test_unique_report_folder_adds_suffix_to_prevent_overwrite():
