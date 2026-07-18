@@ -5,6 +5,27 @@
 
 ---
 
+
+## 🚨 MPD Task Card / Status Sync Rule
+
+For any significant implementation, debugging, dashboard, production, or cross-agent task:
+
+- Do **not** report the work as done until the relevant MPD `/tasks` card exists or is updated.
+- If you cannot safely edit MPD directly, include exact MPD update text for Mali to apply.
+- Final result must include:
+  - current status
+  - summary row update
+  - detailed section update
+  - docs links
+  - next owner/action
+  - verification evidence
+- Do **not** mark `production` unless a real production/operator flow was verified.
+- For work that affects Mandy's tracked systems, check/update:
+  `/home/mandhira/Desktop/mandy-ai-ops-docs/content-engine/06-status-index/integration-status-tracker.md`
+
+This rule is a blocker before Agent Hub/MCP work: agent handoffs/results must preserve MPD as the source of truth.
+
+---
 ## What this is
 
 Automated daily AI trends research from YouTube. Scrapes videos → generates **detailed Thai summaries (2000-3000 words)** → pushes reports to GitHub. Runs on **system crontab** (not OpenClaw).
