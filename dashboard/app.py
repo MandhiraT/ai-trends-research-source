@@ -129,6 +129,30 @@ def _resolve_report_path(topic: str, date: str) -> tuple[Path | None, str]:
     return matches[0], _slug(matches[0].parent.name)
 
 
+def filter_reports_by_date_range(reports: list, date_from: str | None, date_to: str | None) -> list:
+    """Keep only reports whose date falls within [date_from, date_to] (either
+    bound optional). Regular reports' filename stem IS the plain date
+    (2026-05-14.md), but on-demand reports' stem also carries time/slug/
+    video-id (2026-07-18_0807_make-any-topic..._LvuoNlYRs7g.md) — comparing
+    the *full* stem against a plain "YYYY-MM-DD" boundary (always what an
+    HTML <input type="date"> submits) made any same-day on-demand report
+    compare as "greater than" date_to and get silently excluded, since a
+    longer string with a shared prefix always sorts after the shorter one.
+    Compare only the date prefix instead.
+    """
+    if not date_from and not date_to:
+        return list(reports)
+    filtered = []
+    for rp in reports:
+        date_str = rp.stem[:10]
+        if date_from and date_str < date_from:
+            continue
+        if date_to and date_str > date_to:
+            continue
+        filtered.append(rp)
+    return filtered
+
+
 # Full Detail (on-demand, re-reads the original transcript instead of the
 # already-compressed report) started NATEHERK-only, lifted to every topic
 # 2026-07-13 per Mandy's instruction once the NATEHERK trial proved out.
@@ -2269,18 +2293,7 @@ document.addEventListener('DOMContentLoaded',function(){{
             self._send_json({"error": "No reports found", "generated": 0, "total_videos": 0})
             return
 
-        # Filter by date range
-        if date_from or date_to:
-            filtered = []
-            for rp in reports:
-                # Date is the filename stem: 2026-05-14.md
-                date_str = rp.stem
-                if date_from and date_str < date_from:
-                    continue
-                if date_to and date_str > date_to:
-                    continue
-                filtered.append(rp)
-            reports = filtered
+        reports = filter_reports_by_date_range(reports, date_from, date_to)
 
         if not reports:
             self._send_json({"error": "No reports in date range", "generated": 0, "total_videos": 0})
