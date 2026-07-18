@@ -803,6 +803,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self.view_report()
         elif parsed.path == "/view/full-detail":
             self.view_full_detail()
+        elif parsed.path == "/download/full-detail":
+            self.download_full_detail()
         elif parsed.path == "/view/audio":
             self.view_audio()
         else:
@@ -2828,6 +2830,36 @@ document.addEventListener('DOMContentLoaded',function(){{
         self.end_headers()
         self.wfile.write(data)
 
+    def download_full_detail(self):
+        """Serve a Full Detail Markdown file as a download attachment."""
+        qs = parse_qs(urlparse(self.path).query)
+        topic = qs.get("topic", [""])[0].strip()
+        date  = qs.get("date",  [""])[0].strip()
+        video = qs.get("video", ["1"])[0].strip()
+        if not topic or not DATE_OR_REPORT_STEM_RE.match(date) or not video.isdigit():
+            self.send_error(400)
+            return
+
+        full_detail_path = _full_detail_path(topic, date, int(video))
+        if not full_detail_path or not full_detail_path.exists():
+            self.send_error(404)
+            return
+
+        try:
+            data = full_detail_path.read_bytes()
+        except OSError:
+            self.send_error(404)
+            return
+
+        fname = f"{_slug(topic)}-{date}-v{video}-full-detail.md"
+        self.send_response(200)
+        self.send_header("Content-Type", "text/markdown; charset=utf-8")
+        self.send_header("Content-Length", str(len(data)))
+        self.send_header("Content-Disposition", f'attachment; filename="{fname}"')
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(data)
+
     def view_full_detail(self):
         """Render a Full Detail file as HTML for in-browser reading."""
         qs = parse_qs(urlparse(self.path).query)
@@ -2871,7 +2903,7 @@ document.addEventListener('DOMContentLoaded',function(){{
 </style>
 </head>
 <body>
-<p class="nav">🔎 {title}</p>
+<p class="nav">🔎 {title} &nbsp;·&nbsp; <a href="/download/full-detail?topic={quote(topic)}&date={quote(date)}&video={quote(video)}">⬇ Download .md</a></p>
 {body_html}
 </body>
 </html>"""
