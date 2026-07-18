@@ -207,6 +207,32 @@ def _full_detail_path(topic: str, date: str, video_no: int) -> Path | None:
     return report_path.parent / f"{date}-v{int(video_no)}-full-detail.md"
 
 
+def build_file_preview_html(text: str, selected: str, suffix: str) -> str:
+    """Inline file-preview fragment used by render_files() (/reports, /logs).
+
+    Markdown reports (.md) render as formatted HTML (headers, bold, lists)
+    instead of a raw escaped-text dump, matching view_report()/
+    view_full_detail()/render_single_report() elsewhere in this dashboard.
+    Non-.md files (e.g. .log) still show as plain text. The file on disk is
+    untouched either way — this only changes how it looks when viewed here.
+    """
+    if _MD_OK and suffix == ".md":
+        rendered = _md_lib.markdown(text, extensions=["nl2br", "fenced_code"])
+        return (
+            f'<section id="file-content"><h2>{h(selected)}</h2>'
+            f'<style>#file-content .markdown-body{{line-height:1.7;font-size:15px}}'
+            f'#file-content .markdown-body h1{{font-size:1.4em}}'
+            f'#file-content .markdown-body h2{{font-size:1.2em;border-bottom:1px solid var(--line);padding-bottom:4px}}'
+            f'#file-content .markdown-body h3{{font-size:1.05em}}'
+            f'#file-content .markdown-body hr{{border:none;border-top:1px solid var(--line);margin:16px 0}}'
+            f'#file-content .markdown-body code{{background:#eef2f7;border-radius:4px;padding:2px 6px;font-size:13px}}'
+            f'#file-content .markdown-body pre{{background:#eef2f7;border-radius:6px;padding:12px;overflow-x:auto}}'
+            f'#file-content .markdown-body ul,#file-content .markdown-body ol{{padding-left:1.4em}}</style>'
+            f'<div class="markdown-body">{rendered}</div></section>'
+        )
+    return f'<section id="file-content"><h2>{h(selected)}</h2><pre style="white-space:pre-wrap;word-break:break-word">{h(text)}</pre></section>'
+
+
 def _resolve_relative_file(base: Path, selected: str) -> Path | None:
     """Resolve a user-facing relative file path safely, with case-insensitive dirs.
 
@@ -1014,7 +1040,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
             try:
                 path = _resolve_relative_file(base, selected)
                 if path:
-                    content = f'<section id="file-content"><h2>{h(selected)}</h2><pre style="white-space:pre-wrap;word-break:break-word">{h(read_text_file(path))}</pre></section>'
+                    text = read_text_file(path)
+                    content = build_file_preview_html(text, selected, suffix)
             except OSError:
                 content = "<p>Invalid file.</p>"
 
@@ -1160,7 +1187,26 @@ window.addEventListener('DOMContentLoaded',function(){{buildMonthDropdown();setQ
             if not path:
                 self.send_html(page("Report", '<h1>Report</h1><p class="failed">File not found.</p>'))
                 return
-            body = f'<p><a href="/search">← Back to Search</a></p><h2>{h(selected)}</h2><pre>{h(read_text_file(path))}</pre>'
+            text = read_text_file(path)
+            # Render as formatted Markdown (headers, bold, lists) instead of a
+            # raw escaped-text dump — matches how view_report()/view_full_detail()
+            # already display reports elsewhere in this dashboard; the file on
+            # disk is untouched, this only changes how it looks when viewed here.
+            if _MD_OK:
+                rendered = _md_lib.markdown(text, extensions=["nl2br", "fenced_code"])
+            else:
+                rendered = f"<pre style='white-space:pre-wrap;word-break:break-word'>{h(text)}</pre>"
+            body = (
+                f'<p><a href="/search">← Back to Search</a></p>'
+                f'<h2>{h(selected)}</h2>'
+                f'<style>.markdown-body{{line-height:1.7;font-size:15px}}'
+                f'.markdown-body h1{{font-size:1.4em}}.markdown-body h2{{font-size:1.2em;border-bottom:1px solid var(--line);padding-bottom:4px}}'
+                f'.markdown-body h3{{font-size:1.05em}}.markdown-body hr{{border:none;border-top:1px solid var(--line);margin:16px 0}}'
+                f'.markdown-body code{{background:#eef2f7;border-radius:4px;padding:2px 6px;font-size:13px}}'
+                f'.markdown-body pre{{background:#eef2f7;border-radius:6px;padding:12px;overflow-x:auto}}'
+                f'.markdown-body ul,.markdown-body ol{{padding-left:1.4em}}</style>'
+                f'<div class="markdown-body">{rendered}</div>'
+            )
             self.send_html(page(selected, body))
         except OSError:
             self.send_html(page("Report", '<h1>Report</h1><p class="failed">Could not read file.</p>'))
