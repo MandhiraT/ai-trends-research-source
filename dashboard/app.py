@@ -129,6 +129,42 @@ def _resolve_report_path(topic: str, date: str) -> tuple[Path | None, str]:
     return matches[0], _slug(matches[0].parent.name)
 
 
+def build_full_detail_report_content(
+    topic: str, date: str, video_no: int, video_title: str, thai_title: str,
+    source_url: str, video_id: str, result_text: str,
+) -> str:
+    """Build a Full Detail .md file matching the standard ATS report shape
+    (# AI Trends Research - ... metadata block, ## Video N:, ### Full
+    Summary section) instead of the old ad-hoc "# Full Detail: ..." plain
+    header — so Full Detail files look and parse like every other ATS
+    report. Uses date[:10] for the Date field since on-demand reports'
+    own "date" value is the whole filename stem (date+time+slug+video-id),
+    not a plain date.
+    """
+    generated_at = datetime.now()
+    report_date = (date or "")[:10]
+    report_time = generated_at.strftime("%H:%M ICT")
+    display_title = thai_title or video_title
+
+    return (
+        f"# AI Trends Research - {topic}\n\n"
+        f"**Date:** {report_date} {report_time}\n"
+        f"**Topic:** {topic}\n"
+        f"**Mode:** Full Detail (On-Demand Re-summarize)\n"
+        f"**Videos Processed:** 1\n"
+        f"**Duplicate Prevention:** Content Hash + Date Filtering\n"
+        f"**Dashboard Job ID:** {_slug(topic)}\n\n"
+        f"---\n\n"
+        f"## Video {video_no}: {display_title}\n\n"
+        f"**Source:** {source_url}\n"
+        f"**Video ID:** {video_id}\n\n"
+        f"### 📝 Full Summary (Thai)\n"
+        f"{result_text}\n\n"
+        f"---\n\n"
+        f"Report generated at: {generated_at.isoformat()}\n"
+    )
+
+
 def filter_reports_by_date_range(reports: list, date_from: str | None, date_to: str | None) -> list:
     """Keep only reports whose date falls within [date_from, date_to] (either
     bound optional). Regular reports' filename stem IS the plain date
@@ -1679,14 +1715,15 @@ function clearSearch(){{
                 max_output_tokens=32768,
             )
 
-            video_title = video_entry.get("thai_title") or video_entry.get("video_title", "")
-            content = (
-                f"# Full Detail: {video_title}\n"
-                f"Date: {date}\n"
-                f"Topic: {asset.get('topic', topic)}\n"
-                f"Video: {video_entry.get('video_title', '')}\n"
-                f"Source: {source_url}\n\n"
-                f"{result_text}\n"
+            content = build_full_detail_report_content(
+                topic=asset.get("topic", topic),
+                date=date,
+                video_no=vno,
+                video_title=video_entry.get("video_title", ""),
+                thai_title=video_entry.get("thai_title", ""),
+                source_url=source_url,
+                video_id=video_entry.get("video_id", ""),
+                result_text=result_text,
             )
             out_path.parent.mkdir(parents=True, exist_ok=True)
             out_path.write_text(content, encoding="utf-8")
