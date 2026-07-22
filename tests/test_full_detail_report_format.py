@@ -10,7 +10,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from dashboard.app import build_full_detail_report_content
+from dashboard.app import build_full_detail_report_content, _looks_like_no_transcript_failure
 
 
 def test_header_matches_standard_report_metadata_block_shape():
@@ -78,3 +78,18 @@ def test_preserves_original_video_number_from_source_report():
         thai_title="", source_url="https://x", video_id="abc", result_text="text",
     )
     assert "## Video 3: Third video" in content
+
+
+def test_detects_cached_no_transcript_full_detail_failure_stub():
+    failed = build_full_detail_report_content(
+        topic="research job", date="2026-07-22", video_no=1,
+        video_title="Thai transcript video", thai_title="",
+        source_url="https://www.youtube.com/watch?v=kL1819NMiKo",
+        video_id="kL1819NMiKo",
+        result_text=(
+            "# ไม่สามารถสรุปวิดีโอนี้ได้\n\n"
+            "**เหตุผล:** วิดีโอนี้ไม่มี transcript ที่ดาวน์โหลดได้"
+        ),
+    )
+    assert _looks_like_no_transcript_failure(failed)
+    assert not _looks_like_no_transcript_failure("# รายงานเต็ม\n\nเนื้อหาสรุปภาษาไทยจาก transcript")

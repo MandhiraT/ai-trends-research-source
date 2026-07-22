@@ -207,6 +207,22 @@ def _full_detail_path(topic: str, date: str, video_no: int) -> Path | None:
     return report_path.parent / f"{date}-v{int(video_no)}-full-detail.md"
 
 
+def _looks_like_no_transcript_failure(text: str) -> bool:
+    """Detect cached Full Detail files that are failure stubs, not reports.
+
+    Full Detail generation can fail transiently when YouTube/yt-dlp cannot fetch
+    captions.  If we treat that markdown as a valid existing report, later UI
+    clicks keep opening the stale failure page even after Thai captions become
+    available.  These files should be regenerated, not considered done.
+    """
+    text = text or ""
+    return (
+        "# ไม่สามารถสรุปวิดีโอนี้ได้" in text
+        or "วิดีโอนี้ไม่มี transcript" in text
+        or "No transcript for" in text
+    )
+
+
 def build_file_preview_html(text: str, selected: str, suffix: str) -> str:
     """Inline file-preview fragment used by render_files() (/reports, /logs).
 
@@ -1717,16 +1733,18 @@ function clearSearch(){{
                 self._send_json({"error": f"Report not found: {topic}/{date}"}, code=404)
                 return
             if out_path.exists() and not force:
-                self._send_json({
-                    "status": "exists",
-                    "topic": safe_topic,
-                    "date": date,
-                    "video": vno,
-                    "type": "full_detail",
-                    "path": str(out_path.relative_to(PROJECT_ROOT)),
-                    "message": "Full Detail already exists — pass force=1 to regenerate",
-                })
-                return
+                existing_text = out_path.read_text(encoding="utf-8", errors="replace")
+                if not _looks_like_no_transcript_failure(existing_text):
+                    self._send_json({
+                        "status": "exists",
+                        "topic": safe_topic,
+                        "date": date,
+                        "video": vno,
+                        "type": "full_detail",
+                        "path": str(out_path.relative_to(PROJECT_ROOT)),
+                        "message": "Full Detail already exists — pass force=1 to regenerate",
+                    })
+                    return
 
             report_path, _ = _resolve_report_path(safe_topic, date)
             if not report_path:
@@ -1758,10 +1776,19 @@ function clearSearch(){{
                 prompt_file=str(FULL_DETAIL_PROMPT_FILE),
                 language="th",
                 topic=asset.get("topic", topic),
-                transcript_langs=["th", "en", "all"],
+                transcript_langs=["th", "th-orig", "en", "all"],
                 transcript_char_limit=120000,
                 max_output_tokens=32768,
             )
+            if _looks_like_no_transcript_failure(result_text):
+                self._send_json({
+                    "error": "selected video transcript could not be downloaded; not writing a failed Full Detail report",
+                    "status": "transcript_missing",
+                    "topic": safe_topic,
+                    "date": date,
+                    "video": vno,
+                }, code=502)
+                return
 
             content = build_full_detail_report_content(
                 topic=asset.get("topic", topic),

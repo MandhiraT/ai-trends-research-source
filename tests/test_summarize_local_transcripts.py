@@ -68,4 +68,41 @@ English transcript is available
     assert "English transcript is available" in transcript
     used_langs = [call[call.index("--sub-lang") + 1] for call in calls]
     assert "th" in used_langs
+    assert "th-orig" in used_langs
     assert "en" in used_langs
+
+
+def test_get_youtube_transcript_tries_thai_original_before_all_fallback(monkeypatch):
+    calls = []
+
+    def fake_run(cmd, capture_output, text, timeout):
+        calls.append(cmd)
+        output_prefix = cmd[cmd.index("--output") + 1]
+        sub_lang = cmd[cmd.index("--sub-lang") + 1]
+        assert sub_lang != "all"
+        if sub_lang == "th-orig":
+            Path(f"{output_prefix}.th-orig.vtt").write_text(
+                """WEBVTT
+Kind: captions
+Language: th-orig
+
+00:00:00.000 --> 00:00:01.000
+นี่คือ transcript Thai original
+""",
+                encoding="utf-8",
+            )
+            return subprocess.CompletedProcess(cmd, 0, "", "")
+        return subprocess.CompletedProcess(cmd, 1, "", "too many requests")
+
+    monkeypatch.setattr(summarize_local.subprocess, "run", fake_run)
+    monkeypatch.setattr(time, "sleep", lambda *_: None)
+
+    transcript = summarize_local._get_youtube_transcript(
+        "https://www.youtube.com/watch?v=thaiorig",
+        preferred_langs=["all"],
+    )
+
+    assert "Thai original" in transcript
+    used_langs = [call[call.index("--sub-lang") + 1] for call in calls]
+    assert used_langs[0] == "th-orig"
+    assert "all" not in used_langs

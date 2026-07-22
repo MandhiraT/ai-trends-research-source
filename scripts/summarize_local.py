@@ -63,10 +63,32 @@ def _get_youtube_transcript(video_url: str, preferred_langs=None) -> str:
         # slice down further to their own transcript_char_limit before prompting.
         return ' '.join(lines_clean)[:200000]
 
-    # Prefer the caller's source-language order, then any caption track.  `en`
-    # and `th` auto-translated captions can independently hit YouTube 429s, so
-    # avoid spending retries on the wrong auto-translation language first.
-    _LANGS = preferred_langs or ['th', 'en', 'all']
+    # Prefer the caller's source-language order, then any caption track.  Some
+    # Thai YouTube videos expose the manually/original uploaded track as
+    # `th-orig` while translated Thai is `th`; try both before falling back.
+    # Avoid passing `all` directly to --sub-lang: yt-dlp may start with `ab` and
+    # fail on YouTube 429 before reaching the actually useful Thai track.
+    def _expand_langs(langs):
+        expanded = []
+        for lang in (langs or ['th', 'en', 'all']):
+            lang = str(lang or '').strip()
+            if not lang:
+                continue
+            candidates = []
+            if lang == 'th':
+                candidates = ['th', 'th-orig']
+            elif lang == 'en':
+                candidates = ['en', 'en-orig']
+            elif lang == 'all':
+                candidates = ['th-orig', 'th', 'en', 'en-orig']
+            else:
+                candidates = [lang]
+            for candidate in candidates:
+                if candidate and candidate not in expanded:
+                    expanded.append(candidate)
+        return expanded
+
+    _LANGS = _expand_langs(preferred_langs)
     _BASE = [
         'yt-dlp',
         '--js-runtimes', 'node:/usr/bin/node',
