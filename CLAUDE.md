@@ -10,8 +10,9 @@
 
 For any significant implementation, debugging, dashboard, production, or cross-agent task:
 
+- Before starting any scoped PRD, docs-review, implementation, debugging, or verification work, identify the MPD card; if its status is `Not Started`, change it to `In Progress` immediately when you accept/claim the task.
 - Do **not** report the work as done until the relevant MPD `/tasks` card exists or is updated.
-- If you cannot safely edit MPD directly, include exact MPD update text for Mali to apply.
+- An active Sati task must never remain `Not Started`. If you cannot safely edit MPD directly, include the exact summary-row and detailed-section patch for Mali immediately and continue treating the task as `In Progress`.
 - Final result must include:
   - current status
   - summary row update
