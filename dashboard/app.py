@@ -49,6 +49,13 @@ except ImportError:
 DATE_OR_REPORT_STEM_RE = re.compile(r"^\d{4}-\d{2}-\d{2}(_[A-Za-z0-9_-]+)?$")
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+SHARED_UI_DIR = Path.home() / "Desktop" / "Projects" / "shared-ui"
+
+def _ui_ver() -> int:
+    try:
+        return int(max((SHARED_UI_DIR / f).stat().st_mtime for f in ("theme.css", "sidebar.js")))
+    except OSError:
+        return 0
 CONFIG_FILE = PROJECT_ROOT / "config" / "research_jobs.json"
 REPORTS_DIR = PROJECT_ROOT / "ai_trends_reports" / "reports"
 DASHBOARD_DIR = PROJECT_ROOT / "ai_trends_reports" / "dashboard"
@@ -695,24 +702,55 @@ def start_job(job):
     thread.start()
 
 
+# Set by do_GET/do_POST per-request when accessed via the unified demo domain
+# path prefix (e.g. /ats/...) instead of ATS's own subdomain.
+_req_ctx = threading.local()
+
+def _url_prefix() -> str:
+    return getattr(_req_ctx, "prefix", "")
+
+def _other_app_links() -> tuple:
+    if _url_prefix():
+        return "/mjs/", "/faw/"
+    return "https://mjs.thequietself.com/", "https://faw.thequietself.com/"
+
+_ICONS = {
+    "newspaper": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/><path d="M18 14h-8"/><path d="M15 18h-5"/><path d="M10 6h8v4h-8V6Z"/></svg>',
+    "file-text": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>',
+    "search": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>',
+    "box": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>',
+    "bell": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>',
+    "clock": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
+}
+
 def page(title, body):
+    p = _url_prefix()
+    mjs_href, faw_href = _other_app_links()
+    I = _ICONS
+    v = _ui_ver()
     return f"""<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{h(title)}</title>
+  <script>(function(){{try{{var t=localStorage.getItem('sati-ui-theme');if(t)document.documentElement.setAttribute('data-theme',t);}}catch(e){{}}}})();</script>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+  <link rel="stylesheet" href="{p}/shared-ui/theme.css?v={v}">
   <style>
+    /* Local names ATS's own CSS below already uses, re-aliased onto the
+       shared theme.css tokens (loaded above) instead of hardcoded light
+       values — this is what was overriding the shared dark theme. */
     :root {{
-      color-scheme: light;
-      --line:#d8dee8; --ink:#172033; --muted:#5f6c80; --bg:#f6f8fb; --panel:#fff;
-      --blue:#0d63ce; --green:#0b7a42; --red:#b42318;
-      /* Shared brand tokens (ATS/FAW/MJS) */
-      --accent:#7c3aed; --accent-hover:#6d28d9; --accent-soft:#f3edfd;
+      --line:var(--border); --ink:var(--text-primary); --muted:var(--text-secondary); --panel:var(--surface);
+      --blue:var(--info); --green:var(--success); --red:var(--danger);
+      --accent-soft:var(--accent-subtle);
       --font-shared: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
     }}
     * {{ box-sizing: border-box; }}
     body {{ margin:0; font-family: var(--font-shared); background:var(--bg); color:var(--ink); }}
+    a {{ color:var(--accent-text,var(--accent)); }}
+    a:visited {{ color:var(--accent-text,var(--accent)); }}
     header {{ background:#111827; color:white; padding:16px 24px; display:flex; align-items:center; justify-content:space-between; gap:16px; border-bottom:2px solid var(--accent); }}
     header a {{ color:white; text-decoration:none; margin-left:14px; }}
     header a:hover {{ color:var(--accent-soft); }}
@@ -724,7 +762,7 @@ def page(title, body):
     .metric strong {{ display:block; font-size:22px; margin-top:4px; }}
     table {{ width:100%; border-collapse:collapse; background:var(--panel); border:1px solid var(--line); border-radius:10px; overflow:hidden; }}
     th, td {{ padding:10px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; font-size:14px; }}
-    th {{ background:#eef2f7; font-size:12px; text-transform:uppercase; color:var(--muted); }}
+    th {{ background:var(--surface-hover,#eef2f7); font-size:12px; text-transform:uppercase; color:var(--muted); }}
     tr:last-child td {{ border-bottom:0; }}
     .actions {{ display:flex; gap:8px; flex-wrap:wrap; }}
     button, .button {{ appearance:none; border:1px solid var(--accent); background:var(--accent); color:white; padding:8px 10px; border-radius:6px; text-decoration:none; cursor:pointer; font-size:14px; transition:background .15s,border-color .15s; }}
@@ -732,25 +770,56 @@ def page(title, body):
     .button.secondary, button.secondary {{ background:white; color:var(--accent); }}
     .button.secondary:hover, button.secondary:hover {{ background:var(--accent-soft); }}
     button.danger {{ border-color:var(--red); background:var(--red); }}
-    input, select, textarea {{ width:100%; padding:9px; border:1px solid var(--line); border-radius:6px; font:inherit; }}
+    input, select, textarea {{ width:100%; padding:9px; border:1px solid var(--line); border-radius:6px; font:inherit; background:var(--panel); color:var(--ink); }}
     input:focus, select:focus, textarea:focus {{ outline:none; border-color:var(--accent); }}
     label {{ display:block; font-size:13px; color:var(--muted); margin:12px 0 5px; }}
     form.inline {{ display:inline; }}
     .form-grid {{ display:grid; grid-template-columns: 1fr 1fr; gap:0 14px; }}
     .muted {{ color:var(--muted); }}
-    .pill {{ display:inline-block; border-radius:999px; padding:3px 8px; background:#edf2f7; color:#334155; font-size:12px; }}
+    .pill {{ display:inline-block; border-radius:999px; padding:3px 8px; background:var(--surface-hover,#edf2f7); color:var(--text-secondary,#334155); font-size:12px; }}
     .success {{ color:var(--green); }}
     .failed {{ color:var(--red); }}
     pre {{ white-space:pre-wrap; background:#101828; color:#f8fafc; padding:14px; border-radius:8px; overflow:auto; max-height:560px; }}
     @media (max-width: 760px) {{ .grid, .form-grid {{ grid-template-columns:1fr; }} header {{ display:block; }} header nav {{ margin-top:8px; }} }}
   </style>
 </head>
-<body>
-  <header>
-    <strong>AI Trends Dashboard</strong>
-    <nav><a href="/">Jobs</a><a href="/reports">Reports</a><a href="/search">Search</a><a href="/assets">Assets</a><a href="/notifications">Notifications</a><a href="/logs">Logs</a><a href="/cron">Cron</a></nav>
-  </header>
+<body class="su-shell">
+  <button id="su-hamburger" class="su-hamburger" aria-label="Menu">☰</button>
+  <div class="su-backdrop"></div>
+  <nav class="su-sidebar">
+    <div class="su-sidebar-header">
+      <span class="su-logo-tile">⚡</span>
+      <span class="su-wordmark">Content Engine</span>
+    </div>
+    <div class="su-app-switch">
+      <a href="{mjs_href}">MJS</a>
+      <a href="{faw_href}">FAW</a>
+      <a href="{p}/" class="active">ATS</a>
+    </div>
+    <div class="su-sidebar-nav">
+      <div class="su-nav-label">Research</div>
+      <a class="su-nav-item" href="{p}/">{I['newspaper']}<span class="su-label">Jobs</span></a>
+      <a class="su-nav-item" href="{p}/reports">{I['file-text']}<span class="su-label">Reports</span></a>
+      <a class="su-nav-item" href="{p}/search">{I['search']}<span class="su-label">Search</span></a>
+      <div class="su-nav-label">Content</div>
+      <a class="su-nav-item" href="{p}/assets">{I['box']}<span class="su-label">Assets</span></a>
+      <div class="su-nav-label">System</div>
+      <a class="su-nav-item" href="{p}/notifications">{I['bell']}<span class="su-label">Notifications</span></a>
+      <a class="su-nav-item" href="{p}/logs">{I['file-text']}<span class="su-label">Logs</span></a>
+      <a class="su-nav-item" href="{p}/cron">{I['clock']}<span class="su-label">Cron</span></a>
+    </div>
+    <div class="su-sidebar-footer">
+      <div class="su-toggle-row">
+        <button class="su-icon-btn" id="su-collapse-toggle" title="Collapse sidebar">⇔</button>
+        <div class="su-theme-pill">
+          <button data-mode="light">☀</button>
+          <button data-mode="dark">☾</button>
+        </div>
+      </div>
+    </div>
+  </nav>
   <main>{body}</main>
+  <script src="{p}/shared-ui/sidebar.js?v={v}"></script>
 </body>
 </html>"""
 
@@ -761,9 +830,22 @@ class DashboardHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", "text/html; charset=utf-8")
         self.end_headers()
 
+    def _strip_prefix(self):
+        _req_ctx.prefix = ""
+        _p = urlparse(self.path)
+        if _p.path == "/ats" or _p.path.startswith("/ats/"):
+            _req_ctx.prefix = "/ats"
+            new_path = _p.path[len("/ats"):] or "/"
+            self.path = new_path + (("?" + _p.query) if _p.query else "")
+
     def do_GET(self):
+        self._strip_prefix()
         parsed = urlparse(self.path)
-        if parsed.path == "/":
+        if parsed.path == "/shared-ui/theme.css":
+            self.send_static((SHARED_UI_DIR / "theme.css").read_text(), "text/css; charset=utf-8")
+        elif parsed.path == "/shared-ui/sidebar.js":
+            self.send_static((SHARED_UI_DIR / "sidebar.js").read_text(), "application/javascript; charset=utf-8")
+        elif parsed.path == "/":
             self.render_home()
         elif parsed.path == "/job":
             self.render_job_form(parse_qs(parsed.query).get("id", [""])[0])
@@ -827,6 +909,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self.send_error(404)
 
     def do_POST(self):
+        self._strip_prefix()
         parsed = urlparse(self.path)
         # Notifications API uses JSON body — handle before form-urlencoded parsing
         if parsed.path in ("/api/notifications/config", "/api/notifications/test", "/api/audio/config"):
@@ -871,7 +954,18 @@ class DashboardHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(encoded)
 
+    def send_static(self, text, content_type):
+        encoded = text.encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(encoded)))
+        self.send_header("Cache-Control", "no-cache, must-revalidate")
+        self.end_headers()
+        self.wfile.write(encoded)
+
     def redirect(self, target="/"):
+        if target.startswith("/") and _url_prefix():
+            target = _url_prefix() + target
         self.send_response(303)
         self.send_header("Location", target)
         self.end_headers()
@@ -905,9 +999,9 @@ class DashboardHandler(BaseHTTPRequestHandler):
             for schedule_time, group in duplicate_groups.items():
                 names = ", ".join(h(j.get("name") or j.get("id")) for j in group)
                 items.append(f"<li><strong>{h(schedule_time)}</strong>: {names}</li>")
-            duplicate_warning = f"""<section style="border-color:#f59e0b;background:#fff7ed">
-  <h2>⚠️ Duplicate Daily Cron Times</h2>
-  <p class="muted">เวลานี้มีหลาย jobs ที่เปิด Add to Daily Cron อยู่ ระบบยังรันได้ แต่จะเริ่มพร้อมกัน อาจกิน quota/CPU พร้อมกันค่ะ</p>
+            duplicate_warning = f"""<section style="border-color:#f59e0b;background:#fff7ed;color:#78350f">
+  <h2 style="color:#78350f">⚠️ Duplicate Daily Cron Times</h2>
+  <p class="muted" style="color:#92400e">เวลานี้มีหลาย jobs ที่เปิด Add to Daily Cron อยู่ ระบบยังรันได้ แต่จะเริ่มพร้อมกัน อาจกิน quota/CPU พร้อมกันค่ะ</p>
   <ul>{''.join(items)}</ul>
 </section>"""
         enabled = sum(1 for j in jobs if j.get("enabled"))
@@ -956,9 +1050,9 @@ class DashboardHandler(BaseHTTPRequestHandler):
         conflict_warning = ""
         if conflicts:
             names = ", ".join(h(j.get("name") or j.get("id")) for j in conflicts)
-            conflict_warning = f"""<section style="border-color:#f59e0b;background:#fff7ed">
-  <strong>⚠️ Schedule Time ซ้ำ</strong>
-  <p class="muted">เวลา {h(job.get('schedule_time'))} มี job อื่นเปิด daily cron อยู่แล้ว: {names}</p>
+            conflict_warning = f"""<section style="border-color:#f59e0b;background:#fff7ed;color:#78350f">
+  <strong style="color:#78350f">⚠️ Schedule Time ซ้ำ</strong>
+  <p class="muted" style="color:#92400e">เวลา {h(job.get('schedule_time'))} มี job อื่นเปิด daily cron อยู่แล้ว: {names}</p>
 </section>"""
         body = f"""<h1>{'Add Job' if is_new else 'Edit Job'}</h1>
 {conflict_warning}
@@ -1098,10 +1192,10 @@ class DashboardHandler(BaseHTTPRequestHandler):
     </select>
   </div>
   <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-    <button onclick="setQuickDate('today')" id="btn-today" style="padding:5px 14px;border-radius:20px;border:1px solid #0d63ce;background:#0d63ce;color:#fff;cursor:pointer;font-size:13px">Today</button>
-    <button onclick="setQuickDate('yesterday')" id="btn-yesterday" style="padding:5px 14px;border-radius:20px;border:1px solid #ccc;background:#f5f5f5;cursor:pointer;font-size:13px">Yesterday</button>
-    <button onclick="setQuickDate('week')" id="btn-week" style="padding:5px 14px;border-radius:20px;border:1px solid #ccc;background:#f5f5f5;cursor:pointer;font-size:13px">7 Days</button>
-    <button onclick="setQuickDate('all')" id="btn-all" style="padding:5px 14px;border-radius:20px;border:1px solid #ccc;background:#f5f5f5;cursor:pointer;font-size:13px">All</button>
+    <button onclick="setQuickDate('today')" id="btn-today" style="padding:5px 14px;border-radius:20px;border:1px solid var(--accent);background:var(--accent);color:#fff;cursor:pointer;font-size:13px">Today</button>
+    <button onclick="setQuickDate('yesterday')" id="btn-yesterday" style="padding:5px 14px;border-radius:20px;border:1px solid var(--border,#ccc);background:var(--surface-hover,#f5f5f5);color:var(--text-primary);cursor:pointer;font-size:13px">Yesterday</button>
+    <button onclick="setQuickDate('week')" id="btn-week" style="padding:5px 14px;border-radius:20px;border:1px solid var(--border,#ccc);background:var(--surface-hover,#f5f5f5);color:var(--text-primary);cursor:pointer;font-size:13px">7 Days</button>
+    <button onclick="setQuickDate('all')" id="btn-all" style="padding:5px 14px;border-radius:20px;border:1px solid var(--border,#ccc);background:var(--surface-hover,#f5f5f5);color:var(--text-primary);cursor:pointer;font-size:13px">All</button>
     <span id="filter-count" style="color:#888;font-size:13px;margin-left:4px"></span>
   </div>
 </div>
@@ -1118,7 +1212,7 @@ function weekDates(){{
 function setActiveBtn(mode){{
   ['today','yesterday','week','all'].forEach(function(m){{
     var b=document.getElementById('btn-'+m);
-    if(b){{b.style.background=m===mode?'#0d63ce':'#f5f5f5';b.style.color=m===mode?'#fff':'';b.style.borderColor=m===mode?'#0d63ce':'#ccc';}}
+    if(b){{b.style.background=m===mode?'var(--accent)':'var(--surface-hover,#f5f5f5)';b.style.color=m===mode?'#fff':'var(--text-primary)';b.style.borderColor=m===mode?'var(--accent)':'var(--border,#ccc)';}}
   }});
 }}
 function setQuickDate(mode){{
@@ -2050,7 +2144,7 @@ function clearSearch(){{
 <tbody>{rows if rows else '<tr><td colspan="7">No assets yet. Generate some above.</td></tr>'}</tbody></table>
 </section>
 <div id="socialModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:1000;overflow-y:auto">
-  <div style="background:#fff;max-width:680px;margin:40px auto;border-radius:10px;padding:24px;position:relative">
+  <div style="background:var(--surface,#fff);max-width:680px;margin:40px auto;border-radius:10px;padding:24px;position:relative;color:var(--text-primary)">
     <button onclick="closeSocialModal()" style="position:absolute;top:12px;right:16px;background:none;border:none;font-size:22px;cursor:pointer;color:#5f6c80">✕</button>
     <h2 id="socialModalTitle" style="margin:0 0 16px;font-size:18px"></h2>
     <div id="socialModalBody" style="white-space:pre-wrap;font-size:14px;line-height:1.7;color:#172033"></div>
@@ -2058,10 +2152,10 @@ function clearSearch(){{
 </div>
 <style>
 .btn-sm{{
-  padding:6px 10px;font-size:20px;border:1px solid #d1d5db;border-radius:6px;
-  background:#f9fafb;cursor:pointer;line-height:1.2;
+  padding:6px 10px;font-size:20px;border:1px solid var(--border,#d1d5db);border-radius:6px;
+  background:var(--surface-hover,#f9fafb);color:var(--text-primary);cursor:pointer;line-height:1.2;
 }}
-.btn-sm:hover{{background:#e0e7ff;border-color:#6366f1}}
+.btn-sm:hover{{background:var(--accent-subtle,#e0e7ff);border-color:var(--accent)}}
 .btn-sm:disabled{{opacity:0.4;cursor:default}}
 .badge{{
   display:inline-flex;align-items:center;justify-content:center;
