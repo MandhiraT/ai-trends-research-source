@@ -723,6 +723,38 @@ _ICONS = {
     "clock": '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
 }
 
+_DEMO_PREFIX_NAV_SCRIPT = r"""<script>
+(function () {
+  const prefixes = ['/mjs', '/faw', '/ats'];
+  const prefix = prefixes.find((value) => location.pathname === value || location.pathname.startsWith(value + '/'));
+  if (!prefix) return;
+  const isModulePath = (value) => prefixes.some((valuePrefix) => value === valuePrefix || value.startsWith(valuePrefix + '/'));
+  const rewrite = (value) => {
+    if (typeof value !== 'string' || !value.startsWith('/') || value.startsWith('//')) return value;
+    if (isModulePath(value)) return value;
+    return prefix + value;
+  };
+  const rewriteDom = (root) => {
+    root.querySelectorAll('a[href], form[action]').forEach((node) => {
+      const attribute = node.tagName === 'FORM' ? 'action' : 'href';
+      const value = node.getAttribute(attribute);
+      const next = rewrite(value);
+      if (next !== value) node.setAttribute(attribute, next);
+    });
+  };
+  rewriteDom(document);
+  new MutationObserver((records) => records.forEach((record) => record.addedNodes.forEach((node) => {
+    if (node.nodeType === Node.ELEMENT_NODE) rewriteDom(node);
+  }))).observe(document.documentElement, {childList: true, subtree: true});
+  const nativeFetch = window.fetch;
+  window.fetch = function (input, init) {
+    if (typeof input === 'string') input = rewrite(input);
+    return nativeFetch.call(this, input, init);
+  };
+})();
+</script>"""
+
+
 def page(title, body):
     p = _url_prefix()
     mjs_href, faw_href = _other_app_links()
@@ -819,6 +851,7 @@ def page(title, body):
     </div>
   </nav>
   <main>{body}</main>
+  {_DEMO_PREFIX_NAV_SCRIPT}
   <script src="{p}/shared-ui/sidebar.js?v={v}"></script>
 </body>
 </html>"""
