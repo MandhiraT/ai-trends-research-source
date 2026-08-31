@@ -1,9 +1,9 @@
 #!/bin/bash
-# Daily Summary + GitHub Upload + Audio
+# Daily Summary + GitHub Upload
 # Split mode supports:
-#   --group morning   upload morning reports + audio + morning Telegram summary
+#   --group morning   upload morning reports + morning Telegram summary only
 #   --group self_help upload self-help reports + self-help Telegram summary
-#   --group all       legacy all-topic pipeline
+#   --group all       legacy all-topic pipeline without audio
 
 set -euo pipefail
 
@@ -36,8 +36,6 @@ fi
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting daily pipeline group=$_GROUP"
 
 report_publish_status="ok"
-audio_publish_status="ok"
-
 # 1. Push MD reports to GitHub for this round.
 if /usr/bin/python3 "$SCRIPTS_DIR/upload_reports_to_github_fixed.py"; then
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] GitHub reports upload done group=$_GROUP"
@@ -47,29 +45,16 @@ else
 fi
 
 if [[ "$_GROUP" == "morning" || "$_GROUP" == "all" ]]; then
-    # 2. Generate audio reports (per-video mode) only in the morning/all round.
-    /usr/bin/python3 "$SCRIPTS_DIR/generate_audio_report.py" --all-enabled --per-video --date "$(date +%Y-%m-%d)" || true
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Audio generation done"
-
-    # 3. Push audio WAV files to GitHub
-    if /usr/bin/python3 "$SCRIPTS_DIR/upload_audio_to_github.py" --date "$(date +%Y-%m-%d)"; then
-        echo "[$(date '+%Y-%m-%d %H:%M:%S')] Audio GitHub push done"
-    else
-        audio_publish_status="failed"
-        echo "[$(date '+%Y-%m-%d %H:%M:%S')] WARNING: Audio GitHub push failed"
-    fi
-
-    # 4. Per-topic notifications (email + Telegram DM per routing config)
-    /usr/bin/python3 "$SCRIPTS_DIR/notify_topic.py" --all --date "$(date +%Y-%m-%d)" || true
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Per-topic notifications done"
-
-    /usr/bin/python3 "$SCRIPTS_DIR/ai_trends_daily_summary_thai.py" \
+    # 2. Send the main Telegram summary immediately after report upload.
+    # Audio/TTS is handled by a separate cron job and must not delay this report.
+    /usr/bin/python3 -u "$SCRIPTS_DIR/ai_trends_daily_summary_thai.py" \
         --group "$_GROUP" \
-        --report-publish-status "$report_publish_status" \
-        --audio-publish-status "$audio_publish_status"
+        --no-audio-status \
+        --report-publish-status "$report_publish_status"
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Morning summary sent"
 else
     # Self-help round: report push + self-help Telegram summary only.
-    /usr/bin/python3 "$SCRIPTS_DIR/ai_trends_daily_summary_thai.py" \
+    /usr/bin/python3 -u "$SCRIPTS_DIR/ai_trends_daily_summary_thai.py" \
         --group self_help \
         --no-audio-status \
         --report-publish-status "$report_publish_status"

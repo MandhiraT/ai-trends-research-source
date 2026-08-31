@@ -5,7 +5,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from github_output_repo import GitRepoError, build_push_url, prepare_fresh_checkout
+from github_output_repo import GitRepoError, build_push_url, commit_and_push, prepare_fresh_checkout, run_git
 
 
 def _git(args, cwd):
@@ -80,3 +80,67 @@ def test_prepare_fresh_checkout_rejects_paths_outside_approved_roots(tmp_path):
         assert "outside approved ATS cache roots" in str(exc)
     else:
         raise AssertionError("Expected GitRepoError for checkout path outside approved roots")
+
+
+def test_prepare_fresh_checkout_raises_clear_error_when_clone_times_out(tmp_path, monkeypatch):
+    remote = _make_remote_repo(tmp_path)
+    checkout = tmp_path / "checkout-timeout"
+    real_run = subprocess.run
+
+    def fake_run(args, **kwargs):
+        if args[:2] == ["git", "clone"]:
+            raise subprocess.TimeoutExpired(cmd=args, timeout=1)
+        return real_run(args, **kwargs)
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    try:
+        prepare_fresh_checkout(str(remote), checkout, token=None, allowed_roots=[tmp_path], retries=1, clone_timeout=1)
+    except GitRepoError as exc:
+        assert "timed out after 1s" in str(exc)
+    else:
+        raise AssertionError("Expected GitRepoError for clone timeout")
+
+
+def test_run_git_raises_clear_error_when_git_command_times_out(tmp_path, monkeypatch):
+    repo = _make_remote_repo(tmp_path)
+    work = tmp_path / "work"
+    _git(["git", "clone", str(repo), str(work)], cwd=tmp_path)
+
+    def fake_run(*args, **kwargs):
+        raise subprocess.TimeoutExpired(cmd=kwargs.get("args", args[0] if args else []), timeout=2)
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    try:
+        run_git(["git", "status"], work, timeout=2)
+    except GitRepoError as exc:
+        assert "timed out after 2s" in str(exc)
+    else:
+        raise AssertionError("Expected GitRepoError for run_git timeout")
+
+
+def test_commit_and_push_raises_clear_error_when_push_times_out(tmp_path, monkeypatch):
+    remote = _make_remote_repo(tmp_path)
+    work = tmp_path / "push-timeout"
+    _git(["git", "clone", str(remote), str(work)], cwd=tmp_path)
+    _git(["git", "config", "user.email", "test@example.com"], cwd=work)
+    _git(["git", "config", "user.name", "Test User"], cwd=work)
+    (work / "README.md").write_text("updated\n", encoding="utf-8")
+    _git(["git", "add", "README.md"], cwd=work)
+
+    real_run = subprocess.run
+
+    def fake_run(args, **kwargs):
+        if args[:3] == ["git", "push", "origin"]:
+            raise subprocess.TimeoutExpired(cmd=args, timeout=3)
+        return real_run(args, **kwargs)
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    try:
+        commit_and_push(work, "update", token=None, push_timeout=3)
+    except GitRepoError as exc:
+        assert "timed out after 3s" in str(exc)
+    else:
+        raise AssertionError("Expected GitRepoError for push timeout")

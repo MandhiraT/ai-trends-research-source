@@ -2,8 +2,6 @@
   "enabled_topics": [
     "nateherk",
     "joanna_wiebe",
-    "health_food_nutrition",
-    "health_top_to_toe",
     "boom_bignose"
   ],
   "voice": "Aoede",
@@ -13,7 +11,8 @@
     "joanna_wiebe": "joanna_wiebe",
     "health_food_nutrition": "health/health_food_nutrition",
     "health_top_to_toe": "health/top_to_toe",
-    "boom_bignose": "boom_bignose"
+    "boom_bignose": "boom_bignose",
+    "research_job": "research_job"
   },
   "default_voice_profile": "ats_female_narrator",
   "voice_profiles": {
@@ -69,6 +68,15 @@
       "per_video": true,
       "publish": true,
       "github_folder": "boom_bignose",
+      "voice_profile": "ats_female_narrator"
+    },
+    "research_job": {
+      "enabled": true,
+      "script_type": "full",
+      "voice_type": "full",
+      "per_video": true,
+      "publish": true,
+      "github_folder": "research_job",
       "voice_profile": "ats_female_narrator"
     }
   }

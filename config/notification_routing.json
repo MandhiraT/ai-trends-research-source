@@ -38,7 +38,7 @@
       "notification_mode": "per_topic"
     },
     "health_food_nutrition": {
-      "email_enabled": true,
+      "email_enabled": false,
       "telegram_enabled": false,
       "recipient_emails": [
         "owllulla@gmail.com"
@@ -47,7 +47,7 @@
       "notification_mode": "per_topic"
     },
     "claude_fable_5": {
-      "email_enabled": true,
+      "email_enabled": false,
       "telegram_enabled": false,
       "recipient_emails": [
         "owllulla@gmail.com"

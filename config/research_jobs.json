@@ -7,10 +7,12 @@
       "source_type": "topic",
       "topic": "AI Agents",
       "source_url": "",
-      "max_videos": 5,
+      "max_videos": 3,
       "detailed": true,
       "report_folder": "ai_agents",
       "schedule_time": "05:00",
+      "daily_cron_enabled": true,
+      "on_demand": false,
       "include_in_daily_summary": true,
       "notes": "Mirrors current production cron topic job.",
       "source_language": "en",
@@ -18,8 +20,7 @@
         "en",
         "th",
         "all"
-      ],
-      "daily_cron_enabled": true
+      ]
     },
     {
       "id": "claude_code",
@@ -28,10 +29,12 @@
       "source_type": "topic",
       "topic": "Claude Code",
       "source_url": "",
-      "max_videos": 5,
+      "max_videos": 3,
       "detailed": true,
       "report_folder": "claude_code",
       "schedule_time": "05:20",
+      "daily_cron_enabled": true,
+      "on_demand": false,
       "include_in_daily_summary": true,
       "notes": "Mirrors current production cron topic job.",
       "source_language": "en",
@@ -39,8 +42,7 @@
         "en",
         "th",
         "all"
-      ],
-      "daily_cron_enabled": true
+      ]
     },
     {
       "id": "ai_viral_niche",
@@ -49,10 +51,12 @@
       "source_type": "topic",
       "topic": "AI Viral Niche",
       "source_url": "",
-      "max_videos": 5,
+      "max_videos": 3,
       "detailed": true,
       "report_folder": "ai_viral_niche",
       "schedule_time": "05:40",
+      "daily_cron_enabled": true,
+      "on_demand": false,
       "include_in_daily_summary": true,
       "notes": "Mirrors current production cron topic job.",
       "source_language": "en",
@@ -60,8 +64,7 @@
         "en",
         "th",
         "all"
-      ],
-      "daily_cron_enabled": true
+      ]
     },
     {
       "id": "nateherk",
@@ -129,23 +132,24 @@
     {
       "id": "make_money_matt",
       "name": "Make Money Matt",
-      "enabled": true,
+      "enabled": false,
       "source_type": "channel",
       "topic": "Make Money Matt",
       "source_url": "https://youtube.com/@makemoneymatt",
       "max_videos": 3,
-      "detailed": true,
+      "detailed": false,
       "report_folder": "make_money_matt",
       "schedule_time": "07:15",
-      "include_in_daily_summary": true,
+      "daily_cron_enabled": false,
+      "on_demand": false,
+      "include_in_daily_summary": false,
       "notes": "Mirrors current production cron channel job.",
       "source_language": "en",
       "transcript_langs": [
         "en",
         "th",
         "all"
-      ],
-      "daily_cron_enabled": true
+      ]
     },
     {
       "id": "miss_luna_vega",
@@ -208,18 +212,24 @@
     {
       "id": "claude_code_shopify",
       "name": "Claude Code Shopify",
-      "enabled": true,
+      "enabled": false,
       "source_type": "claude_code_subtopic",
       "topic": "shopify",
       "source_url": "",
       "max_videos": 5,
-      "detailed": true,
+      "detailed": false,
       "report_folder": "claude_code/claude_code_shopify",
-      "schedule_time": "07:35",
-      "daily_cron_enabled": true,
+      "schedule_time": "",
+      "daily_cron_enabled": false,
       "on_demand": false,
-      "include_in_daily_summary": true,
-      "notes": "Mirrors current production cron new Claude Code subtopic."
+      "include_in_daily_summary": false,
+      "notes": "Mirrors current production cron new Claude Code subtopic.",
+      "source_language": "en",
+      "transcript_langs": [
+        "en",
+        "th",
+        "all"
+      ]
     },
     {
       "id": "claude_code_design",
@@ -245,44 +255,46 @@
     {
       "id": "claude_code_hyperframe",
       "name": "Claude Code Hyperframe",
-      "enabled": true,
+      "enabled": false,
       "source_type": "claude_code_subtopic",
       "topic": "hyperframe",
       "source_url": "",
       "max_videos": 5,
-      "detailed": true,
+      "detailed": false,
       "report_folder": "claude_code/claude_code_hyperframe",
-      "schedule_time": "07:35",
-      "include_in_daily_summary": true,
+      "schedule_time": "",
+      "daily_cron_enabled": false,
+      "on_demand": false,
+      "include_in_daily_summary": false,
       "notes": "Mirrors current production cron new Claude Code subtopic.",
       "source_language": "en",
       "transcript_langs": [
         "en",
         "th",
         "all"
-      ],
-      "daily_cron_enabled": true
+      ]
     },
     {
       "id": "claude_code_heygen",
       "name": "Claude Code Heygen",
-      "enabled": true,
+      "enabled": false,
       "source_type": "claude_code_subtopic",
       "topic": "heygen",
       "source_url": "",
       "max_videos": 5,
-      "detailed": true,
+      "detailed": false,
       "report_folder": "claude_code/claude_code_heygen",
-      "schedule_time": "07:35",
-      "include_in_daily_summary": true,
+      "schedule_time": "",
+      "daily_cron_enabled": false,
+      "on_demand": false,
+      "include_in_daily_summary": false,
       "notes": "Added 2026-06-04 by Mandy request; runs in the morning Claude Code new-subtopics cron batch.",
       "source_language": "en",
       "transcript_langs": [
         "en",
         "th",
         "all"
-      ],
-      "daily_cron_enabled": true
+      ]
     },
     {
       "id": "claude_code_notebooklm",
@@ -329,23 +341,24 @@
     {
       "id": "claude_code_remotion_video",
       "name": "Claude Code Remotion Video",
-      "enabled": true,
+      "enabled": false,
       "source_type": "claude_code_subtopic",
       "topic": "remotion_video",
       "source_url": "",
       "max_videos": 3,
-      "detailed": true,
+      "detailed": false,
       "report_folder": "claude_code/claude_code_remotion_video",
-      "schedule_time": "07:35",
-      "include_in_daily_summary": true,
+      "schedule_time": "",
+      "daily_cron_enabled": false,
+      "on_demand": false,
+      "include_in_daily_summary": false,
       "notes": "Mirrors current production cron new Claude Code subtopic.",
       "source_language": "en",
       "transcript_langs": [
         "en",
         "th",
         "all"
-      ],
-      "daily_cron_enabled": true
+      ]
     },
     {
       "id": "claude_code_skills",
@@ -455,23 +468,24 @@
     {
       "id": "finance_financial_diet",
       "name": "Finance — The Financial Diet",
-      "enabled": true,
+      "enabled": false,
       "source_type": "channel",
       "topic": "Finance Financial Diet",
       "source_url": "https://youtube.com/@thefinancialdiet",
       "max_videos": 3,
-      "detailed": true,
+      "detailed": false,
       "report_folder": "finance_financial_diet",
       "schedule_time": "08:15",
-      "include_in_daily_summary": true,
+      "daily_cron_enabled": false,
+      "on_demand": false,
+      "include_in_daily_summary": false,
       "notes": "Finance/personal-finance channel added 2026-05-23 for practical daily-life Thai ATS summaries.",
       "source_language": "en",
       "transcript_langs": [
         "en",
         "th",
         "all"
-      ],
-      "daily_cron_enabled": true
+      ]
     },
     {
       "id": "finance_humphrey_yang",
@@ -560,23 +574,24 @@
     {
       "id": "self_help_healthygamergg",
       "name": "Self Help/Psychology — HealthyGamerGG",
-      "enabled": true,
+      "enabled": false,
       "source_type": "channel",
       "topic": "Self Help HealthyGamerGG",
       "source_url": "https://youtube.com/@HealthyGamerGG",
       "max_videos": 3,
-      "detailed": true,
+      "detailed": false,
       "report_folder": "self_help/psychology/healthygamergg",
       "schedule_time": "09:40",
-      "include_in_daily_summary": true,
+      "daily_cron_enabled": false,
+      "on_demand": false,
+      "include_in_daily_summary": false,
       "notes": "Self-help reviewed production set updated 2026-05-29 per Mandy.",
       "source_language": "en",
       "transcript_langs": [
         "en",
         "th",
         "all"
-      ],
-      "daily_cron_enabled": true
+      ]
     },
     {
       "id": "self_help_school_of_life",
@@ -602,44 +617,46 @@
     {
       "id": "self_help_dr_tracey_marks",
       "name": "Self Help/Psychology — Dr. Tracey Marks",
-      "enabled": true,
+      "enabled": false,
       "source_type": "channel",
       "topic": "Self Help Dr Tracey Marks",
       "source_url": "https://youtube.com/@DrTraceyMarks",
       "max_videos": 3,
-      "detailed": true,
+      "detailed": false,
       "report_folder": "self_help/psychology/dr_tracey_marks",
       "schedule_time": "10:00",
-      "include_in_daily_summary": true,
+      "daily_cron_enabled": false,
+      "on_demand": false,
+      "include_in_daily_summary": false,
       "notes": "Self-help reviewed production set updated 2026-05-29 per Mandy.",
       "source_language": "en",
       "transcript_langs": [
         "en",
         "th",
         "all"
-      ],
-      "daily_cron_enabled": true
+      ]
     },
     {
       "id": "self_help_ali_abdaal",
       "name": "Self Help/Habits — Ali Abdaal",
-      "enabled": true,
+      "enabled": false,
       "source_type": "channel",
       "topic": "Self Help Ali Abdaal",
       "source_url": "https://youtube.com/@aliabdaal",
       "max_videos": 3,
-      "detailed": true,
+      "detailed": false,
       "report_folder": "self_help/habits/ali_abdaal",
       "schedule_time": "10:10",
-      "include_in_daily_summary": true,
+      "daily_cron_enabled": false,
+      "on_demand": false,
+      "include_in_daily_summary": false,
       "notes": "Self-help reviewed production set updated 2026-05-29 per Mandy.",
       "source_language": "en",
       "transcript_langs": [
         "en",
         "th",
         "all"
-      ],
-      "daily_cron_enabled": true
+      ]
     },
     {
       "id": "self_help_the_diary_of_a_ceo",
@@ -665,23 +682,24 @@
     {
       "id": "self_help_struthless",
       "name": "Self Help/Habits — Struthless",
-      "enabled": true,
+      "enabled": false,
       "source_type": "channel",
       "topic": "Self Help Struthless",
       "source_url": "https://youtube.com/@struthless",
       "max_videos": 3,
-      "detailed": true,
+      "detailed": false,
       "report_folder": "self_help/habits/struthless",
       "schedule_time": "10:30",
-      "include_in_daily_summary": true,
+      "daily_cron_enabled": false,
+      "on_demand": false,
+      "include_in_daily_summary": false,
       "notes": "Self-help reviewed production set updated 2026-05-29 per Mandy.",
       "source_language": "en",
       "transcript_langs": [
         "en",
         "th",
         "all"
-      ],
-      "daily_cron_enabled": true
+      ]
     },
     {
       "id": "self_help_psych2go",
@@ -770,23 +788,24 @@
     {
       "id": "self_help_thai_the_library",
       "name": "Self Help/Thai Habits — The Library",
-      "enabled": true,
+      "enabled": false,
       "source_type": "channel",
       "topic": "Self Help Thai The Library",
       "source_url": "https://www.youtube.com/channel/UClX89xX6Ladx4Yig9YmE0gA",
       "max_videos": 3,
-      "detailed": true,
+      "detailed": false,
       "report_folder": "self_help/thai/habits/the_library",
       "schedule_time": "11:20",
-      "include_in_daily_summary": true,
+      "daily_cron_enabled": false,
+      "on_demand": false,
+      "include_in_daily_summary": false,
       "notes": "Self-help reviewed production set updated 2026-05-29 per Mandy. Thai channel from Self Help Channel.docx.",
       "source_language": "th",
       "transcript_langs": [
         "th",
         "en",
         "all"
-      ],
-      "daily_cron_enabled": true
+      ]
     },
     {
       "id": "self_help_thai_oui_buddhabless",
@@ -833,24 +852,24 @@
     {
       "id": "sabrina",
       "name": "Sabrina",
-      "enabled": true,
+      "enabled": false,
       "source_type": "channel",
       "topic": "Sabrina",
       "source_url": "https://youtube.com/@sabrina_ramonov?si=foFSr6IephMn74Yc",
       "max_videos": 3,
-      "detailed": true,
+      "detailed": false,
       "report_folder": "sabrina",
       "schedule_time": "07:40",
-      "include_in_daily_summary": true,
+      "daily_cron_enabled": false,
+      "on_demand": false,
+      "include_in_daily_summary": false,
       "notes": "Channel added 2026-06-21 by Mandy request; max 3 clips in daily morning ATS run.",
       "source_language": "en",
       "transcript_langs": [
         "en",
         "th",
         "all"
-      ],
-      "daily_cron_enabled": true,
-      "on_demand": false
+      ]
     },
     {
       "id": "speech",
@@ -858,15 +877,21 @@
       "enabled": true,
       "source_type": "video",
       "topic": "Claude",
-      "source_url": "https://youtu.be/28TGfTZweqw?si=n5ydmAcCTtjJfDrr",
-      "max_videos": 3,
+      "source_url": "https://youtu.be/keT_ywKa_lM?si=z0-xFVWBkXXly16X",
+      "max_videos": 1,
       "detailed": true,
       "report_folder": "on_demand/research_job",
       "schedule_time": "",
       "daily_cron_enabled": false,
       "on_demand": true,
       "include_in_daily_summary": false,
-      "notes": ""
+      "notes": "",
+      "source_language": "en",
+      "transcript_langs": [
+        "en",
+        "th",
+        "all"
+      ]
     },
     {
       "id": "self_help_thai_go_with_the_four",
@@ -875,10 +900,12 @@
       "source_type": "playlist",
       "topic": "Self Help Thai Podcast — Go with The Four",
       "source_url": "https://youtube.com/playlist?list=PL3f7lV2hDdvANj7yxFKTCt1hcdAPyBrXH",
-      "max_videos": 5,
+      "max_videos": 3,
       "detailed": true,
       "report_folder": "self_help/thai/podcast/go_with_the_four",
       "schedule_time": "11:50",
+      "daily_cron_enabled": true,
+      "on_demand": false,
       "include_in_daily_summary": true,
       "notes": "Thai thought-leadership podcast playlist: society, life perspective, future mindset; added from Mandy request 2026-06-06.",
       "source_language": "th",
@@ -886,9 +913,7 @@
         "th",
         "en",
         "all"
-      ],
-      "daily_cron_enabled": true,
-      "on_demand": false
+      ]
     },
     {
       "id": "claude_fable_5",
