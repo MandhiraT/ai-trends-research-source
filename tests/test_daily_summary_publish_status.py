@@ -38,3 +38,27 @@ def test_generate_daily_summary_prints_publish_warnings(monkeypatch):
 
     assert "Publish warnings:" in summary
     assert "GitHub upload ของ reports ล้มเหลว" in summary
+
+
+def test_send_ats_daily_summary_uses_dedicated_worktype_route(monkeypatch):
+    calls = []
+
+    def fake_send_route_message(route_id, text, env_file=None, parse_mode=None):
+        calls.append({
+            "route_id": route_id,
+            "text": text,
+            "env_file": env_file,
+            "parse_mode": parse_mode,
+        })
+        return {"ok": True, "message_id": 123}
+
+    monkeypatch.setattr(daily_summary, "send_route_message", fake_send_route_message)
+    result = daily_summary.send_ats_daily_summary("<b>hello</b>")
+
+    assert result["message_id"] == 123
+    assert calls == [{
+        "route_id": "ats_daily_summary",
+        "text": "<b>hello</b>",
+        "env_file": daily_summary.WORKTYPE_TELEGRAM_ENV,
+        "parse_mode": "HTML",
+    }]

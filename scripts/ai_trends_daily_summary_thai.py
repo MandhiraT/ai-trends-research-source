@@ -12,7 +12,7 @@ except ImportError:
 """
 AI Trends Daily Summary — Thai status report with Telegram notification.
 Checks actual report files for today, counts videos, builds status message,
-and sends to Telegram via Bot API.
+and sends to Telegram via the ATS daily summary work-type route.
 """
 
 import os
@@ -22,6 +22,16 @@ import argparse
 from datetime import datetime
 from pathlib import Path
 from voice_filenames import find_voice_files
+
+WORKTYPE_SCRIPTS_DIR = Path('/home/mandhira/Desktop/mandy-ai-ops-docs/content-engine/08-agent-collaboration/scripts')
+if WORKTYPE_SCRIPTS_DIR.exists():
+    _sys.path.insert(0, str(WORKTYPE_SCRIPTS_DIR))
+
+try:
+    from telegram_worktype_sender import DEFAULT_ENV as WORKTYPE_TELEGRAM_ENV, send_route_message  # type: ignore[import-not-found]
+except Exception:  # pragma: no cover - runtime fallback for dev envs without MPD docs checkout
+    WORKTYPE_TELEGRAM_ENV = None
+    send_route_message = None
 
 GITHUB_BASE = "https://github.com/MandhiraT/ai-trends-research/blob/master/reports"
 
@@ -167,24 +177,25 @@ def build_audio_status(date_str):
     return results
 
 
-def get_telegram_creds():
-    """Load bot token from Sati's Telegram channel config."""
-    try:
-        env_path = os.path.expanduser("~/.claude/channels/telegram/.env")
-        bot_token = ""
-        with open(env_path) as f:
-            for line in f:
-                line = line.strip()
-                if line.startswith("TELEGRAM_BOT_TOKEN="):
-                    bot_token = line.split("=", 1)[1].strip()
-                    break
-        chat_id = os.environ.get("TELEGRAM_CHAT_ID", "1043709932")
-        return bot_token, chat_id
-    except Exception:
-        return "", ""
+def send_ats_daily_summary(text):
+    """Send the daily ATS summary through the dedicated work-type route.
+
+    The old implementation read ``~/.claude/channels/telegram/.env`` and used
+    the generic/Sati-era TELEGRAM_BOT_TOKEN. Keep ATS cron traffic isolated by
+    requiring ATS_DAILY_SUMMARY_* credentials from the work-type routing env.
+    """
+    if send_route_message is None:
+        raise RuntimeError("ATS work-type Telegram sender is unavailable")
+    return send_route_message(
+        'ats_daily_summary',
+        text,
+        env_file=WORKTYPE_TELEGRAM_ENV,
+        parse_mode='HTML',
+    )
 
 
 def send_telegram(text, bot_token, chat_id):
+    """Legacy direct Telegram sender kept only for import compatibility in tests."""
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
     resp = requests.post(url, json={"chat_id": chat_id, "text": text, "parse_mode": "HTML"}, timeout=15)
     resp.raise_for_status()
@@ -284,14 +295,10 @@ if __name__ == "__main__":
             icon = "✅" if status == "ok" else "❌"
             print(f"  {icon} {topic} ({gh_folder}) — {size_mb:.1f} MB" if status == "ok" else f"  {icon} {topic} — missing")
 
-    # Send Telegram notification
-    bot_token, chat_id = get_telegram_creds()
-    if bot_token and chat_id:
-        try:
-            msg = build_telegram_message(date_str, time_str, lines, total_videos, found, audio_status, args.group, publish_warnings)
-            send_telegram(msg, bot_token, chat_id)
-            print(f"✅ Telegram notification sent to {chat_id}")
-        except Exception as e:
-            print(f"⚠️  Telegram notification failed: {e}")
-    else:
-        print("⚠️  Telegram credentials not found — skipping notification")
+    # Send Telegram notification through the dedicated ATS daily-summary route.
+    try:
+        msg = build_telegram_message(date_str, time_str, lines, total_videos, found, audio_status, args.group, publish_warnings)
+        result = send_ats_daily_summary(msg)
+        print(f"✅ ATS daily summary routed to ats_daily_summary message_id={result.get('message_id')}")
+    except Exception as e:
+        print(f"⚠️  ATS daily summary route failed: {e}")

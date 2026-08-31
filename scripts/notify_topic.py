@@ -34,6 +34,16 @@ except ImportError:
 
 import requests
 
+WORKTYPE_SCRIPTS_DIR = Path('/home/mandhira/Desktop/mandy-ai-ops-docs/content-engine/08-agent-collaboration/scripts')
+if WORKTYPE_SCRIPTS_DIR.exists():
+    sys.path.insert(0, str(WORKTYPE_SCRIPTS_DIR))
+
+try:
+    from telegram_worktype_sender import DEFAULT_ENV as WORKTYPE_TELEGRAM_ENV, send_route_message  # type: ignore[import-not-found]
+except Exception:  # pragma: no cover - runtime fallback for dev envs without MPD docs checkout
+    WORKTYPE_TELEGRAM_ENV = None
+    send_route_message = None
+
 # ── Paths ──────────────────────────────────────────────────────────────────
 ROUTING_CONFIG_PATH = Path(PROJECT_ROOT) / "config" / "notification_routing.json"
 AUDIO_CONFIG_PATH   = Path(PROJECT_ROOT) / "config" / "audio_topics.json"
@@ -254,16 +264,28 @@ def send_email(recipients, subject, html_body, text_body, dry_run=False):
 
 # ── Telegram ────────────────────────────────────────────────────────────────
 
-def get_telegram_token():
-    env_path = os.path.expanduser("~/.claude/channels/telegram/.env")
+def send_ats_route_telegram(text, dry_run=False):
+    """Send ATS per-topic Telegram notifications through the ATS work-type route.
+
+    This intentionally avoids the generic/Sati-era TELEGRAM_BOT_TOKEN path.
+    """
+    if dry_run:
+        print("    [DRY-RUN] Telegram route → ats_daily_summary")
+        return True
+    if send_route_message is None:
+        logging.error("notify_topic: ATS work-type Telegram sender is unavailable")
+        return False
     try:
-        for line in open(env_path, encoding="utf-8"):
-            line = line.strip()
-            if line.startswith("TELEGRAM_BOT_TOKEN="):
-                return line.split("=", 1)[1].strip()
-    except Exception:
-        pass
-    return os.environ.get("TELEGRAM_BOT_TOKEN", "")
+        send_route_message(
+            'ats_daily_summary',
+            text,
+            env_file=WORKTYPE_TELEGRAM_ENV,
+            parse_mode='HTML',
+        )
+        return True
+    except Exception as e:
+        logging.error(f"notify_topic: ATS Telegram route exception: {e}")
+        return False
 
 
 def build_telegram_text(vars_dict):
@@ -379,17 +401,12 @@ def notify_topic(topic_key, date_str, dry_run=False, email_only=False, telegram_
             sent = True
 
     if do_telegram and cfg["telegram_chat_ids"]:
-        bot_token = get_telegram_token()
-        if not bot_token:
-            print(f"  ❌  telegram: bot token not found")
-        else:
-            tg_text = build_telegram_text(vars_dict)
-            results = send_telegram_dms(bot_token, cfg["telegram_chat_ids"], tg_text, dry_run=dry_run)
-            for chat_id, ok in results:
-                tag = "(dry-run)" if dry_run else "sent"
-                print(f"  {'📨' if ok else '❌'} telegram → {chat_id}: {tag if ok else 'failed'}")
-                if ok:
-                    sent = True
+        tg_text = build_telegram_text(vars_dict)
+        ok = send_ats_route_telegram(tg_text, dry_run=dry_run)
+        tag = "(dry-run)" if dry_run else "sent"
+        print(f"  {'📨' if ok else '❌'} telegram route → ats_daily_summary: {tag if ok else 'failed'}")
+        if ok:
+            sent = True
 
     return sent
 
