@@ -980,6 +980,28 @@
         "th",
         "all"
       ]
+    },
+    {
+      "id": "marketing",
+      "name": "Alex Hormozi",
+      "enabled": true,
+      "source_type": "channel",
+      "topic": "Marketing",
+      "source_url": "https://www.youtube.com/@AlexHormozi",
+      "max_videos": 3,
+      "detailed": true,
+      "report_folder": "marketing",
+      "schedule_time": "06:30",
+      "daily_cron_enabled": true,
+      "on_demand": false,
+      "include_in_daily_summary": true,
+      "notes": "https://www.youtube.com/@AlexHormozi \r\nMarketing and sales funnel",
+      "source_language": "en",
+      "transcript_langs": [
+        "en",
+        "th",
+        "all"
+      ]
     }
   ]
 }
