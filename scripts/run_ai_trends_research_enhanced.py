@@ -33,6 +33,7 @@ import subprocess
 import sys
 import time
 from datetime import datetime, timezone
+from pathlib import Path
 
 WORKSPACE = PROJECT_ROOT
 BASE_REPORTS_DIR = f"{WORKSPACE}/ai_trends_reports"
@@ -94,8 +95,23 @@ def build_report_filename(report_date, generated_at, on_demand, all_video_data, 
 
     return f"{report_date}_{run_time}_{suffix}.md"
 
+
+def build_post_run_notification_command(topic_key, report_path):
+    """Build a fail-closed email command for one exact generated report."""
+    return [
+        sys.executable,
+        str(Path(WORKSPACE) / "scripts" / "notify_topic.py"),
+        "--topic",
+        topic_key,
+        "--report-path",
+        str(Path(report_path).resolve()),
+        "--email-only",
+        "--require-sent",
+    ]
+
+
 def get_dirs(topic, report_folder=None):
-    """Get topic-specific directories"""
+    """Get topic-specific directories."""
     topic_safe = sanitize_report_folder(report_folder) if report_folder else sanitize_topic(topic)
     tracker_safe = topic_safe.replace("/", "_").lower()
     return {
@@ -364,6 +380,8 @@ def main():
     parser.add_argument("--report-folder", help="Optional report folder under ai_trends_reports/reports")
     parser.add_argument("--config-job-id", help="Optional dashboard job id to include in report metadata")
     parser.add_argument("--on-demand", action="store_true", help="Use unique, readable per-run report filenames")
+    parser.add_argument("--notify-after-run", action="store_true",
+                        help="Email the exact generated report and fail if delivery is not accepted")
     parser.add_argument(
         "--transcript-langs",
         help="Comma-separated caption language preference, e.g. en,th,all or th,en,all",
@@ -550,6 +568,18 @@ def main():
     print(f"📊 Report location: {report_file}")
     print(f"🔁 Tracker: {dirs['tracker']}")
     print(f"🔑 Hash Tracker: {dirs['hash_tracker']}")
+
+    if args.notify_after_run:
+        if not args.config_job_id:
+            print("❌ --notify-after-run requires --config-job-id")
+            raise SystemExit(2)
+        notification_cmd = build_post_run_notification_command(args.config_job_id, report_file)
+        print(f"✉️ Sending exact report email for job: {args.config_job_id}")
+        notification = subprocess.run(notification_cmd, cwd=WORKSPACE)
+        if notification.returncode != 0:
+            print(f"❌ Report email was not accepted (exit {notification.returncode})")
+            raise SystemExit(notification.returncode)
+        print("✅ Exact report email accepted")
 
 if __name__ == "__main__":
     main()

@@ -126,6 +126,24 @@ def find_report_file(report_folder, date_str):
     return path if path.exists() else None
 
 
+def resolve_report_file(report_folder, date_str, report_path_override=None):
+    """Resolve either the daily report or one exact safe report from its topic folder."""
+    if not report_path_override:
+        return find_report_file(report_folder, date_str)
+
+    allowed_dir = (REPORTS_BASE / report_folder).resolve()
+    candidate = Path(report_path_override).expanduser().resolve()
+    try:
+        candidate.relative_to(allowed_dir)
+    except ValueError:
+        logging.error("notify_topic: explicit report is outside its configured topic folder")
+        return None
+    if candidate.suffix.lower() != ".md" or not candidate.is_file():
+        logging.error("notify_topic: explicit report is not a readable Markdown file")
+        return None
+    return candidate
+
+
 def extract_summary(report_path, max_chars=800):
     """Return (intro_text, video_count) from a report file."""
     try:
@@ -143,11 +161,13 @@ def extract_summary(report_path, max_chars=800):
 
 # ── URL builders ────────────────────────────────────────────────────────────
 
-def build_urls(topic_key, local_folder, report_folder, date_str):
+def build_urls(topic_key, local_folder, report_folder, date_str, report_stem=None):
     """Return (md_download_url, wav_download_url_or_None, view_url).
 
     All URLs point to the ATS dashboard (ai-trends.thequietself.com).
     view_url renders the report as HTML — no app required on any device.
+    ``report_stem`` targets an exact timestamped rerun while audio keeps using
+    the calendar date.
 
     Use the full report_folder for report URLs so nested folders like
     health/top_to_toe resolve correctly. For audio URLs, resolve the actual
@@ -155,7 +175,8 @@ def build_urls(topic_key, local_folder, report_folder, date_str):
     may differ from the audio folder key (e.g. health_top_to_toe_playlist job
     publishes voice under health_top_to_toe).
     """
-    report_params = urlencode({"topic": report_folder, "date": date_str})
+    report_ref = report_stem or date_str
+    report_params = urlencode({"topic": report_folder, "date": report_ref})
     md_download = f"{DASHBOARD_HOST}/download/report?" + report_params
     view_url    = f"{DASHBOARD_HOST}/view/report?" + report_params
     wav_download = None
@@ -190,7 +211,7 @@ def render_html_email(vars_dict):
     if not _JINJA_OK:
         return None
     try:
-        env  = Environment(loader=FileSystemLoader(str(TEMPLATES_DIR)), autoescape=False)
+        env  = Environment(loader=FileSystemLoader(str(TEMPLATES_DIR)), autoescape=True)
         tmpl = env.get_template("email_report.html.j2")
         return tmpl.render(**vars_dict)
     except Exception as e:
@@ -199,10 +220,18 @@ def render_html_email(vars_dict):
 
 
 def render_plain_email(vars_dict):
+    run_label = vars_dict.get("run_label", "")
+    title = f"[ATS] {vars_dict['topic_name']} — {vars_dict['video_count']} วิดีโอใหม่ · {vars_dict['date_thai']}"
+    if run_label:
+        title += f" · {run_label}"
     lines = [
-        f"[ATS] {vars_dict['topic_name']} — {vars_dict['video_count']} วิดีโอใหม่ · {vars_dict['date_thai']}",
+        title,
         "",
         vars_dict["intro_summary"],
+        "",
+        "===== รายงานฉบับเต็ม =====",
+        "",
+        vars_dict.get("report_content", ""),
         "",
     ]
     if vars_dict.get("view_url"):
@@ -348,8 +377,9 @@ def send_telegram_dms(bot_token, chat_ids, text, dry_run=False):
 
 # ── Core orchestrator ───────────────────────────────────────────────────────
 
-def notify_topic(topic_key, date_str, dry_run=False, email_only=False, telegram_only=False):
-    """Notify for one topic. Returns True if at least one channel succeeded."""
+def notify_topic(topic_key, date_str, dry_run=False, email_only=False, telegram_only=False,
+                 report_path_override=None):
+    """Notify for one topic and optionally target one exact rerun report."""
     if topic_key not in TOPIC_MAP:
         logging.warning(f"notify_topic: unknown topic key '{topic_key}'")
         return False
@@ -369,20 +399,35 @@ def notify_topic(topic_key, date_str, dry_run=False, email_only=False, telegram_
         return False
 
     display_name, local_folder, report_folder = TOPIC_MAP[topic_key]
-    report_path = find_report_file(report_folder, date_str)
+    report_path = resolve_report_file(report_folder, date_str, report_path_override)
     if report_path is None:
-        print(f"  ⏭  {topic_key}: no report for {date_str}")
+        target = report_path_override or date_str
+        print(f"  ⏭  {topic_key}: no safe report for {target}")
         return False
 
+    report_content = report_path.read_text(encoding="utf-8")
     intro, video_count = extract_summary(report_path)
-    md_download, wav_download, view_url = build_urls(topic_key, local_folder, report_folder, date_str)
+    stem_match = re.match(r"^(\d{4}-\d{2}-\d{2})(?:_(\d{2})(\d{2})_)?", report_path.stem)
+    report_date = stem_match.group(1) if stem_match else date_str
+    run_label = ""
+    if stem_match and stem_match.group(2):
+        run_label = f"rerun {stem_match.group(2)}:{stem_match.group(3)}"
+    md_download, wav_download, view_url = build_urls(
+        topic_key,
+        local_folder,
+        report_folder,
+        report_date,
+        report_stem=report_path.stem,
+    )
 
     vars_dict = {
         "topic_name":     display_name,
-        "date_str":       date_str,
-        "date_thai":      thai_date(date_str),
+        "date_str":       report_date,
+        "date_thai":      thai_date(report_date),
         "video_count":    video_count,
         "intro_summary":  intro,
+        "report_content": report_content,
+        "run_label":      run_label,
         "md_download_url":  md_download,
         "wav_download_url": wav_download,
         "view_url":         view_url,
@@ -391,7 +436,9 @@ def notify_topic(topic_key, date_str, dry_run=False, email_only=False, telegram_
     sent = False
 
     if do_email and cfg["recipient_emails"]:
-        subject   = f"[ATS] {display_name} — {video_count} วิดีโอใหม่ · {thai_date(date_str)}"
+        subject = f"[ATS] {display_name} — {video_count} วิดีโอใหม่ · {thai_date(report_date)}"
+        if run_label:
+            subject += f" · {run_label}"
         html_body = render_html_email(vars_dict)
         text_body = render_plain_email(vars_dict)
         ok = send_email(cfg["recipient_emails"], subject, html_body, text_body, dry_run=dry_run)
@@ -421,6 +468,10 @@ def main():
     grp.add_argument("--topic", metavar="KEY", help="Notify one topic key (e.g. NATEHERK)")
     parser.add_argument("--date", default=datetime.now().strftime("%Y-%m-%d"),
                         help="Report date YYYY-MM-DD (default: today)")
+    parser.add_argument("--report-path",
+                        help="Exact report .md path for a rerun (requires --topic)")
+    parser.add_argument("--require-sent", action="store_true",
+                        help="Exit non-zero unless every requested topic sent successfully")
     parser.add_argument("--dry-run", action="store_true",
                         help="Print planned actions without sending")
     parser.add_argument("--email-only", action="store_true",
@@ -428,6 +479,8 @@ def main():
     parser.add_argument("--telegram-only", action="store_true",
                         help="Skip email, send Telegram DMs only")
     args = parser.parse_args()
+    if args.report_path and not args.topic:
+        parser.error("--report-path requires --topic")
 
     date_str = args.date
     keys = [args.topic] if args.topic else list(TOPIC_MAP.keys())
@@ -442,14 +495,16 @@ def main():
             ok = notify_topic(key, date_str,
                               dry_run=args.dry_run,
                               email_only=args.email_only,
-                              telegram_only=args.telegram_only)
+                              telegram_only=args.telegram_only,
+                              report_path_override=args.report_path)
             if ok:
                 total_sent += 1
         except Exception as e:
             logging.error(f"notify_topic: unexpected error for {key}: {e}")
 
     print(f"\n✅ Done — {total_sent}/{len(keys)} topics notified")
+    return 1 if args.require_sent and total_sent != len(keys) else 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

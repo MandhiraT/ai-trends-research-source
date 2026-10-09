@@ -51,6 +51,8 @@ def test_build_command_enforces_count_for_channel_jobs():
     assert cmd[cmd.index("--count") + 1] == "3"
     assert "--transcript-langs" in cmd
     assert cmd[cmd.index("--transcript-langs") + 1] == "en,th,all"
+    assert "--on-demand" in cmd
+    assert "--notify-after-run" in cmd
 
 
 def test_schedule_slot_values_are_dropdown_safe_cron_times():

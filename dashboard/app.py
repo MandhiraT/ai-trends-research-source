@@ -648,8 +648,9 @@ def build_command(job):
             transcript_langs = ",".join(str(x).strip() for x in transcript_langs if str(x).strip())
         if transcript_langs:
             cmd.extend(["--transcript-langs", str(transcript_langs)])
-        if job.get("on_demand", False):
-            cmd.append("--on-demand")
+        # Every Dashboard Run Now is an on-demand execution: preserve a unique
+        # report and email that exact report even when this is an existing job.
+        cmd.extend(["--on-demand", "--notify-after-run"])
 
     if job.get("detailed", True):
         cmd.append("--detailed")
