@@ -226,6 +226,39 @@ def create_content_hash(title, description="", duration=0):
     content_string = f"{title}|{description}|{duration}"
     return hashlib.md5(content_string.encode()).hexdigest()
 
+
+def extract_youtube_video_id(video_url):
+    """Extract an 11-character YouTube ID from common URL shapes."""
+    match = re.search(
+        r"(?:[?&]v=|youtu\.be/|/shorts/|/live/|/embed/)([A-Za-z0-9_-]{11})",
+        video_url or "",
+    )
+    return match.group(1) if match else ""
+
+
+def processed_content_hashes(selected_videos, successful_video_data):
+    """Return hashes only for videos that completed processing successfully.
+
+    Candidate discovery can return more videos than ``--count`` allows. Marking
+    every candidate as seen would permanently skip videos that were never
+    processed, so the persisted tracker must be based on successful video IDs.
+    """
+    successful_ids = {
+        item.get("video_id") or extract_youtube_video_id(item.get("source_url", ""))
+        for item in successful_video_data
+        if item.get("video_id") or extract_youtube_video_id(item.get("source_url", ""))
+    }
+    return {
+        create_content_hash(
+            video.get("title", ""),
+            video.get("description", "") or "",
+            video.get("duration", 0),
+        )
+        for video in selected_videos
+        if video.get("id") in successful_ids
+    }
+
+
 def parse_transcript_langs(value):
     """Parse comma-separated transcript language preference.
 
@@ -296,10 +329,8 @@ def process_video_with_summarize(video_url, topic, video_title="Unknown", detail
     # Parse the summarize output to extract structured data
     summary_text = result.stdout
     
-    # Extract video ID from URL
-    import re
-    video_id_match = re.search(r'[?&]v=([^&]+)', video_url)
-    video_id = video_id_match.group(1) if video_id_match else ''
+    # Extract video ID from common YouTube URL forms (watch, Shorts, live, embed, youtu.be).
+    video_id = extract_youtube_video_id(video_url)
     
     # Count approximate length
     transcript_length = len(summary_text)
@@ -374,7 +405,6 @@ def main():
 
     # Filter out duplicates based on content hash
     unique_videos = []
-    new_hashes = set()
     
     for video in videos:
         if isinstance(video, dict):
@@ -388,7 +418,6 @@ def main():
                 
                 if content_hash not in existing_hashes:
                     unique_videos.append(video)
-                    new_hashes.add(content_hash)
                     print(f"✅ New content: {title[:50]}...")
                 else:
                     print(f"❌ Duplicate content skipped: {title[:50]}...")
@@ -509,10 +538,12 @@ def main():
                 "count_processed": len(videos_to_process)
             }, f, indent=2)
     
-    # Update content hashes
-    all_hashes = existing_hashes.union(new_hashes)
+    # Mark only videos that completed processing successfully. Candidate videos
+    # beyond --count must remain eligible for a later run.
+    processed_hashes = processed_content_hashes(videos_to_process, all_video_data)
+    all_hashes = existing_hashes.union(processed_hashes)
     save_content_hashes(dirs["hash_tracker"], all_hashes)
-    print(f"Updated content hashes tracker with {len(new_hashes)} new hashes")
+    print(f"Updated content hashes tracker with {len(processed_hashes)} new hashes")
 
     # Report back
     print(f"\n✅ Processed {len(all_video_data)} unique video(s) successfully")
