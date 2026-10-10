@@ -144,6 +144,20 @@ def resolve_report_file(report_folder, date_str, report_path_override=None):
     return candidate
 
 
+def extract_report_headings(report_path):
+    """Return Markdown headings only for concise email previews."""
+    try:
+        content = Path(report_path).read_text(encoding="utf-8")
+    except Exception:
+        return []
+    headings = []
+    for line in content.splitlines():
+        match = re.match(r"^\s{0,3}(#{1,6})\s+(.+?)\s*#*\s*$", line)
+        if match:
+            headings.append({"level": len(match.group(1)), "text": match.group(2).strip()})
+    return headings
+
+
 def extract_summary(report_path, max_chars=800):
     """Return (intro_text, video_count) from a report file."""
     try:
@@ -227,11 +241,10 @@ def render_plain_email(vars_dict):
     lines = [
         title,
         "",
-        vars_dict["intro_summary"],
-        "",
-        "===== รายงานฉบับเต็ม =====",
-        "",
-        vars_dict.get("report_content", ""),
+        f"หัวข้อในรายงาน ({len(vars_dict.get('report_headings', []))}):",
+    ]
+    lines.extend(f"- {heading['text']}" for heading in vars_dict.get("report_headings", []))
+    lines += [
         "",
     ]
     if vars_dict.get("view_url"):
@@ -407,6 +420,7 @@ def notify_topic(topic_key, date_str, dry_run=False, email_only=False, telegram_
 
     report_content = report_path.read_text(encoding="utf-8")
     intro, video_count = extract_summary(report_path)
+    report_headings = extract_report_headings(report_path)
     stem_match = re.match(r"^(\d{4}-\d{2}-\d{2})(?:_(\d{2})(\d{2})_)?", report_path.stem)
     report_date = stem_match.group(1) if stem_match else date_str
     run_label = ""
@@ -426,6 +440,7 @@ def notify_topic(topic_key, date_str, dry_run=False, email_only=False, telegram_
         "date_thai":      thai_date(report_date),
         "video_count":    video_count,
         "intro_summary":  intro,
+        "report_headings": report_headings,
         "report_content": report_content,
         "run_label":      run_label,
         "md_download_url":  md_download,

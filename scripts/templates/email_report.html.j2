@@ -12,10 +12,12 @@
     .header p { margin: 5px 0 0; font-size: 13px; color: #9ca3af; }
     .summary { padding: 22px 28px; border-bottom: 1px solid #e5e7eb; }
     .badge { display: inline-block; background: #eff6ff; color: #1d4ed8; font-size: 13px; border-radius: 999px; padding: 4px 14px; margin-bottom: 14px; font-weight: 600; }
-    .intro { font-size: 14px; line-height: 1.75; color: #374151; white-space: pre-wrap; word-wrap: break-word; margin: 0; }
-    .report { padding: 22px 28px; border-bottom: 1px solid #e5e7eb; }
-    .report h2 { margin: 0 0 14px; font-size: 15px; color: #111827; }
-    .report-body { font-family: Arial, sans-serif; font-size: 14px; line-height: 1.75; color: #1f2937; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .headings { margin: 0; padding-left: 22px; color: #374151; }
+    .headings li { margin: 0 0 8px; line-height: 1.5; }
+    .headings li:last-child { margin-bottom: 0; }
+    .heading-level-1 { font-weight: 700; color: #111827; }
+    .heading-level-2 { font-weight: 600; color: #1f2937; }
+    .heading-level-3, .heading-level-4, .heading-level-5, .heading-level-6 { color: #4b5563; font-size: 13px; }
     .links { padding: 20px 28px; border-bottom: 1px solid #e5e7eb; }
     .links h2 { margin: 0 0 14px; font-size: 12px; color: #6b7280; text-transform: uppercase; letter-spacing: .06em; }
     .btn { display: inline-block; text-decoration: none; padding: 9px 18px; border-radius: 6px; font-size: 14px; margin-right: 8px; margin-bottom: 8px; }
@@ -32,11 +34,13 @@
     </div>
     <div class="summary">
       <div class="badge">{{ video_count }} วิดีโอใหม่</div>
-      <p class="intro">{{ intro_summary }}</p>
-    </div>
-    <div class="report">
-      <h2>รายงานฉบับเต็ม — อ่านได้จากอีเมลนี้</h2>
-      <div class="report-body">{{ report_content }}</div>
+      {% if report_headings %}
+      <ul class="headings">
+        {% for heading in report_headings %}
+        <li class="heading-level-{{ heading.level }}">{{ heading.text }}</li>
+        {% endfor %}
+      </ul>
+      {% endif %}
     </div>
     <div class="links">
       <h2>ดาวน์โหลด / อ่าน</h2>

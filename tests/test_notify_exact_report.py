@@ -58,8 +58,13 @@ def test_exact_rerun_report_is_emailed_with_full_content_and_unique_url(tmp_path
     ) is True
 
     assert "rerun 12:34" in captured["subject"]
-    assert "เนื้อหารายงานฉบับเต็มสาม" in captured["text_body"]
-    assert "เนื้อหารายงานฉบับเต็มสาม" in captured["html_body"]
+    assert "Third" in captured["text_body"]
+    assert "Full Summary" in captured["text_body"]
+    assert "เนื้อหารายงานฉบับเต็มสาม" not in captured["text_body"]
+    assert "Third" in captured["html_body"]
+    assert "Full Summary" in captured["html_body"]
+    assert "เนื้อหารายงานฉบับเต็มสาม" not in captured["html_body"]
+    assert "View Report (browser)" in captured["html_body"]
     assert "date=2026-10-09_1234_marketing-3-videos" in captured["text_body"]
 
 

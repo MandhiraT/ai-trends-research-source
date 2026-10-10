@@ -17,7 +17,7 @@
 | GitHub upload | ✅ Hardened 2026-06-24 (fresh clone per publish, explicit publish-status warnings) |
 | Dedup system | ✅ Working |
 | Telegram daily digest | ✅ Working (includes audio status) |
-| Per-topic report/voice notifications | ✅ Added 2026-05-27 — `run_daily_summary_cron.sh` sends configured email/Telegram topic notifications after report upload + audio upload, before final daily digest |
+| Per-topic report/voice notifications | ✅ Working — email shows report headings only; full content is behind `View Report` | `notify_topic.py`, `config/notification_routing.json` |
 | Hallucination guard | ✅ Fixed 2026-05-24 (no downloadable captions → transcript unavailable; Thai captions are supported; production jobs now pass explicit transcript language order) |
 | Cron project path | ✅ Fixed 2026-05-12 (`Desktop/Projects`, not lowercase `projects`) |
 | Claude Code new subtopics | ✅ Working (Seedance, Higgsfield, Shopify, Hyperframe, Heygen) |
