@@ -763,6 +763,9 @@ _DEMO_PREFIX_NAV_SCRIPT = r"""<script>
 def page(title, body):
     p = _url_prefix()
     mjs_href, faw_href = _other_app_links()
+    # PSEO Hub is its own app (absolute URL even on the demo domain); unset = no PSEO tab.
+    pseo_href = os.environ.get("CONTENT_ENGINE_PSEO_URL") or ""
+    pseo_tab = f'\n      <a href="{pseo_href}">PSEO</a>' if pseo_href else ""
     I = _ICONS
     v = _ui_ver()
     return f"""<!doctype html>
@@ -831,7 +834,7 @@ def page(title, body):
     <div class="su-app-switch">
       <a href="{mjs_href}">MJS</a>
       <a href="{faw_href}">FAW</a>
-      <a href="{p}/" class="active">ATS</a>
+      <a href="{p}/" class="active">ATS</a>{pseo_tab}
     </div>
     <div class="su-sidebar-nav">
       <div class="su-nav-label">Research</div>
